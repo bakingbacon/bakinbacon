@@ -5,20 +5,14 @@ import (
 	"time"
 	"strings"
 	"strconv"
-	"encoding/json"
 	"encoding/hex"
 	"crypto/rand"
 
 	"golang.org/x/crypto/blake2b"
 	
 	log "github.com/sirupsen/logrus"
-	gotezos "github.com/DefinitelyNotAGoat/go-tezos/gt"
-	gtb "github.com/DefinitelyNotAGoat/go-tezos/block"
-	gtw "github.com/DefinitelyNotAGoat/go-tezos/account"
-	gto "github.com/DefinitelyNotAGoat/go-tezos/operations"
-	gtc "github.com/DefinitelyNotAGoat/go-tezos/crypto"
 	
-	goat "github.com/goat-systems/go-tezos"
+	gotezos "github.com/goat-systems/go-tezos"
 )
 
 const (
@@ -26,75 +20,49 @@ const (
 )
 
 var (
-	gt *gotezos.GoTezos
-	wallet gtw.Wallet
-	
 	Prefix_nonce []byte = []byte{69, 220, 169}
 	
-	gtv2 *goat.GoTezos
-	walletv2 *goat.Wallet
+	gt *gotezos.GoTezos
+	wallet *gotezos.Wallet
 )
 
-type Block struct {
-	Level int `json:"level"`
-	Proto int `json:"proto"`
-	Predecessor string `json:"predecessor"`
-	Timestamp time.Time `json:"timestamp"`
-	ValidationPass int `json:"validation_pass"`
-	OperationsHash string `json:"operations_hash"`
-	Fitness []string `json:"fitness"`
-	Context string `json:"context"`
-	Priority int `json:"priority"`
-	PoWNonce string `json:"proof_of_work_nonce"`
-}
 
 func main() {
 
 	log.SetLevel(log.DebugLevel)
 
 	var err error
-	gt, err = gotezos.NewGoTezos("127.0.0.1:18732")
+	gt, err = gotezos.New("127.0.0.1:18732")
 	if err != nil {
 		log.WithError(err).Fatal("could not connect to network")
 	}
-	
-	// v2
-	gtv2, _ = goat.New("127.0.0.1:18732")
-	
-// 	thirtyfour, err := gotezos.NewGoTezos("http://34.65.191.139:8732")
-// 	if err != nil {
-// 		log.Printf("could not connect to network: %v", err)
-// 	}
 	
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
 	
-	wallet, err = gt.Account.ImportWallet(BAKER, pk, sk)
+	wallet, err = gotezos.ImportWallet(BAKER, pk, sk)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 	log.WithField("Wallet", wallet.Address).Info("Loaded Wallet")
 	
-	// v2
-	walletv2, _ = goat.ImportWallet(BAKER, pk, sk)
-	
 	//log.Printf("Constants: PreservedCycles: %d, BlocksPerCycle: %d, BlocksPerRollSnapshot: %d",
 	//	gt.Constants.PreservedCycles, gt.Constants.BlocksPerCycle, gt.Constants.BlocksPerRollSnapshot)
 	
-	newHeadNotifier := make(chan gtb.Block, 1)
+	newHeadNotifier := make(chan *gotezos.Block, 1)
 
 	// this go func should loop forever, checking every 20s if a new block has appeared
-	go func(cH chan<- gtb.Block) {
+	go func(cH chan<- *gotezos.Block) {
 
-		var curHead gtb.Block
+		curHead := &gotezos.Block{}
 		
 		ticker := time.NewTicker(20 * time.Second)
 		
 		for {
 		
 			// watch for new head block
-			block, err := gt.Block.GetHead()
+			block, err := gt.Head()
 			if err != nil {
 				log.Println(err)
 			}
@@ -134,8 +102,8 @@ func main() {
 		select {
 		case block := <-newHeadNotifier:
 		
-			handleEndorsement(block)
-			//handleBake(block)
+			handleEndorsement(*block)
+			//handleBake(*block)
 
 		case <- ticker.C:
 			log.Debug("tick...")
@@ -143,10 +111,17 @@ func main() {
 	}
 }
 
-func handleBake(blk gtb.Block) {
-// 
+
+func handleBake(blk gotezos.Block) {
+
 // 	// look for baking rights at this level
-// 	rights, err := gt.Delegate.GetBakingRightsForDelegateAtHashLevel(blk.Hash, blk.Header.Level, BAKER)
+// 	bakingRights := gt.BakingRightsInput{
+// 		Level: blk.Header.Level,
+// 		Delegate: BAKER,
+// 		BlockHash: blk.Hash,
+// 	}
+// 
+// 	rights, err := gt.BakingRights(bakingRights)
 // 	if err != nil {
 // 		log.Println(err)
 // 	}
@@ -172,7 +147,7 @@ func handleBake(blk gtb.Block) {
 // 			"SeedHash": seedHashHex, "Nonce": nonceHash,
 // 		}).Info("Generated Nonce")
 // 	}
-// 
+
 // 	// Retrieve mempool operations
 // 	
 // 
@@ -217,6 +192,7 @@ func handleBake(blk gtb.Block) {
 // 		return
 // 	}
 // 	log.WithField("Bytes", string(blockBytes)).Debug("FORGED BLOCK")
+
 }
 
 
@@ -331,7 +307,7 @@ func generateNonce() (string, string, error) {
 	seedHash := seedHashGen.Sum([]byte{})
 
 	// B58 encode seed hash with nonce prefix
-	nonceHash := gtc.B58cencode(seedHash, Prefix_nonce)
+	nonceHash := gotezos.B58cencode(seedHash, Prefix_nonce)
 	seedHashHex := hex.EncodeToString(seedHash)
 
 	return nonceHash, seedHashHex, nil
@@ -343,6 +319,7 @@ func improvePoWNonce(oldNonce string) string {
 	nonce++
 	return fmt.Sprintf("%016x", nonce)
 }
+
 
 func improveFitness(oldFitness []string) []string {
 
@@ -362,164 +339,84 @@ func improveFitness(oldFitness []string) []string {
 	return newFitness
 }
 
-func handleEndorsement(blk gtb.Block) {
+
+func handleEndorsement(blk gotezos.Block) {
 
 	// look for endorsing rights at this level
-	rights, err := gt.Delegate.GetEndorsingRightsForDelegateAtHashLevel(blk.Hash, blk.Header.Level, BAKER)
+	endoRightsFilter := gotezos.EndorsingRightsInput{
+		BlockHash: blk.Hash,
+		Level: blk.Header.Level,
+		Delegate: BAKER,
+	}
+
+	rights, err := gt.EndorsingRights(endoRightsFilter)
 	if err != nil {
 		log.Println(err)
 	}
 	
-	if len(rights) == 0 {
+	if len(*rights) == 0 {
 		log.Info("No Endorsing Rights")
-		//return
+		return
 	}
 	
 	// continue since we have at least 1 endorsing right
-	for _, e := range rights {
+	for _, e := range *rights {
 		log.WithField("Slots", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing Rights")
 	}
 
-	// create endorsement operation
-	endo := gto.Conts{
-		Branch: blk.Hash,
-		Contents: []gtb.Contents{
-			gtb.Contents {
-				Kind: "endorsement",
-				Level: blk.Header.Level,
-			},
-		},
-	}
-	
-	s, e := json.Marshal(endo);
-	if e != nil {
-		log.Error("Error marshaling:", e)
-	}
-	//log.WithField("S", string(s)).Debug("v1")
-
 	// v2
-	endov2 := goat.ForgeOperationWithRPCInput{
+	endov2 := gotezos.ForgeOperationWithRPCInput{
 		Blockhash: blk.Hash,
 		Branch: blk.Hash,
-		Contents: []goat.Contents{
-			goat.Contents {
+		Contents: []gotezos.Contents{
+			gotezos.Contents {
 				Kind: "endorsement",
 				Level: blk.Header.Level,
 			},
 		},
-	}
-	//log.WithField("V2", endov2).Debug("v2")
-
-
-	// v1 convert JSON operation into Tezos bytes
-	endorsementBytes, err := gt.Operation.ForgeOperationBytes(string(s))
-	if err != nil {
-		log.Error("Error Forging Endorsement:", err)
-	}
-	log.WithField("Bytes", string(endorsementBytes)).Debug("FORGED ENDORSEMENT")
-	
+	}	
 	
 	// v2
-	ebv2, err := gtv2.ForgeOperationWithRPC(endov2)
+	ebv2, err := gt.ForgeOperationWithRPC(endov2)
 	if err != nil {
 		log.Error("Error Forging Endorsement:", err)
 	}
 	log.WithField("Bytes", ebv2).Debug("FORGED ENDORSEMENT v2")
 
-	// v1 Sign forged endorsement bytes with the secret key and chain id; return that signature
-	edsig, err := gt.Operation.SignEndorsementBytes(endorsementBytes, blk.ChainID, wallet)
-	if err != nil {
-		log.WithField("Message", err.Error()).Error("Could not sign endorsement bytes")
-	}
-	log.WithField("Signature", edsig).Debug("SIGNED SIGNATURE")
-
 	// v2
-	signedEndorsement, err := walletv2.SignEndorsementOperation(ebv2, blk.ChainID)
+	signedEndorsement, err := wallet.SignEndorsementOperation(ebv2, blk.ChainID)
 	if err != nil {
 		log.WithField("Message", err.Error()).Error("Could not sign endorsement bytes")
 	}
-	log.WithField("Signature", signedEndorsement.EDSig).Debug("SIGNED SIGNATURE v2")
 
-	// Extract and decode the bytes of the signature
-	decodedSignature, _, err := gt.Operation.DecodeSignature(edsig)
-	if err != nil {
-		log.WithField("Message", err.Error()).Fatal("Could not decode signature")
-	}
-	
-	// Strip off first 10 chars of the signature which are a watermark
-	decodedSignature = decodedSignature[10:(len(decodedSignature))]
-	log.WithField("DecodedSig", decodedSignature).Debug("DECODED SIG")
+	log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP V2")
+	log.WithField("Signature", signedEndorsement.EDSig).Debug("SIGNED SIGNATURE V2")
 	log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG V2")
 
-	// preapply operation
-	op := []struct{
-		Protocol	string `json:"protocol"`
-		Branch		string `json:"branch"`
-		Contents	[]gtb.Contents `json:"contents"`
-		Signature	string `json:"signature"`
-	}{
-		{
-			blk.Protocol,
-			blk.Hash,
-			endo.Contents,
-			edsig,
-		},
-	}
-	
-	opJson, _ := json.Marshal(op)
-	log.WithField("OP", string(opJson)).Debug("PREAPPLY")
-
-	// We can validate gt batch against the node for any errors
-	err = gt.Operation.PreApplyOperations(string(opJson))
-	if err != nil {
-		log.WithField("Message", err.Error()).Error("Could not preapply operations")
-	}
-
-
 	// V2
-	preapplyEndoOp := goat.PreapplyOperationsInput{
+	preapplyEndoOp := gotezos.PreapplyOperationsInput{
 		Blockhash: blk.Hash,
 		Protocol: blk.Protocol,
 		Signature: signedEndorsement.EDSig,
 		Contents: endov2.Contents,
 	}
 
-	// We can validate the operation against the node for any errors
-	_, err = gtv2.PreapplyOperations(preapplyEndoOp)
-	if err != nil {
+	// Validate the operation against the node for any errors
+	if _, err := gt.PreapplyOperations(preapplyEndoOp); err != nil {
 		log.WithField("Message", err.Error()).Error("Could not preapply operations")
 	}
-	//log.WithField("FinalOp", finalOperations).Debug("PREAPPLY v2")
-
-
-
-	// The signed bytes of the entire endorsement operation
-	// endorsement operation + signature(endorsment watermark (0x02) + chain id + endorsement operation)
-	// chain id = strip off the chainId prefix, then base58 decode
-	fullOperation := endorsementBytes + decodedSignature
-	
-	log.WithField("Operation", fullOperation).Debug("FULL OPERATION")
-	log.WithField("Operation", signedEndorsement.SignedOperation).Debug("FULL OPERATION V2")
-
-// 	operation, err := gt.Operation.InjectOperation(fullOperation)
-// 	if err != nil {
-// 		log.WithField("Message", err.Error()).Error("ERROR INJECTING")
-// 	} else {
-// 		log.WithField("Operation", stripQuote(string(operation))).Info("Injected Endorsement")
-// 	}
 
 	// v2
-	injectionInput := goat.InjectionOperationInput{
+	injectionInput := gotezos.InjectionOperationInput{
 		Operation: signedEndorsement.SignedOperation,
 	}
 
-	opHash, err := gtv2.InjectionOperation(injectionInput)
+	opHash, err := gt.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithField("Message", err.Error()).Error("ERROR INJECTING")
 	} else {
 		log.WithField("Operation", opHash).Info("Injected Endorsement")
 	}
-
 }
 
 func stripQuote(s string) string {

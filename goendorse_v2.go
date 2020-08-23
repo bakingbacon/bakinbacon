@@ -418,19 +418,16 @@ func handleEndorsement(blk gotezos.Block) {
 		log.WithField("Message", err.Error()).Error("Could not preapply operations")
 	}
 
-	// The signed bytes of the entire endorsement operation
-	// endorsement operation + signature(endorsment watermark (0x02) + chain id + endorsement operation)
-	// chain id = strip off the chainId prefix, then base58 decode
-// 	fullOperation := endorsementBytes + decodedSignature
+	injectionInput := goat.InjectionOperationInput{
+		Operation: signedEndorsement.SignedOperation,
+	}
 
-	log.WithField("Operation", finalOperations).Debug("FULL OPERATION")
-
-// 	operation, err := gt.Operation.InjectOperation(fullOperation)
-// 	if err != nil {
-// 		log.WithField("Message", err.Error()).Error("ERROR INJECTING")
-// 	} else {
-// 		log.WithField("Operation", stripQuote(string(operation))).Info("Injected Endorsement")
-// 	}
+	opHash, err := gtv2.InjectionOperation(injectionInput)
+	if err != nil {
+		log.WithField("Message", err.Error()).Error("ERROR INJECTING")
+	} else {
+		log.WithField("Operation", opHash).Info("Injected Endorsement")
+	}
 }
 
 func stripQuote(s string) string {

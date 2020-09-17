@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 
 	"golang.org/x/crypto/blake2b"
+	"github.com/pkg/errors"
 	
 	log "github.com/sirupsen/logrus"
 	
@@ -17,6 +18,9 @@ import (
 
 const (
 	BAKER string = "tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR"
+	PRIORITY_LENGTH int = 2
+	POW_HEADER_LENGTH int = 4
+	POW_LENGTH =  4
 )
 
 var (
@@ -103,7 +107,7 @@ func main() {
 		case block := <-newHeadNotifier:
 		
 			handleEndorsement(*block)
-			//handleBake(*block)
+			handleBake(*block)
 
 		case <- ticker.C:
 			log.Debug("tick...")
@@ -114,89 +118,215 @@ func main() {
 
 func handleBake(blk gotezos.Block) {
 
-// 	// look for baking rights at this level
-// 	bakingRights := gt.BakingRightsInput{
-// 		Level: blk.Header.Level,
-// 		Delegate: BAKER,
-// 		BlockHash: blk.Hash,
-// 	}
-// 
-// 	rights, err := gt.BakingRights(bakingRights)
-// 	if err != nil {
-// 		log.Println(err)
-// 	}
-// 	
-// 	if len(rights) == 0 {
-// 		log.Info("No Baking Rights")
-// 		return
-// 	}
-// 	
-// 	if len(rights) > 1 {
-// 		log.WithField("Rights", rights).Error("Found more than 1 baking right")
-// 	}
-// 	
-// 	// Determine if we need to calculate a nonce
-// 	if blk.Header.Level + 1 % 32 == 0 {
-// 		log.Info("Nonce required");
-// 		nonceHash, seedHashHex, err := generateNonce()
-// 		if err != nil {
-// 			log.WithError(err)
-// 		}
-// 
-// 		log.WithFields(log.Fields{
-// 			"SeedHash": seedHashHex, "Nonce": nonceHash,
-// 		}).Info("Generated Nonce")
-// 	}
+	// look for baking rights at this level
+	bakingRights := gotezos.BakingRightsInput{
+		Level: blk.Header.Level,
+		Delegate: BAKER,
+		BlockHash: blk.Hash,
+	}
 
-// 	// Retrieve mempool operations
-// 	
-// 
-// 	operations, err := parseMempoolOperations(mempoolOps)
-// 	if err != nil {
-// 		log.WithError(err).Error("Failed to parse mempool ops")
-// 	}
-// 	
-// 	return
-// 
-// 	// current head contains information we need to construct our block
-// 	myLevel := blk.Header.Level + 1
-// 	myTs := blk.Header.Timestamp.Add(time.Second * 50)
-// 	myFitness := improveFitness(blk.Header.Fitness)
-// 	myPoWNonce := improvePoWNonce(blk.Header.ProofOfWorkNonce)
-// 	//myOperations := make([][]gtb.Operations, 4)
-// 	
-// 	// create block
-// 	block := Block{
-// 		Level: myLevel,
-// 		Proto: blk.Header.Proto,
-// 		Predecessor: blk.Hash,
-// 		Timestamp: myTs,
-// 		ValidationPass: 4,
-// 		Fitness: myFitness,
-// 		OperationsHash: "LLoanPsQQELqiHWt9dTFBprDqKrgoS5XdxoRApuui1LpCTK3hFp8w",
-// 		Context: blk.Header.Context,
-// 		Priority: 0,
-// 		PoWNonce: myPoWNonce,
-// 	}
-// 	
-// 	b, e := json.Marshal(block);
-// 	if e != nil {
-// 		log.Error("Error marshaling block:", e)
-// 	}
-// 	log.WithField("JSON", string(b)).Info("Block")
-// 
-// 	// convert JSON operation into Tezos bytes
-// 	blockBytes, err := gt.Block.ForgeBlockHeader(string(b))
-// 	if err != nil {
-// 		log.WithError(err).Error("Error Forging Block")
-// 		return
-// 	}
-// 	log.WithField("Bytes", string(blockBytes)).Debug("FORGED BLOCK")
+	rights, err := gt.BakingRights(bakingRights)
+	if err != nil {
+		log.Println(err)
+	}
+	
+	if len(*rights) == 0 {
+		log.Info("No Baking Rights")
+		//return
+	}
 
+	if len(*rights) > 1 {
+		log.WithField("Rights", rights).Error("Found more than 1 baking right")
+	}
+
+	// Determine if we need to calculate a nonce
+	var nonceHash, seedHashHex string
+	if blk.Header.Level + 1 % 32 == 0 {
+		log.Info("Nonce required");
+		nonceHash, seedHashHex, err = generateNonce("")
+		if err != nil {
+			log.WithError(err)
+		}
+
+		log.WithFields(log.Fields{
+			"SeedHash": seedHashHex, "Nonce": nonceHash,
+		}).Info("Generated Nonce")
+	}
+
+	// Retrieve mempool operations
+	mempoolOps, err := gt.Mempool()
+	if err != nil {
+		log.WithError(err).Error("Failed to fetch mempool ops")
+		return
+	}
+
+	// Parse/filter mempool operations into correct
+	// operation slots for adding to the block
+	operations, err := parseMempoolOperations(mempoolOps, blk.Hash, blk.Protocol)
+	if err != nil {
+		log.WithError(err).Error("Failed to sort mempool ops")
+		return
+	}
+
+	// temp
+	priority := 1
+
+	pd := gotezos.ProtocolData{
+            blk.Protocol,
+            //(*rights)[0].Priority,
+            priority,
+            "0000000000000000",
+			"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
+			nonceHash,
+	}
+
+	bh := gotezos.PreapplyBlockOperationInput{
+		pd,
+		operations,
+		true,
+		//(*rights)[0].EstimatedTime,
+		time.Now().UTC().Add(2 * time.Minute),
+	}
+
+	//log.Debug(bh)
+	
+	preapplyResp, err := gt.PreapplyBlockOperation(bh)
+	if err != nil {
+		log.WithError(err).Error("Unable to preapply block")
+		return
+	}
+
+	// With the returned preapply block result, execute a simple proof-of-work
+	log.WithField("Resp", preapplyResp).Debug("PREAPPLY RESPONSE")
+
+	// Start constructing the actual block with info that comes back
+	// from the preapply
+	shellHeader := preapplyResp.Shellheader
+	protocolData, err := createProtocolData(priority, "", "", "")
+	if err != nil {
+		log.WithError(err).Error("Bad protocol data")
+		return
+	}
+	log.WithField("ProtocolData", protocolData).Debug("PreApply-Shell")
+	shellHeader.ProtocolData = protocolData
+	
+	// Forge the block header
+	forgedBlockHeaderRes, err := gt.ForgeBlockHeader(shellHeader)
+	if err != nil {
+		log.WithError(err).Error("Unable to forge block header")
+		return
+	}
+	log.WithField("Forged", forgedBlockHeaderRes).Debug("FORGED HEADER")
+
+	// Get just the forged block
+	forgedBlock := forgedBlockHeaderRes.BlockHeader
+
+	// The last 22 characters of forged block header we don't need
+	forgedBlock = forgedBlock[:len(forgedBlock) - 22]
+
+	// Perform a lame proof-of-work computation
+	blockbytes, attempts, err := powLoop(forgedBlock, priority, seedHashHex)
+	if err != nil {
+		log.WithError(err).Error("Unable to POW!")
+		return
+	}
+
+	// POW done
+	log.WithFields(log.Fields{
+		"Attempts": attempts, "Bytes": blockbytes,
+	}).Info("Proof-of-Work Completed")
+
+	// Take blockbytes and sign it
 }
 
 
-func parseMempoolOperations(ops []interface{}, headHash, headProtocol string) ([][]interface{}, error) {
+func stampcheck(buf []byte) int {
+	v := 0
+	for i := 0; i < 8; i++ {
+		v = (v * 256) + int(buf[i])
+	}
+	return v
+}
+
+
+func powLoop(forgedBlock string, priority int, seed string) (string, int, error) {
+
+	newProtocolData, _ := createProtocolData(priority, "00bc0303", "00000000", seed)
+	
+	log.WithField("newProtocolData", newProtocolData).Info("POW New Protocol Data")
+
+	blockBytes := forgedBlock + newProtocolData + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	hashBuffer, _ := hex.DecodeString(blockBytes)
+
+	protocolOffset := (len(forgedBlock) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
+
+	attempts := 0
+	powThreshold, _ := strconv.Atoi(gt.NetworkConstants.ProofOfWorkThreshold)
+
+	for {
+		attempts++
+
+		for i := POW_LENGTH - 1; i >= 0; i-- {
+			if hashBuffer[protocolOffset + i] == 255 {
+				hashBuffer[protocolOffset + i] = 0
+			} else {
+				hashBuffer[protocolOffset + i]++
+				break  // break out of for-loop
+			}
+		}
+		
+		// check the hash after manipulating
+		rr, err := cryptoGenericHash(hex.EncodeToString(hashBuffer))
+		if err != nil {
+			return "", 0, errors.Wrap(err, "POW Unable to check hash")
+		}
+
+		// Did we reach our mark?
+		if stampcheck(rr) <= powThreshold {
+			mhex := hex.EncodeToString(hashBuffer)
+			mhex = mhex[:len(mhex) - 128]
+
+			return mhex, attempts, nil
+		}
+		
+		// Safety
+		if attempts > 1e4 {
+			return "", attempts, errors.Wrap(err, "POW exceeded safety limits")
+		}
+	}	
+
+	return "", 0, nil
+}
+
+
+func createProtocolData(priority int, powHeader, pow, seed string) (string, error) {
+
+// 	   if (typeof seed == "undefined") seed = "";
+//     if (typeof pow == "undefined") pow = "";
+//     if (typeof powHeader == "undefined") powHeader = "";
+//     return priority.toString(16).padStart(4,"0") + 
+//     powHeader.padEnd(8, "0") + 
+//     pow.padEnd(8, "0") + 
+//     (seed ? "ff" + seed.padEnd(64, "0") : "00") +
+//     '';
+
+	padEnd := func(s string, llen int) string {
+		return s + strings.Repeat("0", llen - len(s))
+	}
+
+	newSeed := "00"
+	if seed != "" {
+		newSeed = "ff" + padEnd(seed, 64)
+	}
+
+	return fmt.Sprintf("%04x%s%s%s",
+		priority,
+		padEnd(powHeader, 8),
+		padEnd(pow, 8),
+		newSeed), nil
+}
+
+func parseMempoolOperations(ops gotezos.Mempool, headHash, headProtocol string) ([][]interface{}, error) {
 
 // 	for(var i = 0; i < r.applied.length; i++){
 // 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -216,56 +346,64 @@ func parseMempoolOperations(ops []interface{}, headHash, headProtocol string) ([
 // 	}
 
 	// 4 slots for operations to be sorted into
+	// Init each slot to size 0 so that marshaling returns "[]" instead of nulll
 	operations := make([][]interface{}, 4)
+	for i, _ := range operations {
+		operations[i] = make([]interface{}, 0)
+	}
 
-// 	for _, op := range ops {
-// 
-// 		// TODO: Check to make sure we have not already added an op
-// 
-// 		// Operation must match our head/branch
-// 		if op.branch != headHash {
-// 			continue
-// 		}
-// 		
-// 		// Determine the type of op to find out into which slot it goes
-// 		opSlot := func(opKind string) int {
-// 			switch opKind {
-// 			case "endorsement":
-// 				return 0
-// 			case "proposals":
-// 			case "ballot":
-// 				return 1
-// 			case "seed_nonce_revelation":
-// 			case "double_endorsement_evidence":
-// 			case "double_baking_evidence":
-// 			case "activate_account":
-// 				return 2
-// 			default:
-// 				return 3
-// 		}(op.contents[0].kind)
-// 
-// 		operations[opSlot] = append(operations[opSlot], []struct{
-// 				Protocol	string `json:"protocol"`
-// 				Branch		string `json:"branch"`
-// 				Contents	[]gtb.Contents `json:"contents"`
-// 				Signature	string `json:"signature"`
-// 			}{
-// 				{
-// 					headProtocol,
-// 					op.branch,
-// 					op.contents,
-// 					op.signature,
-// 				},
-// 			}
-// 		)
-// 
-// 	}
+	for _, op := range ops.Applied {
+
+		// TODO: Check to make sure we have not already added an op
+
+		// Operation must match our head/branch
+		if op.Branch != headHash {
+			continue
+		}
+
+		// Determine the type of op to find out into which slot it goes
+		var opSlot int = 3
+		if len(op.Contents) == 1 {
+			opSlot = func(opKind string) int {
+				switch opKind {
+				case "endorsement":
+					return 0
+				case "proposals", "ballot":
+					return 1
+				case "seed_nonce_revelation", "double_endorsement_evidence",
+						"double_baking_evidence", "activate_account":
+						return 2
+				}
+				return 3
+			}(op.Contents[0].Kind)
+		}
+
+		// For now, skip transactions and other unknown operations
+		if opSlot == 3 {
+			continue
+		}
+
+		// Add operation to slot
+		operations[opSlot] = append(operations[opSlot], struct{
+				Protocol	string `json:"protocol"`
+				Branch		string `json:"branch"`
+				Contents	[]gotezos.Contents `json:"contents"`
+				Signature	string `json:"signature"`
+			}{
+				headProtocol,
+				op.Branch,
+				op.Contents,
+				op.Signature,
+			},
+		)
+
+	}
 
 	return operations, nil
 }
 
 
-func generateNonce() (string, string, error) {
+func generateNonce(seed string) (string, string, error) {
 
 	//  Testing:
 	// 	  Seed:       e6d84e1e98a65b2f4551be3cf320f2cb2da38ab7925edb2452e90dd5d2eeeead
@@ -274,69 +412,27 @@ func generateNonce() (string, string, error) {
 	// 	  Nonce Hash: nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm
 	// 	  Seed Hex:   a067ece149449d72c2c2a2d7ff2c32769db0ec3e6872dbc18cc4853fb3e58bcc
 
-	// Generate a hexadecimal seed from random bytes
-	randBytes := make([]byte, 64)
-	if _, err := rand.Read(randBytes); err != nil {
-		log.WithError(err).Error("Unable to read random bytes")
-		return "", "", err
-	}
-	seed := hex.EncodeToString(randBytes)[:64]
-
-	// Convert random hex seed to bytes
-	seedBytes, err := hex.DecodeString(seed)
-	if err != nil {
-		log.WithError(err).Error("Unable to hex decode seed bytes")
-		return "", "", err
+	if seed != "" {
+		// Generate a hexadecimal seed from random bytes
+		randBytes := make([]byte, 64)
+		if _, err := rand.Read(randBytes); err != nil {
+			log.WithError(err).Error("Unable to read random bytes")
+			return "", "", err
+		}
+		seed = hex.EncodeToString(randBytes)[:64]
 	}
 
-	// Generic hash of 32 bytes
-	seedHashGen, err := blake2b.New(32, []byte{})
+	seedHash, err := cryptoGenericHash(seed)
 	if err != nil {
-		log.WithError(err).Error("Unable create blake2b hash object")
+		log.WithError(err).Error("Unable to hash seed for nonce")
 		return "", "", err
 	}
-	
-	// Write seed bytes to hash
-	_, err = seedHashGen.Write(seedBytes)
-	if err != nil {
-		log.WithError(err).Error("Unable write nonce seedBytes to hash")
-		return "", "", err
-	}
-
-	// Generate checksum of seed
-	seedHash := seedHashGen.Sum([]byte{})
 
 	// B58 encode seed hash with nonce prefix
 	nonceHash := gotezos.B58cencode(seedHash, Prefix_nonce)
 	seedHashHex := hex.EncodeToString(seedHash)
 
 	return nonceHash, seedHashHex, nil
-}
-
-
-func improvePoWNonce(oldNonce string) string {
-	nonce, _ := strconv.ParseInt(oldNonce, 16, 64)
-	nonce++
-	return fmt.Sprintf("%016x", nonce)
-}
-
-
-func improveFitness(oldFitness []string) []string {
-
-	newFitness := make([]string, 2)
-
-	// copy first element
-	// TODO: what does first element mean?
-	newFitness[0] = oldFitness[0]
-	
-	// Convert and increment second element
-	fitness, _ := strconv.ParseInt(oldFitness[1], 16, 0)
-	
-	fitness++
-	
-	newFitness[1] = fmt.Sprintf("%016x", fitness)
-	
-	return newFitness
 }
 
 
@@ -417,6 +513,35 @@ func handleEndorsement(blk gotezos.Block) {
 	} else {
 		log.WithField("Operation", opHash).Info("Injected Endorsement")
 	}
+}
+
+
+func cryptoGenericHash(buffer string) ([]byte, error) {
+
+	// Convert hex buffer to bytes
+	bufferBytes, err := hex.DecodeString(buffer)
+	if err != nil {
+		return []byte{0}, errors.Wrap(err, "Unable to hex decode buffer bytes")
+	}
+	fmt.Println(bufferBytes)
+	log.WithField("BufferBytes", bufferBytes).Debug("Crypto Generic Hash")
+
+	// Generic hash of 32 bytes
+	bufferBytesHashGen, err := blake2b.New(32, []byte{})
+	if err != nil {
+		return []byte{0}, errors.Wrap(err, "Unable create blake2b hash object")
+	}
+	
+	// Write buffer bytes to hash
+	_, err = bufferBytesHashGen.Write(bufferBytes)
+	if err != nil {
+		return []byte{0}, errors.Wrap(err, "Unable write buffer bytes to hash function")
+	}
+
+	// Generate checksum of buffer bytes
+	bufferHash := bufferBytesHashGen.Sum([]byte{})
+
+	return bufferHash, nil
 }
 
 func stripQuote(s string) string {

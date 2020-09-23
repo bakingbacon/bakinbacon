@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"flag"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,13 +34,30 @@ var (
 
 func main() {
 
-	log.SetLevel(log.DebugLevel)
+	// Args
+	logDebug := flag.Bool("debug", false, "Enable debug logging")
+	maxBakePriority := flag.Int("max-priority", 64, "Maximum allowed priority to bake")
+	rpcHostname := flag.String("node-rpc", "127.0.0.1", "Hostname/IP of RPC server")
+	rpcPort := flag.Int("node-port", 8732, "TCP/IP port of RPC server")
+	flag.Parse()
 
-	var err error
-	gt, err = gotezos.New("127.0.0.1:18732")
-	if err != nil {
-		log.WithError(err).Fatal("could not connect to network")
+	// Logging
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	if *logDebug {
+		log.SetLevel(log.DebugLevel)
 	}
+
+	// Connection to node
+	var err error
+	rpcHostPort := fmt.Sprintf("%s:%d", *rpcHostname, *rpcPort)
+	gt, err = gotezos.New(rpcHostPort)
+	if err != nil {
+		log.WithError(err).Fatalf("Could not connect to network: %s", rpcHostPort)
+	}
+	log.WithField("RPCServer", rpcHostPort).Info("Connected to RPC")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
@@ -47,7 +67,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	log.WithField("Wallet", wallet.Sk).Info("Loaded Wallet")
+	log.WithField("Baker", wallet.Address).Info("Loaded Wallet")
 
 	//log.Printf("Constants: PreservedCycles: %d, BlocksPerCycle: %d, BlocksPerRollSnapshot: %d",
 	//	gt.Constants.PreservedCycles, gt.Constants.BlocksPerCycle, gt.Constants.BlocksPerRollSnapshot)
@@ -59,7 +79,7 @@ func main() {
 
 		curHead := &gotezos.Block{}
 
-		ticker := time.NewTicker(20 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 
 		for {
 
@@ -82,38 +102,38 @@ func main() {
 				cycle := curHead.Metadata.Level.Cycle
 
 				log.WithFields(log.Fields{
-					"ChainID": chainid, "Hash": hash, "Level": level, "Cycle": cycle},
-				).Info("New Block")
+					"Cycle": cycle, "Level": level, "Hash": hash, "ChainID": chainid,
+				}).Info("New Block")
 			}
 
 			// wait here for timer
-			select {
-			case <-ticker.C:
-				break
-			}
+			<-ticker.C
+			log.Debug("tick...")
 		}
 
 	}(newHeadNotifier)
 
-	// loop forever, waiting for new blocks
-	// when new block, check for endorsing rights
-	for {
+	// loop forever, waiting for new blocks on the channel
+	ctx, ctxCancel := context.WithCancel(context.Background())
 
-		ticker := time.NewTicker(10 * time.Second)
+	for block := range newHeadNotifier {
 
-		select {
-		case block := <-newHeadNotifier:
+		// New block means to cancel any existing baking work as
+		// someone else beat us to it.
+		// Noop on very first block from channel
+		ctxCancel()
 
-			handleEndorsement(*block)
-			handleBake(*block)
+		// Create a new context for this run
+		ctx, ctxCancel = context.WithCancel(context.Background())
 
-		case <-ticker.C:
-			log.Debug("tick...")
-		}
+		go handleEndorsement(ctx, *block)
+		go handleBake(ctx, *block, *maxBakePriority)
 	}
 }
 
-func handleEndorsement(blk gotezos.Block) {
+func handleEndorsement(ctx context.Context, blk gotezos.Block) {
+
+	log.WithField("BlockHash", blk.Hash).Debug("Received Endorsement Hash")
 
 	// look for endorsing rights at this level
 	endoRightsFilter := gotezos.EndorsingRightsInput{
@@ -157,6 +177,15 @@ func handleEndorsement(blk gotezos.Block) {
 	}
 	//log.WithField("Bytes", endorsementBytes).Debug("FORGED ENDORSEMENT")
 
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling endorsement")
+		return
+	default:
+		break
+	}
+
 	// v2
 	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID)
 	if err != nil {
@@ -187,15 +216,27 @@ func handleEndorsement(blk gotezos.Block) {
 		Operation: signedEndorsement.SignedOperation,
 	}
 
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling endorsement")
+		return
+	default:
+		break
+	}
+
 	opHash, err := gt.InjectionOperation(injectionInput)
 	if err != nil {
-		log.WithError(err).Error("ERROR INJECTING")
+		log.WithError(err).Error("Endorsement Failure")
 	} else {
-		log.WithField("Operation", opHash).Info("Injected Endorsement")
+		log.WithField("Operation", opHash).Info("Endorsement Injected")
 	}
 }
 
-func handleBake(blk gotezos.Block) {
+func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
+
+	// Reference
+	// https://gitlab.com/tezos/tezos/-/blob/mainnet-staging/src/proto_006_PsCARTHA/lib_delegate/client_baking_forge.ml
 
 	// TODO
 	// error="failed to preapply new block: response returned code 400 with body Failed to
@@ -206,46 +247,10 @@ func handleBake(blk gotezos.Block) {
 	// Check that we have not already baked this block
 	// ie: implement internal watermark
 
-	// look for baking rights at this level
-	bakingRights := gotezos.BakingRightsInput{
-		Level:     blk.Header.Level + 1,
-		Delegate:  BAKER,
-		BlockHash: blk.Hash,
-	}
-
-	rights, err := gt.BakingRights(bakingRights)
-	if err != nil {
-		log.Println(err)
-	}
-
-	if len(*rights) == 0 {
-		log.Info("No Baking Rights")
-		return
-	}
-	log.WithField("Rights", rights).Info("Rights")
-
-	if len(*rights) > 1 {
-		log.WithField("Rights", rights).Warn("Found more than 1 baking right!")
-	}
-
-	if (*rights)[0].Priority > 4 {
-		log.Info("Priority > 4; Skipping...")
-		return
-	}
-
-	// Determine if we need to calculate a nonce
-	var nonceHash, seedHashHex string
-	if blk.Header.Level+1%32 == 0 {
-		log.Info("Nonce required")
-		nonceHash, seedHashHex, err = generateNonce()
-		if err != nil {
-			log.WithError(err)
-		}
-
-		log.WithFields(log.Fields{
-			"SeedHash": seedHashHex, "Nonce": nonceHash,
-		}).Info("Generated Nonce")
-	}
+	// TODO
+	// error="failed to preapply new block: response returned code 500 with body
+	// [{\"kind\":\"permanent\",\"id\":\"proto.006-PsCARTHA.baking.timestamp_too_early\",
+	// \"minimum\":\"2020-09-20T22:17:28Z\",\"provided\":\"2020-09-20T22:16:58Z\"}
 
 	//
 	// Steps to making a block
@@ -260,24 +265,158 @@ func handleBake(blk gotezos.Block) {
 	// 8. Inject
 	// 9. If needed, reveal nonce
 
+	// look for baking rights at next level
+	nextLevelToBake := blk.Header.Level + 1
+	bakingRights := gotezos.BakingRightsInput{
+		Level:     nextLevelToBake,
+		Delegate:  BAKER,
+		BlockHash: blk.Hash,
+	}
+
+	rights, err := gt.BakingRights(bakingRights)
+	if err != nil {
+		log.Println(err)
+	}
+
+	if len(*rights) == 0 {
+		log.WithFields(log.Fields{
+			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
+		}).Info("No Baking Rights Found at Level")
+		return
+	}
+
+	bakingRight := (*rights)[0]
+	if len(*rights) > 1 {
+
+		log.WithField("Rights", rights).Warn("Found more than 1 baking right; Picking best priority.")
+
+		// Sort baking rights based on lowest priority; You only get one opportunity
+		for _, r := range (*rights) {
+			if r.Priority > bakingRight.Priority {
+				bakingRight = r
+			}
+		}
+	}
+
+	priority := bakingRight.Priority
+	estimatedBakeTime := (*rights)[0].EstimatedTime
+	timeBetweenBlocks, err := strconv.Atoi(gt.NetworkConstants.TimeBetweenBlocks[0])
+	if err != nil {
+		log.WithError(err).Error("Cannot parse network constant TimeBetweenBlocks")
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"Level": nextLevelToBake, "Priority": priority,
+		"CurrentTS": time.Now().Format(time.RFC3339),
+		"EstimatedTS": estimatedBakeTime.Format(time.RFC3339),
+	}).Info("New baking slot found")
+
+	// Ignore baking rights of priority higher than what we care about
+	if bakingRight.Priority > maxBakePriority {
+		log.Infof("Priority higher than %d; Skipping...", maxBakePriority)
+		return
+	}
+
+	// If the priority is > 0, we need to wait at least priority*minBlockTime.
+	// This gives the bakers with priorities lower than us a chance to bake their right.
+	//
+	// While we wait, if they bake their slot, we will notice a change in /head and
+	// will abort our processing.
+
+	if priority > 0 {
+		priorityDiffSeconds := time.Duration(timeBetweenBlocks * priority)
+		log.Infof("Priority greater than 0; Sleeping for %d seconds", priorityDiffSeconds)
+
+		select {
+		case <-ctx.Done():
+			log.Info("New block arrived; Canceling current bake")
+			return
+		case <-time.After(priorityDiffSeconds * time.Second):
+			break
+		}
+	}
+
+	// Determine if we need to calculate a nonce
+	// It is our responsibility to create and reveal a nonce on specific levels
+	var nonceHash, seedHashHex string
+	if nextLevelToBake % 32 == 0 {
+
+		nonceHash, seedHashHex, err = generateNonce()
+		if err != nil {
+			log.WithError(err)
+		}
+
+		log.WithFields(log.Fields{
+			"SeedHash": seedHashHex, "Nonce": nonceHash,
+		}).Info("Nonce required at this level")
+	}
+
 	// Retrieve mempool operations
-	mempoolOps, err := gt.Mempool()
-	if err != nil {
-		log.WithError(err).Error("Failed to fetch mempool ops")
-		return
+	// There's a minimum required number of endorsements at priority 0 which is 24,
+	// so we will keep fetching from the mempool until we get at least 24, or
+	// 1/2 block time elapses whichever comes first
+	endMempool := time.Now().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
+	numEndorsements := 0
+	var operations [][]interface{}
+
+	mempoolInput := gotezos.MempoolInput{
+		ChainID: blk.ChainID,
+		Applied: true,
+		BranchDelayed: true,
 	}
 
-	// Parse/filter mempool operations into correct
-	// operation slots for adding to the block
-	operations, err := parseMempoolOperations(mempoolOps, blk.Hash, blk.Protocol)
-	if err != nil {
-		log.WithError(err).Error("Failed to sort mempool ops")
-		return
+	for time.Now().Before(endMempool) && numEndorsements < 24 {
+
+		// Sleep 5s to let mempool accumulate
+		log.Infof("Sleeping 5s to wait for more endorsements and other operations")
+
+		// Sleep, but also check if new block arrived
+		select {
+		case <-ctx.Done():
+			log.Info("New block arrived; Canceling current bake")
+			return
+		case <-time.After(5 * time.Second):
+			break
+		}
+
+		// Get mempool contents
+		mempoolOps, err := gt.Mempool(mempoolInput)
+		if err != nil {
+			log.WithError(err).Error("Failed to fetch mempool ops")
+			return
+		}
+
+		// Parse/filter mempool operations into correct
+		// operation slots for adding to the block
+		operations, err = parseMempoolOperations(mempoolOps, blk.Header.Level, blk.Protocol)
+		if err != nil {
+			log.WithError(err).Error("Failed to sort mempool ops")
+			return
+		}
+
+		// Endorsements get sorted into slot 0
+		// This is an inaccurate check as it only counts raw endorsements, not
+		// slot counts. Ie: Baker fooBar has 4 endorsement rights, but only needs
+		// to inject 1 endorsement operation. This is less of an issue on mainnet
+		// where there are many more bakers vs on testnets
+		numEndorsements = len(operations[0])
+
+		log.Infof("Found %d endorsement operations in mempool", numEndorsements)
 	}
 
-	priority := (*rights)[0].Priority
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling current bake")
+		return
+	default:
+		break
+	}
 
-	pd := gotezos.ProtocolData{
+	// 
+
+	dummyProtocolData := gotezos.ProtocolData{
 		blk.Protocol,
 		priority,
 		"0000000000000000",
@@ -285,11 +424,15 @@ func handleBake(blk gotezos.Block) {
 		nonceHash,
 	}
 
+	if time.Now().After(estimatedBakeTime) {
+		estimatedBakeTime = time.Now()
+	}
+
 	preapplyBlockheader := gotezos.PreapplyBlockOperationInput{
-		pd,                         // ProtocolData
-		operations,                 // Operations
-		true,                       // Sort
-		(*rights)[0].EstimatedTime, // Timestamp
+		dummyProtocolData, // ProtocolData
+		operations,        // Operations
+		true,              // Sort
+		estimatedBakeTime, // Timestamp
 	}
 
 	// Attempt to preapply the block header we created using the protocol data,
@@ -298,6 +441,12 @@ func handleBake(blk gotezos.Block) {
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
 	preapplyResp, err := func(bh gotezos.PreapplyBlockOperationInput) (gotezos.PreapplyResult, error) {
+
+		// TODO
+		// Parse error message, attempt to take action on error
+		// Ex: failed to preapply new block: response returned code 500 with body
+		// [{\"kind\":\"permanent\",\"id\":\"proto.006-PsCARTHA.operation.not_enought_endorsements_for_priority\",
+		// \"required\":24,\"endorsements\":0,\"priority\":0,\"timestamp\":\"2020-09-20T16:12:12Z\"}]\n"
 
 		var par gotezos.PreapplyResult
 		var err error
@@ -309,7 +458,8 @@ func handleBake(blk gotezos.Block) {
 		}
 
 		// else
-		log.WithError(err).Error("Preapply block with mempool operations failure. Attempting 0-op bake.")
+		log.WithError(err).Error("Preapply block with mempool operations failed")
+		log.Warning("Attempting 0 operations bake")
 
 		// Reset blockHeader Operations to 4 empty slices
 		tempOps := make([][]interface{}, 4)
@@ -324,7 +474,7 @@ func handleBake(blk gotezos.Block) {
 			return par, nil
 		}
 
-		return par, errors.Wrap(err, "Preapply block with empty operations; fatal failure.")
+		return par, errors.Wrap(err, "Preapply block with empty operations failed")
 
 	}(preapplyBlockheader)
 
@@ -391,19 +541,32 @@ func handleBake(blk gotezos.Block) {
 		Operations:  operations,
 	}
 
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling current bake")
+		return
+	default:
+		break
+	}
+
+	// Inject block
 	resp, err := gt.InjectionBlock(ibi)
 	if err != nil {
 		log.WithError(err).Error("FAILED BLOCK INJECTION")
 		return
 	}
+	log.WithFields(log.Fields{
+		"BlockHash": stripQuote(string(resp)), "CurrentTS": time.Now().Format(time.RFC3339Nano),
+	}).Infof("Injected Block")
 
-	log.WithField("BLOCK", stripQuote(string(resp))).Info("Injected Block")
+	// TODO
+	// Save injected level to DB for watermark
 
 	// Inject nonce, if required
 	if seedHashHex != "" {
 		revealNonce(blk, nonceHash, seedHashHex)
 	}
-
 }
 
 func revealNonce(block gotezos.Block, nonceHash, seedHashHex string) {
@@ -572,7 +735,7 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed)
 }
 
-func parseMempoolOperations(ops gotezos.Mempool, headHash, headProtocol string) ([][]interface{}, error) {
+func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol string) ([][]interface{}, error) {
 
 	// 	for(var i = 0; i < r.applied.length; i++){
 	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -600,19 +763,16 @@ func parseMempoolOperations(ops gotezos.Mempool, headHash, headProtocol string) 
 
 	for _, op := range ops.Applied {
 
-		// TODO: Check to make sure we have not already added an op
-
-		// Operation must match our head/branch
-		if op.Branch != headHash {
-			continue
-		}
-
 		// Determine the type of op to find out into which slot it goes
 		var opSlot int = 3
 		if len(op.Contents) == 1 {
-			opSlot = func(opKind string) int {
+			opSlot = func(opKind string, level int) int {
 				switch opKind {
 				case "endorsement":
+					// Endorsements must match the current head block level
+					if level != curLevel {
+						return -1
+					}
 					return 0
 				case "proposals", "ballot":
 					return 1
@@ -621,11 +781,16 @@ func parseMempoolOperations(ops gotezos.Mempool, headHash, headProtocol string) 
 					return 2
 				}
 				return 3
-			}(op.Contents[0].Kind)
+			}(op.Contents[0].Kind, op.Contents[0].Level)
 		}
 
 		// For now, skip transactions and other unknown operations
 		if opSlot == 3 {
+			continue
+		}
+
+		// Make sure any endorsements are for the current level
+		if opSlot == -1 {
 			continue
 		}
 

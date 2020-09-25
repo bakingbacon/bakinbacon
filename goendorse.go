@@ -12,8 +12,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
 	gotezos "github.com/goat-systems/go-tezos"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -183,7 +183,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		log.WithField("Rights", rights).Warn("Found more than 1 baking right; Picking best priority.")
 
 		// Sort baking rights based on lowest priority; You only get one opportunity
-		for _, r := range (*rights) {
+		for _, r := range *rights {
 			if r.Priority > bakingRight.Priority {
 				bakingRight = r
 			}
@@ -200,7 +200,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 
 	log.WithFields(log.Fields{
 		"Level": nextLevelToBake, "Priority": priority,
-		"CurrentTS": time.Now().Format(time.RFC3339),
+		"CurrentTS":   time.Now().Format(time.RFC3339),
 		"EstimatedTS": estimatedBakeTime.Format(time.RFC3339),
 	}).Info("Baking slot found")
 
@@ -253,8 +253,8 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	var operations [][]gotezos.Operations
 
 	mempoolInput := gotezos.MempoolInput{
-		ChainID: blk.ChainID,
-		Applied: true,
+		ChainID:       blk.ChainID,
+		Applied:       true,
 		BranchDelayed: true,
 	}
 
@@ -656,22 +656,22 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 		}
 
 		// Add operation to slot
-// 		operations[opSlot] = append(operations[opSlot], struct {
-// 			Protocol  string             `json:"protocol"`
-// 			Branch    string             `json:"branch"`
-// 			Contents  []gotezos.Contents `json:"contents"`
-// 			Signature string             `json:"signature"`
-// 		}{
-// 			headProtocol,
-// 			op.Branch,
-// 			op.Contents,
-// 			op.Signature,
-// 		})
+		// operations[opSlot] = append(operations[opSlot], struct {
+		// 	Protocol  string             `json:"protocol"`
+		// 	Branch    string             `json:"branch"`
+		// 	Contents  []gotezos.Contents `json:"contents"`
+		// 	Signature string             `json:"signature"`
+		// }{
+		// 	headProtocol,
+		// 	op.Branch,
+		// 	op.Contents,
+		// 	op.Signature,
+		// })
 
 		operations[opSlot] = append(operations[opSlot], gotezos.Operations{
-			Protocol: headProtocol,
-			Branch: op.Branch,
-			Contents: op.Contents,
+			Protocol:  headProtocol,
+			Branch:    op.Branch,
+			Contents:  op.Contents,
 			Signature: op.Signature,
 		})
 
@@ -698,7 +698,7 @@ func computeEndorsingPower(operations []gotezos.Operations) (int, error) {
 
 	for _, o := range operations {
 
-		endorsementOperation := gotezos.EndorsingPowerInput {
+		endorsementOperation := gotezos.EndorsingPowerInput{
 			o,
 			o.ChainID,
 		}

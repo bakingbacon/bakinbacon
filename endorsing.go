@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	gotezos "github.com/goat-systems/go-tezos"
+	log "github.com/sirupsen/logrus"
 )
 
 func handleEndorsement(ctx context.Context, blk gotezos.Block) {

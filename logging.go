@@ -12,7 +12,7 @@ import (
 func setupLogging(logDebug bool) {
 
 	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
+		FullTimestamp:  true,
 		DisableSorting: true,
 	})
 

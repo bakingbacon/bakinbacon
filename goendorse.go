@@ -11,10 +11,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/blake2b"
 
 	log "github.com/sirupsen/logrus"
-
 	gotezos "github.com/goat-systems/go-tezos"
 )
 
@@ -34,6 +32,8 @@ var (
 
 func main() {
 
+	var err error
+
 	// Args
 	logDebug := flag.Bool("debug", false, "Enable debug logging")
 	maxBakePriority := flag.Int("max-priority", 64, "Maximum allowed priority to bake")
@@ -42,16 +42,9 @@ func main() {
 	flag.Parse()
 
 	// Logging
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-
-	if *logDebug {
-		log.SetLevel(log.DebugLevel)
-	}
+	setupLogging(*logDebug)
 
 	// Connection to node
-	var err error
 	rpcHostPort := fmt.Sprintf("%s:%d", *rpcHostname, *rpcPort)
 	gt, err = gotezos.New(rpcHostPort)
 	if err != nil {
@@ -86,24 +79,25 @@ func main() {
 			// watch for new head block
 			block, err := gt.Head()
 			if err != nil {
-				log.Println(err)
-			}
+				log.WithError(err).Error("Unable to get /head block; Will try again")
+			} else {
 
-			if block.Hash != curHead.Hash {
+				if block.Hash != curHead.Hash {
 
-				// notify new block
-				cH <- block
+					// notify new block
+					cH <- block
 
-				curHead = block
+					curHead = block
 
-				chainid := curHead.ChainID
-				hash := curHead.Hash
-				level := curHead.Metadata.Level.Level
-				cycle := curHead.Metadata.Level.Cycle
+					chainid := curHead.ChainID
+					hash := curHead.Hash
+					level := curHead.Metadata.Level.Level
+					cycle := curHead.Metadata.Level.Cycle
 
-				log.WithFields(log.Fields{
-					"Cycle": cycle, "Level": level, "Hash": hash, "ChainID": chainid,
-				}).Info("New Block")
+					log.WithFields(log.Fields{
+						"Cycle": cycle, "Level": level, "Hash": hash, "ChainID": chainid,
+					}).Info("New Block")
+				}
 			}
 
 			// wait here for timer
@@ -128,108 +122,6 @@ func main() {
 
 		go handleEndorsement(ctx, *block)
 		go handleBake(ctx, *block, *maxBakePriority)
-	}
-}
-
-func handleEndorsement(ctx context.Context, blk gotezos.Block) {
-
-	log.WithField("BlockHash", blk.Hash).Debug("Received Endorsement Hash")
-
-	// look for endorsing rights at this level
-	endoRightsFilter := gotezos.EndorsingRightsInput{
-		BlockHash: blk.Hash,
-		Level:     blk.Header.Level,
-		Delegate:  BAKER,
-	}
-
-	rights, err := gt.EndorsingRights(endoRightsFilter)
-	if err != nil {
-		log.Println(err)
-	}
-
-	if len(*rights) == 0 {
-		log.Info("No Endorsing Rights")
-		return
-	}
-
-	// continue since we have at least 1 endorsing right
-	for _, e := range *rights {
-		log.WithField("Slots", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing Rights")
-	}
-
-	// v2
-	endorsementOperation := gotezos.ForgeOperationWithRPCInput{
-		Blockhash: blk.Hash,
-		Branch:    blk.Hash,
-		Contents: []gotezos.Contents{
-			gotezos.Contents{
-				Kind:  "endorsement",
-				Level: blk.Header.Level,
-			},
-		},
-	}
-
-	// v2
-	endorsementBytes, err := gt.ForgeOperationWithRPC(endorsementOperation)
-	if err != nil {
-		log.WithError(err).Error("Error Forging Endorsement")
-		return
-	}
-	//log.WithField("Bytes", endorsementBytes).Debug("FORGED ENDORSEMENT")
-
-	// Check if a new block has been posted to /head and we should abort
-	select {
-	case <-ctx.Done():
-		log.Info("New block arrived; Canceling endorsement")
-		return
-	default:
-		break
-	}
-
-	// v2
-	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID)
-	if err != nil {
-		log.WithError(err).Error("Could not sign endorsement bytes")
-		return
-	}
-
-	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")
-	//log.WithField("Signature", signedEndorsement.EDSig).Debug("SIGNED SIGNATURE")
-	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
-
-	// V2
-	preapplyEndoOp := gotezos.PreapplyOperationsInput{
-		Blockhash: blk.Hash,
-		Protocol:  blk.Protocol,
-		Signature: signedEndorsement.EDSig,
-		Contents:  endorsementOperation.Contents,
-	}
-
-	// Validate the operation against the node for any errors
-	if _, err := gt.PreapplyOperations(preapplyEndoOp); err != nil {
-		log.WithError(err).Error("Could not preapply operations")
-		return
-	}
-
-	// v2
-	injectionInput := gotezos.InjectionOperationInput{
-		Operation: signedEndorsement.SignedOperation,
-	}
-
-	// Check if a new block has been posted to /head and we should abort
-	select {
-	case <-ctx.Done():
-		log.Info("New block arrived; Canceling endorsement")
-		return
-	default:
-		break
-	}
-
-	opHash, err := gt.InjectionOperation(injectionInput)
-	if err != nil {
-		log.WithError(err).Error("Endorsement Failure")
-	} else {
-		log.WithField("Operation", opHash).Info("Endorsement Injected")
 	}
 }
 
@@ -281,7 +173,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	if len(*rights) == 0 {
 		log.WithFields(log.Fields{
 			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
-		}).Info("No Baking Rights Found at Level")
+		}).Info("No baking rights for level")
 		return
 	}
 
@@ -310,7 +202,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		"Level": nextLevelToBake, "Priority": priority,
 		"CurrentTS": time.Now().Format(time.RFC3339),
 		"EstimatedTS": estimatedBakeTime.Format(time.RFC3339),
-	}).Info("New baking slot found")
+	}).Info("Baking slot found")
 
 	// Ignore baking rights of priority higher than what we care about
 	if bakingRight.Priority > maxBakePriority {
@@ -358,7 +250,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
 	numEndorsements := 0
-	var operations [][]interface{}
+	var operations [][]gotezos.Operations
 
 	mempoolInput := gotezos.MempoolInput{
 		ChainID: blk.ChainID,
@@ -414,7 +306,14 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		break
 	}
 
-	// 
+	// compute_endorsing_power with current endorsements
+	// Send all operations in the first slot, which are endorsements
+	endorsingPower, err := computeEndorsingPower(operations[0])
+	if err != nil {
+		log.WithError(err).Error("Unable to compute endorsing power")
+		//return
+	}
+	log.WithField("EndorsingPower", endorsingPower).Debug("Computed Endorsing Power")
 
 	dummyProtocolData := gotezos.ProtocolData{
 		blk.Protocol,
@@ -440,54 +339,16 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	preapplyResp, err := func(bh gotezos.PreapplyBlockOperationInput) (gotezos.PreapplyResult, error) {
-
-		// TODO
-		// Parse error message, attempt to take action on error
-		// Ex: failed to preapply new block: response returned code 500 with body
-		// [{\"kind\":\"permanent\",\"id\":\"proto.006-PsCARTHA.operation.not_enought_endorsements_for_priority\",
-		// \"required\":24,\"endorsements\":0,\"priority\":0,\"timestamp\":\"2020-09-20T16:12:12Z\"}]\n"
-
-		var par gotezos.PreapplyResult
-		var err error
-
-		// Attempt with mempool operations
-		par, err = gt.PreapplyBlockOperation(bh)
-		if err == nil {
-			return par, nil
-		}
-
-		// else
-		log.WithError(err).Error("Preapply block with mempool operations failed")
-		log.Warning("Attempting 0 operations bake")
-
-		// Reset blockHeader Operations to 4 empty slices
-		tempOps := make([][]interface{}, 4)
-		for i, _ := range tempOps {
-			tempOps[i] = make([]interface{}, 0)
-		}
-		bh.Operations = tempOps
-
-		// Try again
-		par, err = gt.PreapplyBlockOperation(bh)
-		if err == nil {
-			return par, nil
-		}
-
-		return par, errors.Wrap(err, "Preapply block with empty operations failed")
-
-	}(preapplyBlockheader)
-
+	preapplyResp, err := gt.PreapplyBlockOperation(preapplyBlockheader)
 	if err != nil {
 		log.WithError(err).Error("Unable to preapply block")
 		return
 	}
-
 	log.WithField("Resp", preapplyResp).Debug("PREAPPLY RESPONSE")
 
 	// Re-filter the applied operations that came back from pre-apply
-	operations = parsePreapplyOperations(preapplyResp.Operations)
-	log.WithField("OPS", operations).Debug("PREAPPLY OPS")
+	appliedOperations := parsePreapplyOperations(preapplyResp.Operations)
+	log.WithField("OPS", appliedOperations).Debug("PREAPPLY OPS")
 
 	// Start constructing the actual block with info that comes back from the preapply
 	shellHeader := preapplyResp.Shellheader
@@ -538,7 +399,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// The data of the block
 	ibi := gotezos.InjectionBlockInput{
 		SignedBytes: signedBlock.SignedOperation,
-		Operations:  operations,
+		Operations:  appliedOperations,
 	}
 
 	// Check if a new block has been posted to /head and we should abort
@@ -735,7 +596,7 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed)
 }
 
-func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol string) ([][]interface{}, error) {
+func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol string) ([][]gotezos.Operations, error) {
 
 	// 	for(var i = 0; i < r.applied.length; i++){
 	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -755,10 +616,10 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 	// 	}
 
 	// 4 slots for operations to be sorted into
-	// Init each slot to size 0 so that marshaling returns "[]" instead of nulll
-	operations := make([][]interface{}, 4)
+	// Init each slot to size 0 so that marshaling returns "[]" instead of null
+	operations := make([][]gotezos.Operations, 4)
 	for i, _ := range operations {
-		operations[i] = make([]interface{}, 0)
+		operations[i] = make([]gotezos.Operations, 0)
 	}
 
 	for _, op := range ops.Applied {
@@ -795,21 +656,61 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 		}
 
 		// Add operation to slot
-		operations[opSlot] = append(operations[opSlot], struct {
-			Protocol  string             `json:"protocol"`
-			Branch    string             `json:"branch"`
-			Contents  []gotezos.Contents `json:"contents"`
-			Signature string             `json:"signature"`
-		}{
-			headProtocol,
-			op.Branch,
-			op.Contents,
-			op.Signature,
+// 		operations[opSlot] = append(operations[opSlot], struct {
+// 			Protocol  string             `json:"protocol"`
+// 			Branch    string             `json:"branch"`
+// 			Contents  []gotezos.Contents `json:"contents"`
+// 			Signature string             `json:"signature"`
+// 		}{
+// 			headProtocol,
+// 			op.Branch,
+// 			op.Contents,
+// 			op.Signature,
+// 		})
+
+		operations[opSlot] = append(operations[opSlot], gotezos.Operations{
+			Protocol: headProtocol,
+			Branch: op.Branch,
+			Contents: op.Contents,
+			Signature: op.Signature,
 		})
 
 	}
 
 	return operations, nil
+}
+
+func computeEndorsingPower(operations []gotezos.Operations) (int, error) {
+
+	// https://blog.nomadic-labs.com/emmy-an-improved-consensus-algorithm.html
+	// >>>>149: http://172.17.0.5:8732/chains/NetXjD3HPJJjmcd/blocks/BLfXz42dc2.../endorsing_power
+	// { "endorsement_operation":
+	//       { "branch": "BLfXz42dc2JyHUkHpp7gErVP5djwrtcwsxXy8hvt7dPHy5jBqrM",
+	//         "contents": [ { "kind": "endorsement", "level": 43256 } ],
+	//         "signature": "sigQPBM4f4aCZWHXeJz7g2gEDP...."
+	//        },
+	//   "chain_id": "NetXjD3HPJJjmcd"
+	//  }
+	// <<<<149: 200 OK
+	// 2
+
+	var endorsingPower int
+
+	for _, o := range operations {
+
+		endorsementOperation := gotezos.EndorsingPowerInput {
+			o,
+			o.ChainID,
+		}
+
+		ep, err := gt.GetEndorsingPower(endorsementOperation)
+		if err != nil {
+			return 0, err
+		}
+		endorsingPower += ep
+	}
+
+	return endorsingPower, nil
 }
 
 func generateNonce() (string, string, error) {
@@ -840,41 +741,4 @@ func generateNonce() (string, string, error) {
 	seedHashHex := hex.EncodeToString(seedHash)
 
 	return nonceHash, seedHashHex, nil
-}
-
-func cryptoGenericHash(buffer string) ([]byte, error) {
-
-	// Convert hex buffer to bytes
-	bufferBytes, err := hex.DecodeString(buffer)
-	if err != nil {
-		return []byte{0}, errors.Wrap(err, "Unable to hex decode buffer bytes")
-	}
-
-	// Generic hash of 32 bytes
-	bufferBytesHashGen, err := blake2b.New(32, []byte{})
-	if err != nil {
-		return []byte{0}, errors.Wrap(err, "Unable create blake2b hash object")
-	}
-
-	// Write buffer bytes to hash
-	_, err = bufferBytesHashGen.Write(bufferBytes)
-	if err != nil {
-		return []byte{0}, errors.Wrap(err, "Unable write buffer bytes to hash function")
-	}
-
-	// Generate checksum of buffer bytes
-	bufferHash := bufferBytesHashGen.Sum([]byte{})
-
-	return bufferHash, nil
-}
-
-func stripQuote(s string) string {
-	m := strings.TrimSpace(s)
-	if len(m) > 0 && m[0] == '"' {
-		m = m[1:]
-	}
-	if len(m) > 0 && m[len(m)-1] == '"' {
-		m = m[:len(m)-1]
-	}
-	return m
 }

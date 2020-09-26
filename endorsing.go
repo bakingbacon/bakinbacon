@@ -11,7 +11,7 @@ import (
 
 func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 
-	log.WithField("BlockHash", blk.Hash).Debug("Received Endorsement Hash")
+	log.WithField("BlockHash", blk.Hash).Trace("Received Endorsement Hash")
 
 	// look for endorsing rights at this level
 	endorsingLevel := blk.Header.Level
@@ -37,7 +37,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
 
-	// v2
+	// Forge operation input
 	endorsementOperation := gotezos.ForgeOperationWithRPCInput{
 		Blockhash: blk.Hash,
 		Branch:    blk.Hash,
@@ -49,13 +49,13 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 		},
 	}
 
-	// v2
+	// Forge the operation using RPC and get the bytes back
 	endorsementBytes, err := gt.ForgeOperationWithRPC(endorsementOperation)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Endorsement")
 		return
 	}
-	//log.WithField("Bytes", endorsementBytes).Debug("FORGED ENDORSEMENT")
+	log.WithField("Bytes", endorsementBytes).Trace("Forged Endorsement")
 
 	// Check if a new block has been posted to /head and we should abort
 	select {
@@ -66,18 +66,19 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 		break
 	}
 
-	// v2
+	// Sign the forged bytes with our wallet
 	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Could not sign endorsement bytes")
 		return
 	}
 
+	// Really low-level debugging
 	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")
 	//log.WithField("Signature", signedEndorsement.EDSig).Debug("SIGNED SIGNATURE")
 	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
 
-	// V2
+	// Prepare to pre-apply the operation
 	preapplyEndoOp := gotezos.PreapplyOperationsInput{
 		Blockhash: blk.Hash,
 		Protocol:  blk.Protocol,
@@ -91,7 +92,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 		return
 	}
 
-	// v2
+	// Create injection
 	injectionInput := gotezos.InjectionOperationInput{
 		Operation: signedEndorsement.SignedOperation,
 	}
@@ -105,6 +106,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 		break
 	}
 
+	// Inject endorsement
 	opHash, err := gt.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).Error("Endorsement Failure")

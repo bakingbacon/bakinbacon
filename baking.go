@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	PRIORITY_LENGTH   int    = 2
-	POW_HEADER_LENGTH int    = 4
-	POW_LENGTH               = 4
+	PRIORITY_LENGTH   int = 2
+	POW_HEADER_LENGTH int = 4
+	POW_LENGTH        int = 4
 )
 
 var (
@@ -223,7 +223,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		return
 	}
 
-	minimalInjectionTime = minimalInjectionTime.Add(1 * time.Second).Round(time.Second)  // Just a 1s buffer
+	minimalInjectionTime = minimalInjectionTime.Add(1 * time.Second).Round(time.Second) // Just a 1s buffer
 	log.WithFields(log.Fields{
 		"MinimalTS": minimalInjectionTime.Format(time.RFC3339Nano), "CurrentTS": nowTimestamp.Format(time.RFC3339Nano),
 	}).Debug("Minimal Injection Timestamp")
@@ -250,10 +250,10 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	}
 
 	preapplyBlockheader := gotezos.PreapplyBlockOperationInput{
-		dummyProtocolData,     // ProtocolData
-		operations,            // Operations
-		true,                  // Sort
-		minimalInjectionTime,  // Timestamp
+		dummyProtocolData,    // ProtocolData
+		operations,           // Operations
+		true,                 // Sort
+		minimalInjectionTime, // Timestamp
 	}
 
 	// Attempt to preapply the block header we created using the protocol data,
@@ -616,12 +616,12 @@ func computeEndorsingPower(chainID string, operations []gotezos.Operations) (int
 
 	for _, o := range operations {
 
-		endorsementOperation := gotezos.EndorsingPowerInput{  // block.go
+		endorsementOperation := gotezos.EndorsingPowerInput{ // block.go
 			o,
 			chainID,
 		}
 
-		ep, err := gt.GetEndorsingPower(endorsementOperation)  // block.go
+		ep, err := gt.GetEndorsingPower(endorsementOperation) // block.go
 		if err != nil {
 			return 0, err
 		}

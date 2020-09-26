@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BAKER             string = "tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR"
+	BAKER string = "tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR"
 )
 
 var (

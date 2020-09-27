@@ -23,11 +23,11 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 
 	rights, err := gt.EndorsingRights(endoRightsFilter)
 	if err != nil {
-		log.Println(err)
+		log.WithError(err).Error("Unable to fetch endorsing rights")
 	}
 
 	if len(*rights) == 0 {
-		log.WithField("Level", endorsingLevel).Info("No endorsing rights for level")
+		log.WithField("Level", endorsingLevel).Info("No endorsing rights for this level")
 		return
 	}
 
@@ -60,7 +60,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("New block arrived; Canceling endorsement")
+		log.Warn("New block arrived; Canceling endorsement")
 		return
 	default:
 		break
@@ -100,7 +100,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("New block arrived; Canceling endorsement")
+		log.Warn("New block arrived; Canceling endorsement")
 		return
 	default:
 		break

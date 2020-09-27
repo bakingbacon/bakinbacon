@@ -4,10 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	gotezos "github.com/goat-systems/go-tezos"
 	log "github.com/sirupsen/logrus"
+	storage "goendorse/storage"
 )
 
 const (
@@ -33,13 +38,17 @@ func main() {
 	// Logging
 	setupLogging(*logDebug)
 
+	// Clean exits
+	shutdownChannel := SetupCloseChannel()
+	var wg sync.WaitGroup
+
 	// Connection to node
 	rpcHostPort := fmt.Sprintf("%s:%d", *rpcHostname, *rpcPort)
 	gt, err = gotezos.New(rpcHostPort)
 	if err != nil {
 		log.WithError(err).Fatalf("Could not connect to network: %s", rpcHostPort)
 	}
-	log.WithField("RPCServer", rpcHostPort).Info("Connected to RPC")
+	log.WithField("Host", rpcHostPort).Info("Connected to RPC server")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
@@ -57,7 +66,10 @@ func main() {
 	newHeadNotifier := make(chan *gotezos.Block, 1)
 
 	// this go func should loop forever, checking every 20s if a new block has appeared
-	go func(cH chan<- *gotezos.Block) {
+	wg.Add(1)
+	go func(nHN chan<- *gotezos.Block, sC <-chan interface{}, wg *sync.WaitGroup) {
+
+		defer wg.Done()
 
 		curHead := &gotezos.Block{}
 
@@ -74,7 +86,7 @@ func main() {
 				if block.Hash != curHead.Hash {
 
 					// notify new block
-					cH <- block
+					nHN <- block
 
 					curHead = block
 
@@ -89,27 +101,66 @@ func main() {
 				}
 			}
 
-			// wait here for timer
-			<-ticker.C
-			log.Debug("tick...")
+			// wait here for timer, or shutdown
+			select {
+			case <-ticker.C:
+				log.Debug("tick...")
+			case <-sC:
+				log.Info("Shutting down /head fetch")
+				return
+			}
 		}
 
-	}(newHeadNotifier)
+	}(newHeadNotifier, shutdownChannel, &wg)
 
 	// loop forever, waiting for new blocks on the channel
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
-	for block := range newHeadNotifier {
+	Main:
+	for {
 
-		// New block means to cancel any existing baking work as
-		// someone else beat us to it.
-		// Noop on very first block from channel
-		ctxCancel()
+		select {
+		case block := <-newHeadNotifier:
 
-		// Create a new context for this run
-		ctx, ctxCancel = context.WithCancel(context.Background())
+			// New block means to cancel any existing baking work as
+			// someone else beat us to it.
+			// Noop on very first block from channel
+			ctxCancel()
 
-		go handleEndorsement(ctx, *block)
-		go handleBake(ctx, *block, *maxBakePriority)
+			// Create a new context for this run
+			ctx, ctxCancel = context.WithCancel(context.Background())
+
+			go handleEndorsement(ctx, *block)
+			go handleBake(ctx, *block, *maxBakePriority)
+
+		case <-shutdownChannel:
+			log.Warn("Shutting things down...")
+			ctxCancel()
+			break Main
+		}
 	}
+
+	// Wait for threads to finish
+	wg.Wait()
+
+	// Clean close DB, logs
+	storage.DB.Close()
+	closeLogging()
+
+	os.Exit(0)
+}
+
+func SetupCloseChannel() chan interface{} {
+
+	signalChan := make(chan os.Signal, 1)
+	closingChan := make(chan interface{}, 1)
+
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-signalChan
+		close(closingChan)
+	}()
+
+	return closingChan
 }

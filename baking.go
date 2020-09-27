@@ -13,6 +13,7 @@ import (
 
 	gotezos "github.com/goat-systems/go-tezos"
 	log "github.com/sirupsen/logrus"
+	storage "goendorse/storage"
 )
 
 const (
@@ -23,6 +24,12 @@ const (
 
 var (
 	Prefix_nonce []byte = []byte{69, 220, 169}
+
+	// Chain constants backup
+	MinimumBlockTimes = map[string]int{
+		"NetXdQprcVkpaWU": 60, // Mainnet
+		"NetXjD3HPJJjmcd": 30, // Carthagenet
+	}
 )
 
 func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
@@ -57,8 +64,19 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// 8. Inject
 	// 9. If needed, reveal nonce
 
-	// look for baking rights at next level
+	// look for baking rights for next level because that's what we will inject
 	nextLevelToBake := blk.Header.Level + 1
+
+	// Check watermark to ensure we have not baked at this level before
+	watermark := storage.DB.GetBakingWatermark()
+	if watermark >= nextLevelToBake {
+		log.WithFields(log.Fields{
+			"BakingLevel": nextLevelToBake, "Watermark": watermark,
+		}).Error("Watermark level higher than baking level; Cancel bake to prevent double baking")
+		return
+	}
+
+	// Look for baking rights
 	bakingRights := gotezos.BakingRightsInput{
 		Level:     nextLevelToBake,
 		Delegate:  BAKER,
@@ -70,6 +88,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		log.Println(err)
 	}
 
+	// Got any rights?
 	if len(*rights) == 0 {
 		log.WithFields(log.Fields{
 			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
@@ -77,6 +96,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		return
 	}
 
+	// Have rights. More than one?
 	bakingRight := (*rights)[0]
 	if len(*rights) > 1 {
 
@@ -91,26 +111,25 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	}
 
 	priority := bakingRight.Priority
-	//estimatedBakeTime := (*rights)[0].EstimatedTime
 	timeBetweenBlocks, err := strconv.Atoi(gt.NetworkConstants.TimeBetweenBlocks[0])
 	if err != nil {
-		log.WithError(err).Error("Cannot parse network constant TimeBetweenBlocks")
-		return
+		log.WithError(err).Error("Cannot parse network constant TimeBetweenBlocks; Using built-in constant")
+		timeBetweenBlocks = MinimumBlockTimes[blk.ChainID]
 	}
 
 	log.WithFields(log.Fields{
-		"Level":     nextLevelToBake,
 		"Priority":  priority,
+		"Level":     nextLevelToBake,
 		"CurrentTS": time.Now().UTC().Format(time.RFC3339),
 	}).Info("Baking slot found")
 
 	// Ignore baking rights of priority higher than what we care about
 	if bakingRight.Priority > maxBakePriority {
-		log.Infof("Priority higher than %d; Skipping...", maxBakePriority)
+		log.Infof("Priority higher than %d; Ignoring", maxBakePriority)
 		return
 	}
 
-	// If the priority is > 0, we need to wait at least priority*minBlockTime.
+	// If the priority is > 0, we need to wait at least priority * minBlockTime.
 	// This gives the bakers with priorities lower than us a chance to bake their right.
 	//
 	// While we wait, if they bake their slot, we will notice a change in /head and
@@ -118,7 +137,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 
 	if priority > 0 {
 		priorityDiffSeconds := time.Duration(timeBetweenBlocks * priority)
-		log.Infof("Priority greater than 0; Sleeping for %d seconds", priorityDiffSeconds)
+		log.Infof("Priority greater than 0; Sleeping for %ds", priorityDiffSeconds)
 
 		select {
 		case <-ctx.Done():
@@ -149,7 +168,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// so we will keep fetching from the mempool until we get at least 24, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	numEndorsements := 0
+	endorsingPower := 0
 	var operations [][]gotezos.Operations
 
 	mempoolInput := gotezos.MempoolInput{
@@ -158,7 +177,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		BranchDelayed: true,
 	}
 
-	for time.Now().UTC().Before(endMempool) && numEndorsements < 24 {
+	for time.Now().UTC().Before(endMempool) && endorsingPower < 24 {
 
 		// Sleep 5s to let mempool accumulate
 		log.Infof("Sleeping 5s to wait for more endorsements and other operations")
@@ -187,14 +206,16 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 			return
 		}
 
-		// Endorsements get sorted into slot 0
-		// This is an inaccurate check as it only counts raw endorsements, not
-		// slot counts. Ie: Baker fooBar has 4 endorsement rights, but only needs
-		// to inject 1 endorsement operation. This is less of an issue on mainnet
-		// where there are many more bakers vs on testnets
-		numEndorsements = len(operations[0])
+		log.Infof("Found %d endorsement operations in mempool", len(operations[0]))
 
-		log.Infof("Found %d endorsement operations in mempool", numEndorsements)
+		// compute_endorsing_power with current endorsements
+		// Send all operations in the first slot, which are endorsements
+		endorsingPower, err = computeEndorsingPower(blk.ChainID, operations[0])
+		if err != nil {
+			log.WithError(err).Error("Unable to compute endorsing power; Using 0 power")
+			endorsingPower = 0
+		}
+		log.WithField("EndorsingPower", endorsingPower).Debug("Computed Endorsing Power")
 	}
 
 	// Check if a new block has been posted to /head and we should abort
@@ -205,15 +226,6 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	default:
 		break
 	}
-
-	// compute_endorsing_power with current endorsements
-	// Send all operations in the first slot, which are endorsements
-	endorsingPower, err := computeEndorsingPower(blk.ChainID, operations[0])
-	if err != nil {
-		log.WithError(err).Error("Unable to compute endorsing power")
-		return
-	}
-	log.WithField("EndorsingPower", endorsingPower).Debug("Computed Endorsing Power")
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	nowTimestamp := time.Now().UTC().Round(time.Second)
@@ -302,9 +314,8 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	}
 
 	// POW done
-	log.WithFields(log.Fields{
-		"Attempts": attempts, "Bytes": blockbytes,
-	}).Debug("Proof-of-Work Completed")
+	log.WithField("Attempts", attempts).Debug("Proof-of-Work Complete")
+	log.WithField("Bytes", blockbytes).Trace("Proof-of-Work")
 
 	// Take blockbytes and sign it
 	signedBlock, err := wallet.SignBlock(blockbytes, blk.ChainID)
@@ -335,12 +346,17 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		log.WithError(err).Error("Failed Block Injection")
 		return
 	}
+	blockHash := stripQuote(string(resp))
 	log.WithFields(log.Fields{
-		"BlockHash": stripQuote(string(resp)), "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
-	}).Infof("Injected Block")
+		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
+	}).Info("Successfully injected block")
 
-	// TODO
-	// Save injected level to DB for watermark
+	// Save watermark to DB
+	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
+		log.WithError(err).Error("Unable to save block; Watermark compromised")
+	} else {
+		log.Info("Saved injected block watermark")
+	}
 
 	// Inject nonce, if required
 	if seedHashHex != "" {

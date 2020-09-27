@@ -9,6 +9,8 @@ import (
 	"github.com/sirupsen/logrus/hooks/writer"
 )
 
+var logFile *os.File
+
 func setupLogging(logDebug bool) {
 
 	log.SetFormatter(&log.TextFormatter{
@@ -20,10 +22,10 @@ func setupLogging(logDebug bool) {
 	if err != nil {
 		log.Fatalf("Failed to determine working directory: %s", err)
 	}
-	runID := time.Now().Format("goendorse-2006-01-02-15-04-05")
+	runID := time.Now().Format("goendorse-2006-01-02")
 	logLocation := filepath.Join(cwd, runID + ".log")
 
-	logFile, err := os.OpenFile(logLocation, os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err = os.OpenFile(logLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("Failed to open log file %s for output: %s", logLocation, err)
 	}
@@ -36,12 +38,17 @@ func setupLogging(logDebug bool) {
 	log.AddHook(&writer.Hook{
 		Writer: logFile,
 		LogLevels: []log.Level{
-			log.PanicLevel,
-			log.FatalLevel,
-			log.ErrorLevel,
-			log.WarnLevel,
-			log.InfoLevel,
+			log.TraceLevel,
 			log.DebugLevel,
+			log.InfoLevel,
+			log.WarnLevel,
+			log.ErrorLevel,
+			log.FatalLevel,
+			log.PanicLevel,
 		},
 	})
+}
+
+func closeLogging() {
+	logFile.Close()
 }

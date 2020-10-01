@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	_ "goendorse/signerclient"
 	"goendorse/storage"
 	"goendorse/util"
+	"goendorse/nonce"
 )
 
 const (
@@ -27,8 +27,6 @@ const (
 )
 
 var (
-	Prefix_nonce []byte = []byte{69, 220, 169}
-
 	// Chain constants backup
 	MinimumBlockTimes = map[string]int{
 		"NetXdQprcVkpaWU": 60, // Mainnet
@@ -156,17 +154,19 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 
 	// Determine if we need to calculate a nonce
 	// It is our responsibility to create and reveal a nonce on specific levels
-	var nonceHash, seedHashHex string
+	var n nonce.Nonce
 	if nextLevelToBake % 32 == 0 {
 
-		nonceHash, seedHashHex, err = generateNonce()
+		n, err = nonce.GenerateNonce()
 		if err != nil {
 			log.WithError(err)
 		}
 
 		log.WithFields(log.Fields{
-			"SeedHash": seedHashHex, "Nonce": nonceHash,
+			"Seed": n.Seed, "Nonce": n.NonceHash, "SeedHashHex": n.SeedHashHex,
 		}).Info("Nonce required at this level")
+
+		n.Level = nextLevelToBake
 	}
 
 	// Retrieve mempool operations
@@ -264,7 +264,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 		priority,
 		"0000000000000000",
 		"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
-		nonceHash,
+		n.NonceHash,
 	}
 
 	preapplyBlockheader := gotezos.PreapplyBlockOperationInput{
@@ -313,7 +313,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	forgedBlock = forgedBlock[:len(forgedBlock)-22]
 
 	// Perform a lame proof-of-work computation
-	blockbytes, attempts, err := powLoop(forgedBlock, priority, seedHashHex)
+	blockbytes, attempts, err := powLoop(forgedBlock, priority, n.SeedHashHex)
 	if err != nil {
 		log.WithError(err).Error("Unable to POW!")
 		return
@@ -365,8 +365,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	}
 
 	// Save nonce to DB for reveal in next cycle
-	if seedHashHex != "" {
-		registerNonce(block.Metadata.Level.Cycle, nextLevelToBake, seedHashHex)
+	if n.SeedHashHex != "" {
+		registerNonce(block.Metadata.Level.Cycle, n)
 	}
 }
 
@@ -598,32 +598,118 @@ func computeEndorsingPower(chainID string, operations []gotezos.Operations) (int
 	return endorsingPower, nil
 }
 
-func generateNonce() (string, string, error) {
+func registerNonce(cycle int, n nonce.Nonce) error {
 
-	//  Testing:
-	// 	  Seed:       e6d84e1e98a65b2f4551be3cf320f2cb2da38ab7925edb2452e90dd5d2eeeead
-	// 	  Seed Buf:   230,216,78,30,152,166,91,47,69,81,190,60,243,32,242,203,45,163,138,183,146,94,219,36,82,233,13,213,210,238,238,173
-	// 	  Seed Hash:  160,103,236,225,73,68,157,114,194,194,162,215,255,44,50,118,157,176,236,62,104,114,219,193,140,196,133,63,179,229,139,204
-	// 	  Nonce Hash: nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm
-	// 	  Seed Hex:   a067ece149449d72c2c2a2d7ff2c32769db0ec3e6872dbc18cc4853fb3e58bcc
+	// Nonces are revealed within the first few blocks of
+	// the next cycle. So we need to save it for now, and
+	// then reveal it after the start of the next cycle.
 
-	// Generate a hexadecimal seed from random bytes
-	randBytes := make([]byte, 64)
-	if _, err := rand.Read(randBytes); err != nil {
-		log.WithError(err).Error("Unable to read random bytes")
-		return "", "", err
-	}
-	seed := hex.EncodeToString(randBytes)[:64]
+	return storage.DB.SaveNonce(cycle, n)
+}
 
-	seedHash, err := util.CryptoGenericHash(seed, []byte{})
+func revealNonces(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block) {
+
+	defer wg.Done()
+
+	// Only reveal in levels 1, 2, 3, 4 of cycle
+// 	cyclePosition := block.Metadata.Level.CyclePosition
+// 	if cyclePosition == 0 || cyclePosition > 4 {
+// 		return
+// 	}
+
+	// Get nonces for previous cycle from DB
+	previousCycle := block.Metadata.Level.Cycle - 1
+	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
 	if err != nil {
-		log.WithError(err).Error("Unable to hash seed for nonce")
-		return "", "", err
+		log.WithError(err).Error("Unable to get nonces from DB")
+		return
 	}
 
-	// B58 encode seed hash with nonce prefix
-	nonceHash := gotezos.B58cencode(seedHash, Prefix_nonce)
-	seedHashHex := hex.EncodeToString(seedHash)
+	if len(nonces) == 0 {
+		log.Trace("No nonces to reveal")
+		return
+	}
+	log.WithField("Cycle", previousCycle).Infof("Found %d nonces", len(nonces))
 
-	return nonceHash, seedHashHex, nil
+	// loop over nonces and inject
+	for _, nonce := range nonces {
+
+		// If a nonce has a revealed operation, don't need to reveal it again
+		if nonce.RevealOp != "" {
+			log.WithFields(log.Fields{
+				"Level": nonce.Level, "RevealedOp": nonce.RevealOp,
+			}).Info("Nonce already revealed")
+			continue
+		}
+
+		log.WithFields(log.Fields{
+			"Level": nonce.Level, "Hash": nonce.NonceHash, "SeedHashHex": nonce.SeedHashHex,
+		}).Info("Revealing nonce")
+
+		nonceRevealOperation := gotezos.ForgeOperationWithRPCInput{
+			Blockhash: block.Hash,
+			Branch:    block.Hash,
+			Contents: []gotezos.Contents{
+				gotezos.Contents{
+					Kind:  "seed_nonce_revelation",
+					Level: nonce.Level,
+					Nonce: nonce.SeedHashHex,
+				},
+			},
+		}
+
+		// Forge nonce reveal operation
+		forgedNonceRevealBytes, err := gt.ForgeOperationWithRPC(nonceRevealOperation) // operations.go
+		if err != nil {
+			log.WithError(err).Error("Error Forging Nonce Reveal")
+			continue
+		}
+		log.WithField("Bytes", forgedNonceRevealBytes).Trace("Forged Reveal Nonce")
+
+		// Nonce reveals have the same watermark as endorsements
+		signedNonceReveal, err := wallet.SignEndorsementOperation(forgedNonceRevealBytes, block.ChainID)
+		if err != nil {
+			log.WithError(err).Error("Could not sign nonce reveal bytes")
+			continue
+		}
+
+		preapplyNonceRevealOp := gotezos.PreapplyOperationsInput{
+			Blockhash: block.Hash,
+			Protocol:  block.Protocol,
+			Signature: signedNonceReveal.EDSig,
+			Contents:  nonceRevealOperation.Contents,
+		}
+
+		// Validate the operation against the node for any errors
+		if _, err := gt.PreapplyOperations(preapplyNonceRevealOp); err != nil {
+			log.WithError(err).Error("Could not preapply nonce reveal operation")
+			continue
+		}
+
+		// Check if new block came in
+		select {
+		case <-ctx.Done():
+			log.Warn("New block arrived; Canceling nonce reveal")
+			return
+		default:
+			break
+		}
+
+		// Inject nonce reveal op
+		injectionInput := gotezos.InjectionOperationInput{
+			Operation: signedNonceReveal.SignedOperation,
+		}
+		return
+		revealOpHash, err := gt.InjectionOperation(injectionInput)
+		if err != nil {
+			log.WithError(err).Error("Error Injecting Nonce Reveal")
+			continue
+		}
+
+		log.WithField("OpHash", revealOpHash).Info("Injected Nonce Reveal")
+
+		// Update DB with hash of reveal operation
+		nonce.RevealOp = revealOpHash
+		storage.DB.SaveNonce(previousCycle, nonce)
+	}
 }

@@ -7,22 +7,13 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 	log "github.com/sirupsen/logrus"
+
+	"goendorse/nonce"
 )
 
-type Nonce struct {
-	Level    int    `json:"level"`
-	Hash     string `json:"hash"`
-	RevealOp string `json:"revealed"`
-}
-
-func (s *Storage) SaveNonce(cycle, level int, seedHashHex, revealOperation string) error {
+func (s *Storage) SaveNonce(cycle int, n nonce.Nonce) error {
 
 	// Nonces are stored within a cycle bucket for easy retrieval
-	n := Nonce{
-		level,
-		seedHashHex,
-		revealOperation,
-	}
 
 	nonceBytes, err := json.Marshal(n)
 	if err != nil {
@@ -34,14 +25,14 @@ func (s *Storage) SaveNonce(cycle, level int, seedHashHex, revealOperation strin
 		if err != nil {
 			return errors.Wrap(err, "Unable to create nonce-cycle bucket")
 		}
-		return cb.Put(itob(level), nonceBytes)
+		return cb.Put(itob(n.Level), nonceBytes)
 	})
 }
 
-func (s *Storage) GetNoncesForCycle(cycle int) ([]Nonce, error) {
+func (s *Storage) GetNoncesForCycle(cycle int) ([]nonce.Nonce, error) {
 
 	// Get back all nonces for cycle
-	var nonces []Nonce
+	var nonces []nonce.Nonce
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		cb := tx.Bucket([]byte(NONCE_BUCKET)).Bucket(itob(cycle))
@@ -53,13 +44,13 @@ func (s *Storage) GetNoncesForCycle(cycle int) ([]Nonce, error) {
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 
-			var nonce Nonce
-			if err := json.Unmarshal(v, &nonce); err != nil {
+			var n nonce.Nonce
+			if err := json.Unmarshal(v, &n); err != nil {
 				log.WithError(err).Error("Unable to unmarshal nonce")
 				continue
 			}
 
-			nonces = append(nonces, nonce)
+			nonces = append(nonces, n)
 		}
 
 		return nil

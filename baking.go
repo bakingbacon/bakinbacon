@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
-	gotezos "github.com/goat-systems/go-tezos"
+	gotezos "github.com/goat-systems/go-tezos/v2"
 	log "github.com/sirupsen/logrus"
-	storage "goendorse/storage"
+	
+	_ "goendorse/signerclient"
+	"goendorse/storage"
+	"goendorse/util"
 )
 
 const (
@@ -32,7 +36,9 @@ var (
 	}
 )
 
-func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
+func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, maxBakePriority int) {
+
+	defer wg.Done()
 
 	// Reference
 	// https://gitlab.com/tezos/tezos/-/blob/mainnet-staging/src/proto_006_PsCARTHA/lib_delegate/client_baking_forge.ml
@@ -65,7 +71,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// 9. If needed, reveal nonce
 
 	// look for baking rights for next level because that's what we will inject
-	nextLevelToBake := blk.Header.Level + 1
+	nextLevelToBake := block.Header.Level + 1
 
 	// Check watermark to ensure we have not baked at this level before
 	watermark := storage.DB.GetBakingWatermark()
@@ -79,8 +85,8 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	// Look for baking rights
 	bakingRights := gotezos.BakingRightsInput{
 		Level:     nextLevelToBake,
-		Delegate:  BAKER,
-		BlockHash: blk.Hash,
+		Delegate:  (*bakerPkh),
+		BlockHash: block.Hash,
 	}
 
 	rights, err := gt.BakingRights(bakingRights)
@@ -114,7 +120,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	timeBetweenBlocks, err := strconv.Atoi(gt.NetworkConstants.TimeBetweenBlocks[0])
 	if err != nil {
 		log.WithError(err).Error("Cannot parse network constant TimeBetweenBlocks; Using built-in constant")
-		timeBetweenBlocks = MinimumBlockTimes[blk.ChainID]
+		timeBetweenBlocks = MinimumBlockTimes[block.ChainID]
 	}
 
 	log.WithFields(log.Fields{
@@ -172,7 +178,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	var operations [][]gotezos.Operations
 
 	mempoolInput := gotezos.MempoolInput{
-		ChainID:       blk.ChainID,
+		ChainID:       block.ChainID,
 		Applied:       true,
 		BranchDelayed: true,
 	}
@@ -180,7 +186,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	for time.Now().UTC().Before(endMempool) && endorsingPower < 24 {
 
 		// Sleep 5s to let mempool accumulate
-		log.Infof("Sleeping 5s to wait for more endorsements and other operations")
+		log.Infof("Sleeping 5s for more endorsements and ops")
 
 		// Sleep, but also check if new block arrived
 		select {
@@ -200,7 +206,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 
 		// Parse/filter mempool operations into correct
 		// operation slots for adding to the block
-		operations, err = parseMempoolOperations(mempoolOps, blk.Header.Level, blk.Protocol)
+		operations, err = parseMempoolOperations(mempoolOps, block.Header.Level, block.Protocol)
 		if err != nil {
 			log.WithError(err).Error("Failed to sort mempool ops")
 			return
@@ -210,7 +216,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 
 		// compute_endorsing_power with current endorsements
 		// Send all operations in the first slot, which are endorsements
-		endorsingPower, err = computeEndorsingPower(blk.ChainID, operations[0])
+		endorsingPower, err = computeEndorsingPower(block.ChainID, operations[0])
 		if err != nil {
 			log.WithError(err).Error("Unable to compute endorsing power; Using 0 power")
 			endorsingPower = 0
@@ -229,7 +235,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	nowTimestamp := time.Now().UTC().Round(time.Second)
-	minimalInjectionTime, err := gt.MinimalValidTime(endorsingPower, priority, blk.ChainID)
+	minimalInjectionTime, err := gt.MinimalValidTime(endorsingPower, priority, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Unable to get minimal valid timestamp")
 		return
@@ -254,7 +260,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	}
 
 	dummyProtocolData := gotezos.ProtocolData{
-		blk.Protocol,
+		block.Protocol,
 		priority,
 		"0000000000000000",
 		"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
@@ -318,7 +324,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 	log.WithField("Bytes", blockbytes).Trace("Proof-of-Work")
 
 	// Take blockbytes and sign it
-	signedBlock, err := wallet.SignBlock(blockbytes, blk.ChainID)
+	signedBlock, err := wallet.SignBlock(blockbytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Could not sign block bytes")
 		return
@@ -346,7 +352,7 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		log.WithError(err).Error("Failed Block Injection")
 		return
 	}
-	blockHash := stripQuote(string(resp))
+	blockHash := util.StripQuote(string(resp))
 	log.WithFields(log.Fields{
 		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
 	}).Info("Successfully injected block")
@@ -358,64 +364,9 @@ func handleBake(ctx context.Context, blk gotezos.Block, maxBakePriority int) {
 		log.Info("Saved injected block watermark")
 	}
 
-	// Inject nonce, if required
+	// Save nonce to DB for reveal in next cycle
 	if seedHashHex != "" {
-		revealNonce(blk, nonceHash, seedHashHex)
-	}
-}
-
-func revealNonce(block gotezos.Block, nonceHash, seedHashHex string) {
-
-	nonceRevealOperation := gotezos.ForgeOperationWithRPCInput{
-		Blockhash: block.Hash,
-		Branch:    block.Hash,
-		Contents: []gotezos.Contents{
-			gotezos.Contents{
-				Kind:  "seed_nonce_revelation",
-				Level: block.Header.Level,
-				Nonce: seedHashHex,
-			},
-		},
-	}
-
-	// Forge nonce reveal operation
-	forgedNonceRevealBytes, err := gt.ForgeOperationWithRPC(nonceRevealOperation)
-	if err != nil {
-		log.WithError(err).Error("Error Forging Nonce Reveal")
-		return
-	}
-	log.WithField("Bytes", forgedNonceRevealBytes).Debug("Forged Reveal Nonce")
-
-	// Nonce reveals have the same watermark as endorsements
-	signedNonceReveal, err := wallet.SignEndorsementOperation(forgedNonceRevealBytes, block.ChainID)
-	if err != nil {
-		log.WithError(err).Error("Could not sign nonce reveal bytes")
-		return
-	}
-
-	preapplyNonceRevealOp := gotezos.PreapplyOperationsInput{
-		Blockhash: block.Hash,
-		Protocol:  block.Protocol,
-		Signature: signedNonceReveal.EDSig,
-		Contents:  nonceRevealOperation.Contents,
-	}
-
-	// Validate the operation against the node for any errors
-	if _, err := gt.PreapplyOperations(preapplyNonceRevealOp); err != nil {
-		log.WithError(err).Error("Could not preapply nonce reveal operation")
-		return
-	}
-
-	// Inject nonce reveal op
-	injectionInput := gotezos.InjectionOperationInput{
-		Operation: signedNonceReveal.SignedOperation,
-	}
-
-	opHash, err := gt.InjectionOperation(injectionInput)
-	if err != nil {
-		log.WithError(err).Error("ERROR INJECTING NONCE REVEAL")
-	} else {
-		log.WithField("OpHash", opHash).Info("Injected Nonce Reveal")
+		registerNonce(block.Metadata.Level.Cycle, nextLevelToBake, seedHashHex)
 	}
 }
 
@@ -481,7 +432,7 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 		}
 
 		// check the hash after manipulating
-		rr, err := cryptoGenericHash(hex.EncodeToString(hashBuffer))
+		rr, err := util.CryptoGenericHash(hex.EncodeToString(hashBuffer), []byte{})
 		if err != nil {
 			return "", 0, errors.Wrap(err, "POW Unable to check hash")
 		}
@@ -664,7 +615,7 @@ func generateNonce() (string, string, error) {
 	}
 	seed := hex.EncodeToString(randBytes)[:64]
 
-	seedHash, err := cryptoGenericHash(seed)
+	seedHash, err := util.CryptoGenericHash(seed, []byte{})
 	if err != nil {
 		log.WithError(err).Error("Unable to hash seed for nonce")
 		return "", "", err

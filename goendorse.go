@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	gotezos "github.com/goat-systems/go-tezos"
+	gotezos "github.com/utdrmac/go-tezos/v2""
 	log "github.com/sirupsen/logrus"
 
 	"goendorse/storage"

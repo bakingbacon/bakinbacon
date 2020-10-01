@@ -4,12 +4,17 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
-	gotezos "github.com/goat-systems/go-tezos"
+	_ "goendorse/signerclient"
+
+	gotezos "github.com/goat-systems/go-tezos/v2"
 	log "github.com/sirupsen/logrus"
 )
 
-func handleEndorsement(ctx context.Context, blk gotezos.Block) {
+func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Block) {
+
+	defer wg.Done()
 
 	log.WithField("BlockHash", blk.Hash).Trace("Received Endorsement Hash")
 
@@ -18,7 +23,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 	endoRightsFilter := gotezos.EndorsingRightsInput{
 		BlockHash: blk.Hash,
 		Level:     endorsingLevel,
-		Delegate:  BAKER,
+		Delegate:  (*bakerPkh),
 	}
 
 	rights, err := gt.EndorsingRights(endoRightsFilter)
@@ -55,7 +60,7 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 		log.WithError(err).Error("Error Forging Endorsement")
 		return
 	}
-	log.WithField("Bytes", endorsementBytes).Trace("Forged Endorsement")
+	log.WithField("Bytes", string(endorsementBytes)).Debug("Forged Endorsement")
 
 	// Check if a new block has been posted to /head and we should abort
 	select {
@@ -67,15 +72,22 @@ func handleEndorsement(ctx context.Context, blk gotezos.Block) {
 	}
 
 	// Sign the forged bytes with our wallet
-	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID)
+	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID) // account.go
 	if err != nil {
 		log.WithError(err).Error("Could not sign endorsement bytes")
 		return
 	}
 
+	// Testing. Sign with tezos-signer
+	edSig, err := signerWallet.SignEndorsement(endorsementBytes, blk.ChainID)
+	if err != nil {
+		log.WithError(err).Error("tezos-signer failure")
+	}
+	log.WithField("Signature", edSig).Debug("Signer Signature")
+
 	// Really low-level debugging
 	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")
-	//log.WithField("Signature", signedEndorsement.EDSig).Debug("SIGNED SIGNATURE")
+	log.WithField("Signature", signedEndorsement.EDSig).Debug("Wallet Signature")
 	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
 
 	// Prepare to pre-apply the operation

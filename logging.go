@@ -15,7 +15,6 @@ func setupLogging(logDebug bool) {
 
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:  true,
-		DisableSorting: true,
 	})
 
 	cwd, err := os.Getwd()

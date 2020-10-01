@@ -37,7 +37,6 @@ func (s *Storage) GetNoncesForCycle(cycle int) ([]nonce.Nonce, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		cb := tx.Bucket([]byte(NONCE_BUCKET)).Bucket(itob(cycle))
 		if cb == nil {
-			log.WithField("Cycle", cycle).Debug("Nonce cycle bucket not found")
 			return errors.New("No cycle bucket found")
 		}
 		c := cb.Cursor()

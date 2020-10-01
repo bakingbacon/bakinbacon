@@ -72,23 +72,16 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Bloc
 		break
 	}
 
-	// Sign the forged bytes with our wallet
-	signedEndorsement, err := wallet.SignEndorsementOperation(endorsementBytes, blk.ChainID) // account.go
-	if err != nil {
-		log.WithError(err).Error("Could not sign endorsement bytes")
-		return
-	}
-
-	// Testing. Sign with tezos-signer
-	edSig, err := signerWallet.SignEndorsement(endorsementBytes, blk.ChainID)
+	// Sign with tezos-signer
+	signedEndorsement, err := signerWallet.SignEndorsement(endorsementBytes, blk.ChainID)
 	if err != nil {
 		log.WithError(err).Error("tezos-signer failure")
 	}
-	log.WithField("Signature", edSig.EDSig).Debug("Signer Signature")
+	log.WithField("Signature", signedEndorsement.EDSig).Debug("Signer Signature")
 
 	// Really low-level debugging
 	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")
-	log.WithField("Signature", signedEndorsement.EDSig).Debug("Wallet Signature")
+	//log.WithField("Signature", signedEndorsement.EDSig).Debug("Wallet Signature")
 	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
 
 	// Prepare to pre-apply the operation

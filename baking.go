@@ -621,7 +621,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block) 
 	previousCycle := block.Metadata.Level.Cycle - 1
 	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
 	if err != nil {
-		log.WithError(err).WithField("Cycle", previousCycle).Error("Unable to get nonces from DB")
+		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
 		return
 	}
 

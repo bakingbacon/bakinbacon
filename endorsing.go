@@ -84,7 +84,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Bloc
 	if err != nil {
 		log.WithError(err).Error("tezos-signer failure")
 	}
-	log.WithField("Signature", edSig).Debug("Signer Signature")
+	log.WithField("Signature", edSig.EDSig).Debug("Signer Signature")
 
 	// Really low-level debugging
 	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")

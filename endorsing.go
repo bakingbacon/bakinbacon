@@ -6,9 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	_ "goendorse/signerclient"
+	//"goendorse/signerclient"
 
-	gotezos "github.com/goat-systems/go-tezos/v2"
+	gotezos "github.com/goat-systems/go-tezos"
+
 	log "github.com/sirupsen/logrus"
 )
 

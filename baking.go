@@ -12,7 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	gotezos "github.com/goat-systems/go-tezos/v2"
+	gotezos "github.com/goat-systems/go-tezos"
 	log "github.com/sirupsen/logrus"
 	
 	_ "goendorse/signerclient"

@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
-	gotezos "github.com/goat-systems/go-tezos"
+
+	gotezos "github.com/goat-systems/go-tezos/v2"
 	log "github.com/sirupsen/logrus"
 	"testing"
 )
@@ -15,10 +15,10 @@ func init() {
 	var err error
 
 	// Connect to node for tests
-	gt, err = gotezos.New("127.0.0.1:18732")
-	if err != nil {
-		panic(fmt.Sprintf("Unable to connect to network: %s\n", err))
-	}
+// 	gt, err = gotezos.New("127.0.0.1:18732")
+// 	if err != nil {
+// 		panic(fmt.Sprintf("Unable to connect to network: %s\n", err))
+// 	}
 
 	log.SetLevel(log.DebugLevel)
 
@@ -32,24 +32,6 @@ func init() {
 	}
 }
 
-func TestRevealNonce(t *testing.T) {
-
-	nonceHash, seedHashHex, err := generateNonce()
-	if err != nil {
-		t.Errorf("Generate Nonce Failed: %s", err)
-	}
-
-	t.Logf("SeedHash: %s\n", seedHashHex)
-	t.Logf("NonceHash: %s\n", nonceHash)
-
-	// get head
-	block, err := gt.Head()
-	if err != nil {
-		t.Errorf("Unable to get /head for testing: %s", err)
-	}
-
-	revealNonce(*block, nonceHash, seedHashHex)
-}
 
 func TestPow(t *testing.T) {
 

@@ -12,7 +12,9 @@ import (
 
 	gotezos "github.com/goat-systems/go-tezos"
 	log "github.com/sirupsen/logrus"
-	storage "goendorse/storage"
+
+	"goendorse/storage"
+	"goendorse/signerclient"
 )
 
 const (
@@ -20,35 +22,37 @@ const (
 )
 
 var (
-	gt     *gotezos.GoTezos
-	wallet *gotezos.Wallet
+	gt           *gotezos.GoTezos
+	wallet       *gotezos.Wallet
+	wg           sync.WaitGroup
+	signerWallet *signerclient.SignerClient
+
+	// Flags
+	logDebug        *bool
+	bakerPkh        *string
+	maxBakePriority *int
+	rpcUrl          *string
+	signerUrl       *string
 )
 
 func main() {
 
 	var err error
 
-	// Args
-	logDebug := flag.Bool("debug", false, "Enable debug logging")
-	maxBakePriority := flag.Int("max-priority", 64, "Maximum allowed priority to bake")
-	rpcHostname := flag.String("node-rpc", "127.0.0.1", "Hostname/IP of RPC server")
-	rpcPort := flag.Int("node-port", 8732, "TCP/IP port of RPC server")
-	flag.Parse()
+	parseArgs()
 
 	// Logging
 	setupLogging(*logDebug)
 
 	// Clean exits
 	shutdownChannel := SetupCloseChannel()
-	var wg sync.WaitGroup
 
 	// Connection to node
-	rpcHostPort := fmt.Sprintf("%s:%d", *rpcHostname, *rpcPort)
-	gt, err = gotezos.New(rpcHostPort)
+	gt, err = gotezos.New(*rpcUrl)
 	if err != nil {
-		log.WithError(err).Fatalf("Could not connect to network: %s", rpcHostPort)
+		log.WithError(err).Fatalf("Could not connect to network: %s", *rpcUrl)
 	}
-	log.WithField("Host", rpcHostPort).Info("Connected to RPC server")
+	log.WithField("Host", *rpcUrl).Info("Connected to RPC server")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
@@ -59,6 +63,15 @@ func main() {
 		log.Fatal(err.Error())
 	}
 	log.WithField("Baker", wallet.Address).Info("Loaded Wallet")
+
+	// Signer wallet
+	signerWallet, err = signerclient.New(*bakerPkh, *signerUrl)
+	if err != nil {
+		log.WithError(err).Fatal("Could not connect to signer")
+	}
+	log.WithFields(log.Fields{
+		"Baker": signerWallet.BakerPkh, "PublicKey": signerWallet.BakerPk,
+	}).Info("Connected to signer daemon")
 
 	//log.Printf("Constants: PreservedCycles: %d, BlocksPerCycle: %d, BlocksPerRollSnapshot: %d",
 	//	gt.Constants.PreservedCycles, gt.Constants.BlocksPerCycle, gt.Constants.BlocksPerRollSnapshot)
@@ -130,8 +143,14 @@ func main() {
 			// Create a new context for this run
 			ctx, ctxCancel = context.WithCancel(context.Background())
 
-			go handleEndorsement(ctx, *block)
-			go handleBake(ctx, *block, *maxBakePriority)
+			wg.Add(1)
+			go handleEndorsement(ctx, &wg, *block)
+
+			wg.Add(1)
+			go revealNonces(ctx, &wg, *block)
+
+			wg.Add(1)
+			go handleBake(ctx, &wg, *block, *maxBakePriority)
 
 		case <-shutdownChannel:
 			log.Warn("Shutting things down...")
@@ -163,4 +182,41 @@ func SetupCloseChannel() chan interface{} {
 	}()
 
 	return closingChan
+}
+
+func parseArgs() {
+
+	// Args
+	logDebug = flag.Bool("debug", false, "Enable debug logging")
+	bakerPkh = flag.String("baker", "", "Baker's Public Key Hash")
+	maxBakePriority = flag.Int("max-priority", 64, "Maximum allowed priority to bake")
+	rpcUrl = flag.String("rpc-url", "http://127.0.0.1:8732", "URL of RPC server")
+	signerUrl = flag.String("signer-url", "http://127.0.0.1:8734", "URL of signer")
+	flag.Parse()
+
+	// Sanity checks
+	if *bakerPkh == "" {
+		fmt.Println("Baker's public key hash required")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	bakerPhkThree := (*bakerPkh)[0:3]
+	if bakerPhkThree != "tz1" && bakerPhkThree != "tz2" && bakerPhkThree != "tz3" {
+		fmt.Println("Baker key does not match one of tz1.., tz2.., or tz3..")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *signerUrl == "" || ((*signerUrl)[0:4] != "http" && (*signerUrl)[0:5] != "https") {
+		fmt.Println("Signer URL is required; Ex: http://127.0.0.1:18734")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if *rpcUrl == "" || ((*rpcUrl)[0:4] != "http" && (*rpcUrl)[0:5] != "https") {
+		fmt.Println("RPC URL is required; Ex: http://127.0.0.1:18734")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 }

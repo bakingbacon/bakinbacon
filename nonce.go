@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	gotezos "github.com/goat-systems/go-tezos/v2"
+	gotezos "github.com/goat-systems/go-tezos"
 	log "github.com/sirupsen/logrus"
-	storage "goendorse/storage"
+	"goendorse/storage"
 )
 
 func registerNonce(cycle, level int, seedHashHex string) error {

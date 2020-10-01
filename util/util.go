@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"encoding/hex"
@@ -8,12 +8,16 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-func cryptoGenericHash(buffer string) ([]byte, error) {
+func CryptoGenericHash(buffer string, watermark []byte) ([]byte, error) {
 
 	// Convert hex buffer to bytes
 	bufferBytes, err := hex.DecodeString(buffer)
 	if err != nil {
 		return []byte{0}, errors.Wrap(err, "Unable to hex decode buffer bytes")
+	}
+
+	if len(watermark) > 0 {
+		bufferBytes = append(watermark, bufferBytes...)
 	}
 
 	// Generic hash of 32 bytes
@@ -34,7 +38,7 @@ func cryptoGenericHash(buffer string) ([]byte, error) {
 	return bufferHash, nil
 }
 
-func stripQuote(s string) string {
+func StripQuote(s string) string {
 	m := strings.TrimSpace(s)
 	if len(m) > 0 && m[0] == '"' {
 		m = m[1:]

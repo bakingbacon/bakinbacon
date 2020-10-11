@@ -6,14 +6,14 @@ import (
 	"strings"
 	"sync"
 
-	//"goendorse/signerclient"
 
-	gotezos "github.com/utdrmac/go-tezos/v2"
+	"github.com/goat-systems/go-tezos/v3/forge"
+	"github.com/goat-systems/go-tezos/v3/rpc"
 
 	log "github.com/sirupsen/logrus"
 )
 
-func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Block) {
+func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 
 	defer wg.Done()
 
@@ -21,47 +21,39 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Bloc
 
 	// look for endorsing rights at this level
 	endorsingLevel := blk.Header.Level
-	endoRightsFilter := gotezos.EndorsingRightsInput{
+	endorsingRightsFilter := rpc.EndorsingRightsInput{
 		BlockHash: blk.Hash,
 		Level:     endorsingLevel,
 		Delegate:  (*bakerPkh),
 	}
 
-	rights, err := gt.EndorsingRights(endoRightsFilter)
+	endorsingRights, err := gt.EndorsingRights(endorsingRightsFilter)
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch endorsing rights")
 	}
 
-	if len(*rights) == 0 {
+	if len(*endorsingRights) == 0 {
 		log.WithField("Level", endorsingLevel).Info("No endorsing rights for this level")
 		return
 	}
 
 	// continue since we have at least 1 endorsing right
-	for _, e := range *rights {
+	for _, e := range *endorsingRights {
 		log.WithField("Slots",
 			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
 
-	// Forge operation input
-	endorsementOperation := gotezos.ForgeOperationWithRPCInput{
-		Blockhash: blk.Hash,
-		Branch:    blk.Hash,
-		Contents: []gotezos.Contents{
-			gotezos.Contents{
-				Kind:  "endorsement",
-				Level: endorsingLevel,
-			},
-		},
+	endoContent := rpc.Content{
+		Kind:  rpc.ENDORSEMENT,
+		Level: endorsingLevel,
 	}
 
-	// Forge the operation using RPC and get the bytes back
-	endorsementBytes, err := gt.ForgeOperationWithRPC(endorsementOperation)
+	endorsementBytes, err := forge.Encode(blk.Hash, endoContent)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Endorsement")
 		return
 	}
-	log.WithField("Bytes", string(endorsementBytes)).Debug("Forged Endorsement")
+	log.WithField("Bytes", endorsementBytes).Debug("Forged Endorsement")
 
 	// Check if a new block has been posted to /head and we should abort
 	select {
@@ -85,21 +77,30 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk gotezos.Bloc
 	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
 
 	// Prepare to pre-apply the operation
-	preapplyEndoOp := gotezos.PreapplyOperationsInput{
-		Blockhash: blk.Hash,
-		Protocol:  blk.Protocol,
-		Signature: signedEndorsement.EDSig,
-		Contents:  endorsementOperation.Contents,
+	preapplyEndoOp := rpc.PreapplyOperationsInput{
+		Blockhash:  blk.Hash,
+		Operations: []rpc.Operations{
+			{
+				Branch:    blk.Hash,
+				Contents:  rpc.Contents{
+					endoContent,
+				},
+				Protocol:  blk.Protocol,
+				Signature: signedEndorsement.EDSig,
+			},
+		},
 	}
 
 	// Validate the operation against the node for any errors
-	if _, err := gt.PreapplyOperations(preapplyEndoOp); err != nil {
+	preApplyResp, err := gt.PreapplyOperations(preapplyEndoOp)
+	if err != nil {
 		log.WithError(err).Error("Could not preapply operations")
 		return
 	}
+	log.WithField("Resp", preApplyResp).Debug("Preapply Response")
 
 	// Create injection
-	injectionInput := gotezos.InjectionOperationInput{
+	injectionInput := rpc.InjectionOperationInput{
 		Operation: signedEndorsement.SignedOperation,
 	}
 

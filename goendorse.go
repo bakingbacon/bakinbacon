@@ -10,20 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	gotezos "github.com/utdrmac/go-tezos/v2"
+	"github.com/goat-systems/go-tezos/v3/rpc"
+
 	log "github.com/sirupsen/logrus"
 
-	"goendorse/storage"
 	"goendorse/signerclient"
-)
-
-const (
-	BAKER string = "tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR"
+	"goendorse/storage"
 )
 
 var (
-	gt           *gotezos.GoTezos
-	wallet       *gotezos.Wallet
+	gt           *rpc.Client
+	//wallet       keys.Key
 	wg           sync.WaitGroup
 	signerWallet *signerclient.SignerClient
 
@@ -48,21 +45,28 @@ func main() {
 	shutdownChannel := SetupCloseChannel()
 
 	// Connection to node
-	gt, err = gotezos.New(*rpcUrl)
+	gt, err = rpc.New(*rpcUrl)
 	if err != nil {
 		log.WithError(err).Fatalf("Could not connect to network: %s", *rpcUrl)
 	}
 	log.WithField("Host", *rpcUrl).Info("Connected to RPC server")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
-	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
-	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
-
-	wallet, err = gotezos.ImportWallet(BAKER, pk, sk)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	log.WithField("Baker", wallet.Address).Info("Loaded Wallet")
+	//pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
+// 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
+// 
+// 	// Gotezos wallet
+// 	walletInput := keys.NewKeyInput{
+// 		EncodedString: sk,
+// 		Kind:          keys.Ed25519,
+// 	}
+// 	wallet, err = keys.NewKey(walletInput)
+// 	if err != nil {
+// 		log.WithError(err).Fatal("Failed to load wallet")
+// 	}
+// 	log.WithFields(log.Fields{
+// 		"Baker": wallet.PubKey.GetPublicKeyHash(), "PublicKey": wallet.PubKey.GetPublicKey(),
+// 	}).Info("Loaded Wallet")
 
 	// Signer wallet
 	signerWallet, err = signerclient.New(*bakerPkh, *signerUrl)
@@ -76,15 +80,15 @@ func main() {
 	//log.Printf("Constants: PreservedCycles: %d, BlocksPerCycle: %d, BlocksPerRollSnapshot: %d",
 	//	gt.Constants.PreservedCycles, gt.Constants.BlocksPerCycle, gt.Constants.BlocksPerRollSnapshot)
 
-	newHeadNotifier := make(chan *gotezos.Block, 1)
+	newHeadNotifier := make(chan *rpc.Block, 1)
 
 	// this go func should loop forever, checking every 20s if a new block has appeared
 	wg.Add(1)
-	go func(nHN chan<- *gotezos.Block, sC <-chan interface{}, wg *sync.WaitGroup) {
+	go func(nHN chan<- *rpc.Block, sC <-chan interface{}, wg *sync.WaitGroup) {
 
 		defer wg.Done()
 
-		curHead := &gotezos.Block{}
+		curHead := &rpc.Block{}
 
 		ticker := time.NewTicker(10 * time.Second)
 

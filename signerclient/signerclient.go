@@ -70,6 +70,11 @@ func New(bakerPkh, signerUrl string) (*SignerClient, error) {
 	return sc, nil
 }
 
+// Nonce reveals have the same watermark as endorsements
+func (s *SignerClient) SignNonce(nonceBytes string, chainID string) (SignOperationOutput, error) {
+	return s.SignEndorsement(nonceBytes, chainID)
+}
+
 func (s *SignerClient) SignEndorsement(endorsementBytes string, chainID string) (SignOperationOutput, error) {
 
 	// Strip off the chainId prefix, and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)

@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/hex"
 
-	gotezos "github.com/utdrmac/go-tezos/v2"
+	"github.com/goat-systems/go-tezos/v3/keys"
+	"github.com/goat-systems/go-tezos/v3/crypto"
+
 	log "github.com/sirupsen/logrus"
 	"testing"
 )
@@ -23,13 +25,20 @@ func init() {
 	log.SetLevel(log.DebugLevel)
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
-	pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
+	// pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
 
-	wallet, err = gotezos.ImportWallet(BAKER, pk, sk)
-	if err != nil {
-		log.Fatal(err.Error())
+	walletInput := keys.NewKeyInput{
+		EncodedString: sk,
+		Kind:          keys.Ed25519,
 	}
+
+	wallet, err = keys.NewKey(walletInput)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to load wallet")
+	}
+
+	t.Logf("Baker PKH: %s\n", wallet.PubKey.GetPublicKeyHash())
 }
 
 
@@ -60,7 +69,7 @@ func TestGenericHash(t *testing.T) {
 	t.Logf("Seed Hash: %v\n", seedHash)
 
 	// B58 encode seed hash with nonce prefix
-	nonceHash := gotezos.B58cencode(seedHash, Prefix_nonce)
+	nonceHash := crypto.B58cencode(seedHash, Prefix_nonce)
 	seedHashHex := hex.EncodeToString(seedHash)
 
 	t.Logf("Nonce Hash: %s\n", nonceHash)

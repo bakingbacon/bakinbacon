@@ -11,13 +11,12 @@ import (
 
 	"github.com/pkg/errors"
 
-	gotezos "github.com/utdrmac/go-tezos/v2"
+	"github.com/goat-systems/go-tezos/v3/rpc"
 	log "github.com/sirupsen/logrus"
-	
-	_ "goendorse/signerclient"
+
+	"goendorse/nonce"
 	"goendorse/storage"
 	"goendorse/util"
-	"goendorse/nonce"
 )
 
 const (
@@ -34,7 +33,7 @@ var (
 	}
 )
 
-func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, maxBakePriority int) {
+func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBakePriority int) {
 
 	defer wg.Done()
 
@@ -81,19 +80,21 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	}
 
 	// Look for baking rights
-	bakingRights := gotezos.BakingRightsInput{
-		Level:     nextLevelToBake,
-		Delegate:  (*bakerPkh),
-		BlockHash: block.Hash,
+	bakingRightsFilter := rpc.BakingRightsInput{
+		BlockHash:   block.Hash,
+		Level:       nextLevelToBake,
+		Delegate:    (*bakerPkh),
+		MaxPriority: maxBakePriority,
 	}
 
-	rights, err := gt.BakingRights(bakingRights)
+	bakingRights, err := gt.BakingRights(bakingRightsFilter)
 	if err != nil {
-		log.Println(err)
+		log.WithError(err).Error("Unable to fetch baking rights")
+		return
 	}
 
 	// Got any rights?
-	if len(*rights) == 0 {
+	if len(*bakingRights) == 0 {
 		log.WithFields(log.Fields{
 			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
 		}).Info("No baking rights for level")
@@ -101,13 +102,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	}
 
 	// Have rights. More than one?
-	bakingRight := (*rights)[0]
-	if len(*rights) > 1 {
+	bakingRight := (*bakingRights)[0]
+	if len(*bakingRights) > 1 {
 
-		log.WithField("Rights", rights).Warn("Found more than 1 baking right; Picking best priority.")
+		log.WithField("Rights", bakingRights).Warn("Found more than 1 baking right; Picking best priority.")
 
 		// Sort baking rights based on lowest priority; You only get one opportunity
-		for _, r := range *rights {
+		for _, r := range *bakingRights {
 			if r.Priority > bakingRight.Priority {
 				bakingRight = r
 			}
@@ -157,7 +158,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	var n nonce.Nonce
 	if nextLevelToBake % 32 == 0 {
 
-		n, err = nonce.GenerateNonce()
+		n, err = generateNonce()
 		if err != nil {
 			log.WithError(err)
 		}
@@ -175,10 +176,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
 	endorsingPower := 0
-	var operations [][]gotezos.Operations
+	var operations [][]rpc.Operations
 
-	mempoolInput := gotezos.MempoolInput{
-		ChainID:       block.ChainID,
+	mempoolInput := rpc.MempoolInput{
 		Applied:       true,
 		BranchDelayed: true,
 	}
@@ -247,6 +247,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	}).Debug("Minimal Injection Timestamp")
 
 	// Need to sleep until minimal injection timestamp
+	// TODO If we need to sleep, there could be some more endorsements in mempool to grab
 	if nowTimestamp.Before(minimalInjectionTime) {
 		sleepDuration := time.Duration(minimalInjectionTime.Sub(nowTimestamp).Seconds())
 		log.Infof("Sleeping for %ds, based on endorsing power", sleepDuration)
@@ -259,7 +260,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 		}
 	}
 
-	dummyProtocolData := gotezos.ProtocolData{
+	dummyProtocolData := rpc.ProtocolData{
 		block.Protocol,
 		priority,
 		"0000000000000000",
@@ -267,7 +268,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 		n.NonceHash,
 	}
 
-	preapplyBlockheader := gotezos.PreapplyBlockOperationInput{
+	preapplyBlockheader := rpc.PreapplyBlockOperationInput{
 		dummyProtocolData,    // ProtocolData
 		operations,           // Operations
 		true,                 // Sort
@@ -323,54 +324,54 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block, ma
 	log.WithField("Attempts", attempts).Debug("Proof-of-Work Complete")
 	log.WithField("Bytes", blockbytes).Trace("Proof-of-Work")
 
-	// Take blockbytes and sign it
-	signedBlock, err := wallet.SignBlock(blockbytes, block.ChainID)
-	if err != nil {
-		log.WithError(err).Error("Could not sign block bytes")
-		return
-	}
-	log.WithField("SB", signedBlock).Trace("Signed Block Bytes")
-
-	// The data of the block
-	ibi := gotezos.InjectionBlockInput{
-		SignedBytes: signedBlock.SignedOperation,
-		Operations:  appliedOperations,
-	}
-
-	// Check if a new block has been posted to /head and we should abort
-	select {
-	case <-ctx.Done():
-		log.Info("New block arrived; Canceling current bake")
-		return
-	default:
-		break
-	}
-
-	// Inject block
-	resp, err := gt.InjectionBlock(ibi)
-	if err != nil {
-		log.WithError(err).Error("Failed Block Injection")
-		return
-	}
-	blockHash := util.StripQuote(string(resp))
-	log.WithFields(log.Fields{
-		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
-	}).Info("Successfully injected block")
-
-	// Save watermark to DB
-	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
-		log.WithError(err).Error("Unable to save block; Watermark compromised")
-	} else {
-		log.Info("Saved injected block watermark")
-	}
-
-	// Save nonce to DB for reveal in next cycle
-	if n.SeedHashHex != "" {
-		registerNonce(block.Metadata.Level.Cycle, n)
-	}
+// 	// Take blockbytes and sign it
+// 	signedBlock, err := wallet.SignBlock(blockbytes, block.ChainID)
+// 	if err != nil {
+// 		log.WithError(err).Error("Could not sign block bytes")
+// 		return
+// 	}
+// 	log.WithField("SB", signedBlock).Trace("Signed Block Bytes")
+// 
+// 	// The data of the block
+// 	ibi := rpc.InjectionBlockInput{
+// 		SignedBytes: signedBlock.SignedOperation,
+// 		Operations:  appliedOperations,
+// 	}
+// 
+// 	// Check if a new block has been posted to /head and we should abort
+// 	select {
+// 	case <-ctx.Done():
+// 		log.Info("New block arrived; Canceling current bake")
+// 		return
+// 	default:
+// 		break
+// 	}
+// 
+// 	// Inject block
+// 	resp, err := gt.InjectionBlock(ibi)
+// 	if err != nil {
+// 		log.WithError(err).Error("Failed Block Injection")
+// 		return
+// 	}
+// 	blockHash := util.StripQuote(string(resp))
+// 	log.WithFields(log.Fields{
+// 		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
+// 	}).Info("Successfully injected block")
+// 
+// 	// Save watermark to DB
+// 	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
+// 		log.WithError(err).Error("Unable to save block; Watermark compromised")
+// 	} else {
+// 		log.Info("Saved injected block watermark")
+// 	}
+// 
+// 	// Save nonce to DB for reveal in next cycle
+// 	if n.SeedHashHex != "" {
+// 		registerNonce(block.Metadata.Level.Cycle, n)
+// 	}
 }
 
-func parsePreapplyOperations(ops []gotezos.ShellOperations) [][]interface{} {
+func parsePreapplyOperations(ops []rpc.ShellOperations) [][]interface{} {
 
 	operations := make([][]interface{}, 4)
 	for i, _ := range operations {
@@ -481,7 +482,7 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed)
 }
 
-func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol string) ([][]gotezos.Operations, error) {
+func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
 
 	// 	for(var i = 0; i < r.applied.length; i++){
 	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -502,9 +503,9 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 
 	// 4 slots for operations to be sorted into
 	// Init each slot to size 0 so that marshaling returns "[]" instead of null
-	operations := make([][]gotezos.Operations, 4)
+	operations := make([][]rpc.Operations, 4)
 	for i, _ := range operations {
-		operations[i] = make([]gotezos.Operations, 0)
+		operations[i] = make([]rpc.Operations, 0)
 	}
 
 	for _, op := range ops.Applied {
@@ -512,18 +513,18 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 		// Determine the type of op to find out into which slot it goes
 		var opSlot int = 3
 		if len(op.Contents) == 1 {
-			opSlot = func(opKind string, level int) int {
+			opSlot = func(opKind rpc.Kind, level int) int {
 				switch opKind {
-				case "endorsement":
+				case rpc.ENDORSEMENT:
 					// Endorsements must match the current head block level
 					if level != curLevel {
 						return -1
 					}
 					return 0
-				case "proposals", "ballot":
+				case rpc.PROPOSALS, rpc.BALLOT:
 					return 1
-				case "seed_nonce_revelation", "double_endorsement_evidence",
-					"double_baking_evidence", "activate_account":
+				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
+					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
 					return 2
 				}
 				return 3
@@ -544,7 +545,7 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 		// operations[opSlot] = append(operations[opSlot], struct {
 		// 	Protocol  string             `json:"protocol"`
 		// 	Branch    string             `json:"branch"`
-		// 	Contents  []gotezos.Contents `json:"contents"`
+		// 	Contents  []rpc.Contents `json:"contents"`
 		// 	Signature string             `json:"signature"`
 		// }{
 		// 	headProtocol,
@@ -553,7 +554,7 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 		// 	op.Signature,
 		// })
 
-		operations[opSlot] = append(operations[opSlot], gotezos.Operations{
+		operations[opSlot] = append(operations[opSlot], rpc.Operations{
 			Protocol:  headProtocol,
 			Branch:    op.Branch,
 			Contents:  op.Contents,
@@ -565,7 +566,7 @@ func parseMempoolOperations(ops gotezos.Mempool, curLevel int, headProtocol stri
 	return operations, nil
 }
 
-func computeEndorsingPower(chainID string, operations []gotezos.Operations) (int, error) {
+func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, error) {
 
 	// https://blog.nomadic-labs.com/emmy-an-improved-consensus-algorithm.html
 	// >>>>149: http://172.17.0.5:8732/chains/NetXjD3HPJJjmcd/blocks/BLfXz42dc2.../endorsing_power
@@ -583,7 +584,7 @@ func computeEndorsingPower(chainID string, operations []gotezos.Operations) (int
 
 	for _, o := range operations {
 
-		endorsementOperation := gotezos.EndorsingPowerInput{ // block.go
+		endorsementOperation := rpc.EndorsingPowerInput{ // block.go
 			o,
 			chainID,
 		}
@@ -605,111 +606,4 @@ func registerNonce(cycle int, n nonce.Nonce) error {
 	// then reveal it after the start of the next cycle.
 
 	return storage.DB.SaveNonce(cycle, n)
-}
-
-func revealNonces(ctx context.Context, wg *sync.WaitGroup, block gotezos.Block) {
-
-	defer wg.Done()
-
-	// Only reveal in levels 1, 2, 3, 4 of cycle
-// 	cyclePosition := block.Metadata.Level.CyclePosition
-// 	if cyclePosition == 0 || cyclePosition > 4 {
-// 		return
-// 	}
-
-	// Get nonces for previous cycle from DB
-	previousCycle := block.Metadata.Level.Cycle - 1
-	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
-	if err != nil {
-		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
-		return
-	}
-
-	if len(nonces) == 0 {
-		log.Trace("No nonces to reveal")
-		return
-	}
-	log.WithField("Cycle", previousCycle).Infof("Found %d nonces", len(nonces))
-
-	// loop over nonces and inject
-	for _, nonce := range nonces {
-
-		// If a nonce has a revealed operation, don't need to reveal it again
-		if nonce.RevealOp != "" {
-			log.WithFields(log.Fields{
-				"Level": nonce.Level, "RevealedOp": nonce.RevealOp,
-			}).Info("Nonce already revealed")
-			continue
-		}
-
-		log.WithFields(log.Fields{
-			"Level": nonce.Level, "Hash": nonce.NonceHash, "SeedHashHex": nonce.SeedHashHex,
-		}).Info("Revealing nonce")
-
-		nonceRevealOperation := gotezos.ForgeOperationWithRPCInput{
-			Blockhash: block.Hash,
-			Branch:    block.Hash,
-			Contents: []gotezos.Contents{
-				gotezos.Contents{
-					Kind:  "seed_nonce_revelation",
-					Level: nonce.Level,
-					Nonce: nonce.SeedHashHex,
-				},
-			},
-		}
-
-		// Forge nonce reveal operation
-		forgedNonceRevealBytes, err := gt.ForgeOperationWithRPC(nonceRevealOperation) // operations.go
-		if err != nil {
-			log.WithError(err).Error("Error Forging Nonce Reveal")
-			continue
-		}
-		log.WithField("Bytes", forgedNonceRevealBytes).Trace("Forged Reveal Nonce")
-
-		// Nonce reveals have the same watermark as endorsements
-		signedNonceReveal, err := wallet.SignEndorsementOperation(forgedNonceRevealBytes, block.ChainID)
-		if err != nil {
-			log.WithError(err).Error("Could not sign nonce reveal bytes")
-			continue
-		}
-
-		preapplyNonceRevealOp := gotezos.PreapplyOperationsInput{
-			Blockhash: block.Hash,
-			Protocol:  block.Protocol,
-			Signature: signedNonceReveal.EDSig,
-			Contents:  nonceRevealOperation.Contents,
-		}
-
-		// Validate the operation against the node for any errors
-		if _, err := gt.PreapplyOperations(preapplyNonceRevealOp); err != nil {
-			log.WithError(err).Error("Could not preapply nonce reveal operation")
-			continue
-		}
-
-		// Check if new block came in
-		select {
-		case <-ctx.Done():
-			log.Warn("New block arrived; Canceling nonce reveal")
-			return
-		default:
-			break
-		}
-
-		// Inject nonce reveal op
-		injectionInput := gotezos.InjectionOperationInput{
-			Operation: signedNonceReveal.SignedOperation,
-		}
-		return
-		revealOpHash, err := gt.InjectionOperation(injectionInput)
-		if err != nil {
-			log.WithError(err).Error("Error Injecting Nonce Reveal")
-			continue
-		}
-
-		log.WithField("OpHash", revealOpHash).Info("Injected Nonce Reveal")
-
-		// Update DB with hash of reveal operation
-		nonce.RevealOp = revealOpHash
-		storage.DB.SaveNonce(previousCycle, nonce)
-	}
 }

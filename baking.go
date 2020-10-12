@@ -154,9 +154,10 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Determine if we need to calculate a nonce
-	// It is our responsibility to create and reveal a nonce on specific levels
+	// It is our responsibility to create a nonce on specific levels (usually level % 32),
+	// then reveal the seed used to create the nonce in the next cycle.
 	var n nonce.Nonce
-	if nextLevelToBake % 32 == 0 {
+	if block.Metadata.Level.ExpectedCommitment {
 
 		n, err = generateNonce()
 		if err != nil {

@@ -315,7 +315,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	forgedBlock = forgedBlock[:len(forgedBlock)-22]
 
 	// Perform a lame proof-of-work computation
-	blockbytes, attempts, err := powLoop(forgedBlock, priority, n.SeedHashHex)
+	blockBytes, attempts, err := powLoop(forgedBlock, priority, n.SeedHashHex)
 	if err != nil {
 		log.WithError(err).Error("Unable to POW!")
 		return
@@ -323,53 +323,54 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// POW done
 	log.WithField("Attempts", attempts).Debug("Proof-of-Work Complete")
-	log.WithField("Bytes", blockbytes).Trace("Proof-of-Work")
+	log.WithField("Bytes", blockBytes).Trace("Proof-of-Work")
 
-// 	// Take blockbytes and sign it
-// 	signedBlock, err := wallet.SignBlock(blockbytes, block.ChainID)
-// 	if err != nil {
-// 		log.WithError(err).Error("Could not sign block bytes")
-// 		return
-// 	}
-// 	log.WithField("SB", signedBlock).Trace("Signed Block Bytes")
-// 
-// 	// The data of the block
-// 	ibi := rpc.InjectionBlockInput{
-// 		SignedBytes: signedBlock.SignedOperation,
-// 		Operations:  appliedOperations,
-// 	}
-// 
-// 	// Check if a new block has been posted to /head and we should abort
-// 	select {
-// 	case <-ctx.Done():
-// 		log.Info("New block arrived; Canceling current bake")
-// 		return
-// 	default:
-// 		break
-// 	}
-// 
-// 	// Inject block
-// 	resp, err := gt.InjectionBlock(ibi)
-// 	if err != nil {
-// 		log.WithError(err).Error("Failed Block Injection")
-// 		return
-// 	}
-// 	blockHash := util.StripQuote(string(resp))
-// 	log.WithFields(log.Fields{
-// 		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
-// 	}).Info("Successfully injected block")
-// 
-// 	// Save watermark to DB
-// 	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
-// 		log.WithError(err).Error("Unable to save block; Watermark compromised")
-// 	} else {
-// 		log.Info("Saved injected block watermark")
-// 	}
-// 
-// 	// Save nonce to DB for reveal in next cycle
-// 	if n.SeedHashHex != "" {
-// 		registerNonce(block.Metadata.Level.Cycle, n)
-// 	}
+	// Take blockbytes and sign it with tezos-signer
+	signedBlock, err := signerWallet.SignBlock(blockBytes, block.ChainID)
+	if err != nil {
+		log.WithError(err).Error("Signing block, tezos-signer failure")
+	}
+	log.WithField("Signature", signedBlock.EDSig).Debug("Block Signer Signature")
+
+	// The data of the block
+	ibi := rpc.InjectionBlockInput{
+		SignedBytes: signedBlock.SignedOperation,
+		Operations:  appliedOperations,
+	}
+
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling current bake")
+		return
+	default:
+		break
+	}
+
+	// Inject block
+	resp, err := gt.InjectionBlock(ibi)
+	if err != nil {
+		log.WithError(err).Error("Failed Block Injection")
+		return
+	}
+
+	blockHash := util.StripQuote(string(resp))
+
+	log.WithFields(log.Fields{
+		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
+	}).Info("Successfully injected block")
+
+	// Save watermark to DB
+	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
+		log.WithError(err).Error("Unable to save block; Watermark compromised")
+	} else {
+		log.Info("Saved injected block watermark")
+	}
+
+	// Save nonce to DB for reveal in next cycle
+	if n.SeedHashHex != "" {
+		registerNonce(block.Metadata.Level.Cycle, n)
+	}
 }
 
 func parsePreapplyOperations(ops []rpc.ShellOperations) [][]interface{} {

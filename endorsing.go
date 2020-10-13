@@ -97,7 +97,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 		log.WithError(err).Error("Could not preapply operations")
 		return
 	}
-	log.WithField("Resp", preApplyResp).Debug("Preapply Response")
+	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{

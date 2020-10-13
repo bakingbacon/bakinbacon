@@ -3,14 +3,12 @@ package signerclient
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"math/big"
 	"reflect"
 
 	"github.com/pkg/errors"
 
 	"github.com/btcsuite/btcutil/base58"
-	"github.com/Messer4/base58check"
 )
 
 type prefix []byte
@@ -137,23 +135,4 @@ func b58decode(data string) ([]byte, error) {
 	}
 
 	return decimalData.Bytes(), nil
-}
-
-//Helper function to return the decoded signature
-func decodeSignature(sig string) (string, error) {
-	decBytes, err := base58check.Decode(sig)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to decode signature")
-	}
-
-	decodedSigHex := hex.EncodeToString(decBytes)
-
-	// sanity
-	if len(decodedSigHex) > 10 {
-		decodedSigHex = decodedSigHex[10:]
-	} else {
-		return "", errors.Wrap(err, "decoded signature is invalid length")
-	}
-
-	return decodedSigHex, nil
 }

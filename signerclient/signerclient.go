@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
+	"github.com/Messer4/base58check"
 )
 
 type SignerClient struct {
@@ -23,6 +25,26 @@ type SignerClient struct {
 
 type SignerResult struct {
 	Signature string `json:"signature"`
+}
+
+// Helper function to return the decoded signature
+func (s *SignerResult) decodeSignature() (string, error) {
+
+	decBytes, err := base58check.Decode(s.Signature)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decode signature")
+	}
+
+	decodedSigHex := hex.EncodeToString(decBytes)
+
+	// sanity
+	if len(decodedSigHex) > 10 {
+		decodedSigHex = decodedSigHex[10:]
+	} else {
+		return "", errors.Wrap(err, "decoded signature is invalid length")
+	}
+
+	return decodedSigHex, nil
 }
 
 // SignOperationOutput contains an operation with the signature appended, and the signature
@@ -72,20 +94,28 @@ func New(bakerPkh, signerUrl string) (*SignerClient, error) {
 
 // Nonce reveals have the same watermark as endorsements
 func (s *SignerClient) SignNonce(nonceBytes string, chainID string) (SignOperationOutput, error) {
-	return s.SignEndorsement(nonceBytes, chainID)
+	return s.signGeneric(endorsementprefix, nonceBytes, chainID)
 }
 
-func (s *SignerClient) SignEndorsement(endorsementBytes string, chainID string) (SignOperationOutput, error) {
+func (s *SignerClient) SignEndorsement(endorsementBytes, chainID string) (SignOperationOutput, error) {
+	return s.signGeneric(endorsementprefix, endorsementBytes, chainID)
+}
+
+func (s *SignerClient) SignBlock(blockBytes, chainID string) (SignOperationOutput, error) {
+	return s.signGeneric(blockprefix, blockBytes, chainID)
+}
+
+func (s *SignerClient) signGeneric(opPrefix prefix, incBytes, chainID string) (SignOperationOutput, error) {
 
 	// Strip off the chainId prefix, and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)
 	chainIdBytes := b58cdecode(chainID, chainidprefix)
-	endorsementWatermark := append(endorsementprefix, chainIdBytes...)
+	watermark := append(opPrefix, chainIdBytes...)
 
-	opBytes, err := hex.DecodeString(endorsementBytes)
+	opBytes, err := hex.DecodeString(incBytes)
 	if err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "failed to sign operation")
 	}
-	opBytes = append(endorsementWatermark, opBytes...)
+	opBytes = append(watermark, opBytes...)
 	finalOpHex := strconv.Quote(hex.EncodeToString(opBytes))  // Must be quote-wrapped
 
 	respBytes, err := s.signOperation(finalOpHex)
@@ -98,15 +128,15 @@ func (s *SignerClient) SignEndorsement(endorsementBytes string, chainID string) 
 	if err := json.Unmarshal(respBytes, &edSig); err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "failed to unmarshal signer")
 	}
-
+	
 	// Decode out the signature from the operation
-	decodedSig, err := decodeSignature(edSig.Signature)
+	decodedSig, err := edSig.decodeSignature()
 	if err != nil {
-		return SignOperationOutput{}, errors.Wrap(err, "failed to decode signature")
+		return SignOperationOutput{}, errors.Wrap(err, "failed to decode signed block")
 	}
 
 	return SignOperationOutput{
-		SignedOperation: fmt.Sprintf("%s%s", endorsementBytes, decodedSig),
+		SignedOperation: fmt.Sprintf("%s%s", incBytes, decodedSig),
 		Signature: decodedSig,
 		EDSig: edSig.Signature,
 	}, nil

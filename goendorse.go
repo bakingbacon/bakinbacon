@@ -51,6 +51,12 @@ func main() {
 	}
 	log.WithField("Host", *rpcUrl).Info("Connected to RPC server")
 
+	log.WithFields(log.Fields{
+		"PreservedCycles":       gt.NetworkConstants.PreservedCycles,
+		"BlocksPerCycle":        gt.NetworkConstants.BlocksPerCycle,
+		"BlocksPerRollSnapshot": gt.NetworkConstants.BlocksPerRollSnapshot,
+	}).Debug("Loaded Network Constants")
+
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	//pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
 // 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
@@ -77,58 +83,11 @@ func main() {
 		"Baker": signerWallet.BakerPkh, "PublicKey": signerWallet.BakerPk,
 	}).Info("Connected to signer daemon")
 
-	//log.Printf("Constants: PreservedCycles: %d, BlocksPerCycle: %d, BlocksPerRollSnapshot: %d",
-	//	gt.Constants.PreservedCycles, gt.Constants.BlocksPerCycle, gt.Constants.BlocksPerRollSnapshot)
 
-	newHeadNotifier := make(chan *rpc.Block, 1)
-
-	// this go func should loop forever, checking every 20s if a new block has appeared
+	// Launch background thread to check for new /head
+	// Returns channel for new head block notifications
 	wg.Add(1)
-	go func(nHN chan<- *rpc.Block, sC <-chan interface{}, wg *sync.WaitGroup) {
-
-		defer wg.Done()
-
-		curHead := &rpc.Block{}
-
-		ticker := time.NewTicker(10 * time.Second)
-
-		for {
-
-			// watch for new head block
-			block, err := gt.Head()
-			if err != nil {
-				log.WithError(err).Error("Unable to get /head block; Will try again")
-			} else {
-
-				if block.Hash != curHead.Hash {
-
-					// notify new block
-					nHN <- block
-
-					curHead = block
-
-					chainid := curHead.ChainID
-					hash := curHead.Hash
-					level := curHead.Metadata.Level.Level
-					cycle := curHead.Metadata.Level.Cycle
-
-					log.WithFields(log.Fields{
-						"Cycle": cycle, "Level": level, "Hash": hash, "ChainID": chainid,
-					}).Info("New Block")
-				}
-			}
-
-			// wait here for timer, or shutdown
-			select {
-			case <-ticker.C:
-				log.Debug("tick...")
-			case <-sC:
-				log.Info("Shutting down /head fetch")
-				return
-			}
-		}
-
-	}(newHeadNotifier, shutdownChannel, &wg)
+	newHeadNotifier := blockWatcher(shutdownChannel, &wg)
 
 	// loop forever, waiting for new blocks on the channel
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -173,6 +132,59 @@ func main() {
 	os.Exit(0)
 }
 
+func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *rpc.Block {
+
+	// Channel for new head blocks
+	newHeadNotifier := make(chan *rpc.Block, 1)
+
+	// Loop forever, checking for new head
+	go func(nHN chan<- *rpc.Block, sC <-chan interface{}, wg *sync.WaitGroup) {
+
+		defer wg.Done()
+
+		curHead := &rpc.Block{}
+
+		ticker := time.NewTicker(10 * time.Second)
+
+		for {
+
+			// watch for new head block
+			block, err := gt.Head()
+			if err != nil {
+				log.WithError(err).Error("Unable to get /head block; Will try again")
+			} else {
+
+				if block.Hash != curHead.Hash {
+
+					// notify new block
+					nHN <- block
+
+					curHead = block
+
+					log.WithFields(log.Fields{
+						"Cycle":   curHead.Metadata.Level.Cycle,
+						"Level":   curHead.Metadata.Level.Level,
+						"Hash":    curHead.Hash,
+						"ChainID": curHead.ChainID,
+					}).Info("New Block")
+				}
+			}
+
+			// wait here for timer, or shutdown
+			select {
+			case <-ticker.C:
+				log.Debug("tick...")
+			case <-sC:
+				log.Info("Shutting down /head fetch")
+				return
+			}
+		}
+
+	}(newHeadNotifier, shutdownChannel, wg)
+
+	return newHeadNotifier
+}
+
 func SetupCloseChannel() chan interface{} {
 
 	signalChan := make(chan os.Signal, 1)
@@ -212,13 +224,17 @@ func parseArgs() {
 		os.Exit(1)
 	}
 
-	if *signerUrl == "" || ((*signerUrl)[0:4] != "http" && (*signerUrl)[0:5] != "https") {
+	isBadUrl := func(u string) bool {
+		return u == "" || (u[0:4] != "http" && u[0:5] != "https")
+	}
+
+	if isBadUrl(*signerUrl) {
 		fmt.Println("Signer URL is required; Ex: http://127.0.0.1:18734")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
-	if *rpcUrl == "" || ((*rpcUrl)[0:4] != "http" && (*rpcUrl)[0:5] != "https") {
+	if isBadUrl(*rpcUrl) {
 		fmt.Println("RPC URL is required; Ex: http://127.0.0.1:18734")
 		flag.PrintDefaults()
 		os.Exit(1)

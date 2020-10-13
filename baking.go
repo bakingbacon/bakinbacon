@@ -350,7 +350,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// Inject block
 	resp, err := gt.InjectionBlock(ibi)
 	if err != nil {
-		log.WithError(err).Error("Failed Block Injection")
+		log.WithError(err).WithField("Extra", string(resp)).Error("Failed Block Injection")
 		return
 	}
 

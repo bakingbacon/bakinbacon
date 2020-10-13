@@ -184,6 +184,11 @@ func (s *SignerClient) makeRequest(req *http.Request) ([]byte, error) {
 	}
 
 	// Check HTTP response result
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("Key not found in signer")
+	}
+
+	// Any other error?
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("response returned code %d with body %s", resp.StatusCode, string(bodyBytes))
 	}

@@ -12,8 +12,9 @@ import (
 const (
 	DATABASE_FILE = "goendorse.db"
 
-	BAKING_BUCKET = "bakes"
-	NONCE_BUCKET  = "nonces"
+	BAKING_BUCKET    = "bakes"
+	ENDORSING_BUCKET = "endorses"
+	NONCE_BUCKET     = "nonces"
 )
 
 type Storage struct {
@@ -31,6 +32,10 @@ func init() {
 	
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
+
+		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
+			return fmt.Errorf("Cannot create endorsing bucket: %s", err)
+		}
 
 		if _, err := tx.CreateBucketIfNotExists([]byte(BAKING_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create baking bucket: %s", err)

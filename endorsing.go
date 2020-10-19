@@ -10,16 +10,26 @@ import (
 	"github.com/goat-systems/go-tezos/v3/rpc"
 
 	log "github.com/sirupsen/logrus"
+
+	"goendorse/storage"
 )
 
 func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 
 	defer wg.Done()
 
-	log.WithField("BlockHash", blk.Hash).Trace("Received Endorsement Hash")
+	endorsingLevel := blk.Header.Level
+
+	// Check watermark to ensure we have not endorsed at this level before
+	watermark := storage.DB.GetEndorsingWatermark()
+	if watermark >= endorsingLevel {
+		log.WithFields(log.Fields{
+			"EndorsingLevel": endorsingLevel, "Watermark": watermark,
+		}).Error("Watermark level higher than endorsing level; Canceling to prevent double endorsing")
+		return
+	}
 
 	// look for endorsing rights at this level
-	endorsingLevel := blk.Header.Level
 	endorsingRightsFilter := rpc.EndorsingRightsInput{
 		BlockHash: blk.Hash,
 		Level:     endorsingLevel,
@@ -122,7 +132,10 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	opHash, err := gt.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).Error("Endorsement Failure")
-	} else {
-		log.WithField("Operation", opHash).Info("Endorsement Injected")
+		return
 	}
+	log.WithField("Operation", opHash).Info("Endorsement Injected")
+
+	// Save endorsement to DB for watermarking
+	storage.DB.RecordEndorsement(endorsingLevel, opHash)
 }

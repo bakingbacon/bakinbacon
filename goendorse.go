@@ -146,12 +146,9 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 		curHead := &rpc.Block{}
 
 		// Get network constant time_between_blocks and set sleep-ticker to 25%
-		timeBetweenBlocks, err := strconv.Atoi(gt.NetworkConstants.TimeBetweenBlocks[0])
-		if err != nil {
-			log.WithError(err).Fatal("Could not convert time_between_blocks")
-			return
-		}
-		ticker := time.NewTicker((timeBetweenBlocks * 0.25) * time.Second)
+		timeBetweenBlocks := gt.NetworkConstants.TimeBetweenBlocks[0]
+		sleepTime := time.Duration(timeBetweenBlocks / 4)
+		ticker := time.NewTicker(sleepTime * time.Second)
 
 		for {
 

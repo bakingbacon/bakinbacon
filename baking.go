@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -116,11 +115,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks, err := strconv.Atoi(gt.NetworkConstants.TimeBetweenBlocks[0])
-	if err != nil {
-		log.WithError(err).Error("Cannot parse network constant TimeBetweenBlocks; Using built-in constant")
-		timeBetweenBlocks = MinimumBlockTimes[block.ChainID]
-	}
+	timeBetweenBlocks := gt.NetworkConstants.TimeBetweenBlocks[0]
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,

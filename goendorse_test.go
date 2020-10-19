@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/hex"
 
-	"github.com/goat-systems/go-tezos/v3/keys"
 	"github.com/goat-systems/go-tezos/v3/crypto"
+	"github.com/goat-systems/go-tezos/v3/keys"
 
 	log "github.com/sirupsen/logrus"
 	"testing"
@@ -17,10 +17,10 @@ func init() {
 	var err error
 
 	// Connect to node for tests
-// 	gt, err = gotezos.New("127.0.0.1:18732")
-// 	if err != nil {
-// 		panic(fmt.Sprintf("Unable to connect to network: %s\n", err))
-// 	}
+	// gt, err = gotezos.New("127.0.0.1:18732")
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Unable to connect to network: %s\n", err))
+	// }
 
 	log.SetLevel(log.DebugLevel)
 
@@ -40,7 +40,6 @@ func init() {
 
 	t.Logf("Baker PKH: %s\n", wallet.PubKey.GetPublicKeyHash())
 }
-
 
 func TestPow(t *testing.T) {
 

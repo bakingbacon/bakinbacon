@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-
 	"github.com/goat-systems/go-tezos/v3/forge"
 	"github.com/goat-systems/go-tezos/v3/rpc"
 
@@ -78,11 +77,11 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 
 	// Prepare to pre-apply the operation
 	preapplyEndoOp := rpc.PreapplyOperationsInput{
-		Blockhash:  blk.Hash,
+		Blockhash: blk.Hash,
 		Operations: []rpc.Operations{
 			{
-				Branch:    blk.Hash,
-				Contents:  rpc.Contents{
+				Branch: blk.Hash,
+				Contents: rpc.Contents{
 					endoContent,
 				},
 				Protocol:  blk.Protocol,
@@ -111,6 +110,12 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 		return
 	default:
 		break
+	}
+
+	// Dry-run check
+	if dryRunEndorsement {
+		log.Warn("Not Injecting Endorsement; Dry-Run Mode")
+		return
 	}
 
 	// Inject endorsement

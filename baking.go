@@ -157,7 +157,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// It is our responsibility to create a nonce on specific levels (usually level % 32),
 	// then reveal the seed used to create the nonce in the next cycle.
 	var n nonce.Nonce
-	if block.Metadata.Level.ExpectedCommitment {
+	if nextLevelToBake%32 == 0 {
 
 		n, err = generateNonce()
 		if err != nil {
@@ -165,7 +165,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		}
 
 		log.WithFields(log.Fields{
-			"Seed": n.Seed, "Nonce": n.NonceHash, "SeedHashHex": n.SeedHashHex,
+			"Nonce": n.NonceHash, "Seed": n.Seed,
 		}).Info("Nonce required at this level")
 
 		n.Level = nextLevelToBake
@@ -175,7 +175,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// There's a minimum required number of endorsements at priority 0 which is 24,
 	// so we will keep fetching from the mempool until we get at least 24, or
 	// 1/2 block time elapses whichever comes first
-	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
+	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks/2) * time.Second)
 	endorsingPower := 0
 	var operations [][]rpc.Operations
 
@@ -347,6 +347,12 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		break
 	}
 
+	// Dry-run check
+	if dryRunBake {
+		log.Warn("Not Injecting Block; Dry-Run Mode")
+		return
+	}
+
 	// Inject block
 	resp, err := gt.InjectionBlock(ibi)
 	if err != nil {
@@ -369,14 +375,14 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// Save nonce to DB for reveal in next cycle
 	if n.SeedHashHex != "" {
-		registerNonce(block.Metadata.Level.Cycle, n)
+		storage.DB.SaveNonce(block.Metadata.Level.Cycle, n)
 	}
 }
 
 func parsePreapplyOperations(ops []rpc.ShellOperations) [][]interface{} {
 
 	operations := make([][]interface{}, 4)
-	for i, _ := range operations {
+	for i := range operations {
 		operations[i] = make([]interface{}, 0)
 	}
 
@@ -506,7 +512,7 @@ func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) 
 	// 4 slots for operations to be sorted into
 	// Init each slot to size 0 so that marshaling returns "[]" instead of null
 	operations := make([][]rpc.Operations, 4)
-	for i, _ := range operations {
+	for i := range operations {
 		operations[i] = make([]rpc.Operations, 0)
 	}
 
@@ -599,13 +605,4 @@ func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, er
 	}
 
 	return endorsingPower, nil
-}
-
-func registerNonce(cycle int, n nonce.Nonce) error {
-
-	// Nonces are revealed within the first few blocks of
-	// the next cycle. So we need to save it for now, and
-	// then reveal it after the start of the next cycle.
-
-	return storage.DB.SaveNonce(cycle, n)
 }

@@ -20,16 +20,18 @@ import (
 
 var (
 	gt           *rpc.Client
-	//wallet       keys.Key
 	wg           sync.WaitGroup
 	signerWallet *signerclient.SignerClient
+	// wallet       keys.Key
 
 	// Flags
-	logDebug        *bool
-	bakerPkh        *string
-	maxBakePriority *int
-	rpcUrl          *string
-	signerUrl       *string
+	logDebug          *bool
+	dryRunEndorsement *bool
+	dryRunBake        *bool
+	bakerPkh          *string
+	maxBakePriority   *int
+	rpcUrl            *string
+	signerUrl         *string
 )
 
 func main() {
@@ -58,21 +60,21 @@ func main() {
 	}).Debug("Loaded Network Constants")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
-	//pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
-// 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
-// 
-// 	// Gotezos wallet
-// 	walletInput := keys.NewKeyInput{
-// 		EncodedString: sk,
-// 		Kind:          keys.Ed25519,
-// 	}
-// 	wallet, err = keys.NewKey(walletInput)
-// 	if err != nil {
-// 		log.WithError(err).Fatal("Failed to load wallet")
-// 	}
-// 	log.WithFields(log.Fields{
-// 		"Baker": wallet.PubKey.GetPublicKeyHash(), "PublicKey": wallet.PubKey.GetPublicKey(),
-// 	}).Info("Loaded Wallet")
+	// pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
+	// sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
+	//
+	// // Gotezos wallet
+	// walletInput := keys.NewKeyInput{
+	// 	EncodedString: sk,
+	// 	Kind:          keys.Ed25519,
+	// }
+	// wallet, err = keys.NewKey(walletInput)
+	// if err != nil {
+	// 	log.WithError(err).Fatal("Failed to load wallet")
+	// }
+	// log.WithFields(log.Fields{
+	// 	"Baker": wallet.PubKey.GetPublicKeyHash(), "PublicKey": wallet.PubKey.GetPublicKey(),
+	// }).Info("Loaded Wallet")
 
 	// Signer wallet
 	signerWallet, err = signerclient.New(*bakerPkh, *signerUrl)
@@ -82,7 +84,6 @@ func main() {
 	log.WithFields(log.Fields{
 		"Baker": signerWallet.BakerPkh, "PublicKey": signerWallet.BakerPk,
 	}).Info("Connected to signer daemon")
-
 
 	// Launch background thread to check for new /head
 	// Returns channel for new head block notifications
@@ -204,10 +205,16 @@ func parseArgs() {
 
 	// Args
 	logDebug = flag.Bool("debug", false, "Enable debug logging")
+
+	dryRunEndorsement = flag.Bool("dry-run-endorse", false, "Compute, but don't inject endorsements")
+	dryRunBake = flag.Bool("dry-run-bake", false, "Compute, but don't inject blocks")
+
 	bakerPkh = flag.String("baker", "", "Baker's Public Key Hash")
 	maxBakePriority = flag.Int("max-priority", 64, "Maximum allowed priority to bake")
+
 	rpcUrl = flag.String("rpc-url", "http://127.0.0.1:8732", "URL of RPC server")
 	signerUrl = flag.String("signer-url", "http://127.0.0.1:8734", "URL of signer")
+
 	flag.Parse()
 
 	// Sanity checks

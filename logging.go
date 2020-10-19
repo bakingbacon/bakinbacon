@@ -14,7 +14,7 @@ var logFile *os.File
 func setupLogging(logDebug bool) {
 
 	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp:  true,
+		FullTimestamp: true,
 	})
 
 	cwd, err := os.Getwd()

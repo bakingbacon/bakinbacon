@@ -64,14 +64,14 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Debug nonce
-// 	n := nonce.Nonce{
-// 		Level: 768224,
-// 		Seed: "27beb3170dceeff2b95e561f069cac55fa3d208a4b77711e58c5c1b807b01b43",
-// 		NonceHash: "nceUeGTSCZsR2Hm3So9MEyVC89pikEoB3Bi85QC1qVo1L95cr7qEt",
-// 		SeedHashHex: "37376a745e04d66d01a6552602fb6b7f87a51657f50edc8507a7490a72aee46d",
-// 	}
-// 	storage.DB.SaveNonce(385, n)
-// 	return
+	// n := nonce.Nonce{
+	// 	Level: 768224,
+	// 	Seed: "27beb3170dceeff2b95e561f069cac55fa3d208a4b77711e58c5c1b807b01b43",
+	// 	NonceHash: "nceUeGTSCZsR2Hm3So9MEyVC89pikEoB3Bi85QC1qVo1L95cr7qEt",
+	// 	SeedHashHex: "37376a745e04d66d01a6552602fb6b7f87a51657f50edc8507a7490a72aee46d",
+	// }
+	// storage.DB.SaveNonce(385, n)
+	// return
 
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
@@ -139,7 +139,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operations: []rpc.Operations{
 				{
 					Branch: block.Hash,
-					Contents:  rpc.Contents{
+					Contents: rpc.Contents{
 						nonceRevelation,
 					},
 					Protocol:  block.Protocol,
@@ -177,7 +177,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			continue
 		}
 
-		log.WithField("OperationHash", revealOpHash).Info("Injected Nonce Reveal")
+		log.WithField("OperationHash", revealOpHash).Info("Nonce Reveal Injected")
 
 		// Update DB with hash of reveal operation
 		nonce.RevealOp = revealOpHash

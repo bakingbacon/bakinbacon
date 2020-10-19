@@ -113,7 +113,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// Dry-run check
-	if dryRunEndorsement {
+	if *dryRunEndorsement {
 		log.Warn("Not Injecting Endorsement; Dry-Run Mode")
 		return
 	}

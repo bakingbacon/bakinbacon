@@ -157,7 +157,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// It is our responsibility to create a nonce on specific levels (usually level % 32),
 	// then reveal the seed used to create the nonce in the next cycle.
 	var n nonce.Nonce
-	if nextLevelToBake%32 == 0 {
+	if nextLevelToBake % 32 == 0 {
 
 		n, err = generateNonce()
 		if err != nil {
@@ -175,7 +175,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// There's a minimum required number of endorsements at priority 0 which is 24,
 	// so we will keep fetching from the mempool until we get at least 24, or
 	// 1/2 block time elapses whichever comes first
-	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks/2) * time.Second)
+	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
 	endorsingPower := 0
 	var operations [][]rpc.Operations
 
@@ -348,7 +348,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Dry-run check
-	if dryRunBake {
+	if *dryRunBake {
 		log.Warn("Not Injecting Block; Dry-Run Mode")
 		return
 	}

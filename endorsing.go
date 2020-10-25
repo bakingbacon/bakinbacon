@@ -74,9 +74,11 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// Sign with tezos-signer
+	// TODO Attempt this more than once
 	signedEndorsement, err := signerWallet.SignEndorsement(endorsementBytes, blk.ChainID)
 	if err != nil {
-		log.WithError(err).Error("tezos-signer failure")
+		log.WithError(err).Error("Signer endorsement failure")
+		return
 	}
 	log.WithField("Signature", signedEndorsement.EDSig).Debug("Signer Signature")
 

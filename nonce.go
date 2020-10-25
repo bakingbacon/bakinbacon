@@ -65,13 +65,12 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Debug nonce
 	// n := nonce.Nonce{
-	// 	Level: 768224,
+	// 	Level: 817184,
 	// 	Seed: "27beb3170dceeff2b95e561f069cac55fa3d208a4b77711e58c5c1b807b01b43",
 	// 	NonceHash: "nceUeGTSCZsR2Hm3So9MEyVC89pikEoB3Bi85QC1qVo1L95cr7qEt",
 	// 	SeedHashHex: "37376a745e04d66d01a6552602fb6b7f87a51657f50edc8507a7490a72aee46d",
 	// }
-	// storage.DB.SaveNonce(385, n)
-	// return
+	// storage.DB.SaveNonce(399, n)
 
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
@@ -120,10 +119,11 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
-		// Sign using http(s) tezos-signer
+		// Sign using http(s) signer
 		signedNonceReveal, err := signerWallet.SignNonce(nonceRevelationBytes, block.ChainID)
 		if err != nil {
-			log.WithError(err).Error("tezos-signer failure")
+			log.WithError(err).Error("Signer nonce failure")
+			continue
 		}
 		log.WithField("Signature", signedNonceReveal.EDSig).Debug("Signed Nonce Reveal")
 

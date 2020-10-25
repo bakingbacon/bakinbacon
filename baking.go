@@ -202,7 +202,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 		// Parse/filter mempool operations into correct
 		// operation slots for adding to the block
-		operations, err = parseMempoolOperations(mempoolOps, block.Header.Level, block.Protocol)
+		operations, err = parseMempoolOperations(mempoolOps, block.Hash, block.Header.Level, block.Protocol)
 		if err != nil {
 			log.WithError(err).Error("Failed to sort mempool ops")
 			return
@@ -320,10 +320,12 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	log.WithField("Attempts", attempts).Debug("Proof-of-Work Complete")
 	log.WithField("Bytes", blockBytes).Trace("Proof-of-Work")
 
-	// Take blockbytes and sign it with tezos-signer
+	// Take blockbytes and sign it with signer
+	// TODO Attempt this more than once
 	signedBlock, err := signerWallet.SignBlock(blockBytes, block.ChainID)
 	if err != nil {
-		log.WithError(err).Error("Signing block, tezos-signer failure")
+		log.WithError(err).Error("Signer block failure")
+		return
 	}
 	log.WithField("Signature", signedBlock.EDSig).Debug("Block Signer Signature")
 
@@ -485,7 +487,7 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed)
 }
 
-func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
+func parseMempoolOperations(ops rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
 
 	// 	for(var i = 0; i < r.applied.length; i++){
 	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -516,11 +518,14 @@ func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) 
 		// Determine the type of op to find out into which slot it goes
 		var opSlot int = 3
 		if len(op.Contents) == 1 {
-			opSlot = func(opKind rpc.Kind, level int) int {
+			opSlot = func(branch string, opKind rpc.Kind, level int) int {
 				switch opKind {
 				case rpc.ENDORSEMENT:
-					// Endorsements must match the current head block level
+					// Endorsements must match the current head block level and block hash
 					if level != curLevel {
+						return -1
+					}
+					if branch != curBranch {
 						return -1
 					}
 					return 0
@@ -531,11 +536,12 @@ func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) 
 					return 2
 				}
 				return 3
-			}(op.Contents[0].Kind, op.Contents[0].Level)
+			}(op.Branch, op.Contents[0].Kind, op.Contents[0].Level)
 		}
 
 		// For now, skip transactions and other unknown operations
 		if opSlot == 3 {
+			log.WithField("OP", op).Debug("Mempool Operation")
 			continue
 		}
 
@@ -546,10 +552,10 @@ func parseMempoolOperations(ops rpc.Mempool, curLevel int, headProtocol string) 
 
 		// Add operation to slot
 		// operations[opSlot] = append(operations[opSlot], struct {
-		// 	Protocol  string             `json:"protocol"`
-		// 	Branch    string             `json:"branch"`
+		// 	Protocol  string         `json:"protocol"`
+		// 	Branch    string         `json:"branch"`
 		// 	Contents  []rpc.Contents `json:"contents"`
-		// 	Signature string             `json:"signature"`
+		// 	Signature string         `json:"signature"`
 		// }{
 		// 	headProtocol,
 		// 	op.Branch,

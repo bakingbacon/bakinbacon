@@ -94,7 +94,7 @@ func New(bakerPkh, signerUrl string) (*SignerClient, error) {
 
 // Nonce reveals have the same watermark as endorsements
 func (s *SignerClient) SignNonce(nonceBytes string, chainID string) (SignOperationOutput, error) {
-	return s.signGeneric(endorsementprefix, nonceBytes, chainID)
+	return s.signGeneric(genericopprefix, nonceBytes, chainID)
 }
 
 func (s *SignerClient) SignEndorsement(endorsementBytes, chainID string) (SignOperationOutput, error) {

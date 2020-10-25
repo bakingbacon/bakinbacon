@@ -25,6 +25,7 @@ var (
 	chainidprefix     prefix = []byte{57, 52, 00}
 	blockprefix       prefix = []byte{1}
 	endorsementprefix prefix = []byte{2}
+	genericopprefix   prefix = []byte{3}
 	networkprefix     prefix = []byte{87, 82, 0}
 )
 

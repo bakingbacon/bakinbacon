@@ -278,7 +278,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	//
 	preapplyResp, err := gt.PreapplyBlockOperation(preapplyBlockheader)
 	if err != nil {
-		log.WithError(err).Error("Unable to preapply block")
+		log.WithError(err).WithField("Resp", preapplyResp).Error("Unable to preapply block")
 		return
 	}
 	log.WithField("Resp", preapplyResp).Trace("Preapply Response")
@@ -408,6 +408,8 @@ func stampcheck(buf []byte) uint64 {
 
 func powLoop(forgedBlock string, priority int, seed string) (string, int, error) {
 
+	// powHeader = 00                 bc0303
+	//             Protocol Revision  Git Hash
 	newProtocolData := createProtocolData(priority, "00bc0303", "00000000", seed)
 
 	blockBytes := forgedBlock + newProtocolData
@@ -600,7 +602,8 @@ func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, er
 
 		ep, err := gt.GetEndorsingPower(endorsementOperation) // block.go
 		if err != nil {
-			return 0, err
+			log.WithError(err).WithField("Op", o).Error("Unable to compute endorsing power")
+			ep = 0
 		}
 		endorsingPower += ep
 	}

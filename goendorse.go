@@ -158,7 +158,8 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 				log.WithError(err).Error("Unable to get /head block; Will try again")
 			} else {
 
-				if block.Hash != curHead.Hash {
+				if curHead.Metadata.Level.Level < block.Metadata.Level.Level &&
+					curHead.Hash != block.Hash {
 
 					// notify new block
 					nHN <- block

@@ -13,3 +13,5 @@ require (
 )
 
 replace github.com/goat-systems/go-tezos/v3 => /home/drmac/go/src/github.com/utdrmac/go-tezos
+
+replace github.com/sirupsen/logrus => /home/drmac/go/src/github.com/sirupsenNEW/logrus

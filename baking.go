@@ -29,6 +29,7 @@ var (
 	MinimumBlockTimes = map[string]int{
 		"NetXdQprcVkpaWU": 60, // Mainnet
 		"NetXjD3HPJJjmcd": 30, // Carthagenet
+		"NetXm8tYqnMWky1": 30, // Delphinet
 	}
 )
 
@@ -116,6 +117,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	priority := bakingRight.Priority
 	timeBetweenBlocks := gt.NetworkConstants.TimeBetweenBlocks[0]
+	blocksPerCommitment := gt.NetworkConstants.BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -152,7 +154,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	// It is our responsibility to create a nonce on specific levels (usually level % 32),
 	// then reveal the seed used to create the nonce in the next cycle.
 	var n nonce.Nonce
-	if nextLevelToBake % 32 == 0 {
+	if nextLevelToBake % blocksPerCommitment == 0 {
 
 		n, err = generateNonce()
 		if err != nil {
@@ -410,7 +412,8 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 
 	// powHeader = 00                 bc0303
 	//             Protocol Revision  Git Hash
-	newProtocolData := createProtocolData(priority, "00bc0303", "00000000", seed)
+	// 42 42 31 30 = BB10 (BakinBacon v1.0)
+	newProtocolData := createProtocolData(priority, "42423130", "00000000", seed)
 
 	blockBytes := forgedBlock + newProtocolData
 	hashBuffer, _ := hex.DecodeString(blockBytes + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")

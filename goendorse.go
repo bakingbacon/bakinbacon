@@ -44,7 +44,7 @@ func main() {
 	setupLogging(*logDebug)
 
 	// Clean exits
-	shutdownChannel := SetupCloseChannel()
+	shutdownChannel := setupCloseChannel()
 
 	// Connection to node
 	gt, err = rpc.New(*rpcUrl)
@@ -57,6 +57,7 @@ func main() {
 		"PreservedCycles":       gt.NetworkConstants.PreservedCycles,
 		"BlocksPerCycle":        gt.NetworkConstants.BlocksPerCycle,
 		"BlocksPerRollSnapshot": gt.NetworkConstants.BlocksPerRollSnapshot,
+		"BlocksPerCommitment":   gt.NetworkConstants.BlocksPerCommitment,
 	}).Debug("Loaded Network Constants")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
@@ -190,7 +191,7 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 	return newHeadNotifier
 }
 
-func SetupCloseChannel() chan interface{} {
+func setupCloseChannel() chan interface{} {
 
 	signalChan := make(chan os.Signal, 1)
 	closingChan := make(chan interface{}, 1)

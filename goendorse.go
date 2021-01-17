@@ -16,6 +16,7 @@ import (
 
 	"goendorse/signerclient"
 	"goendorse/storage"
+	"goendorse/webserver"
 )
 
 var (
@@ -45,6 +46,10 @@ func main() {
 
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
+
+	// Web UI
+	//wg.Add(1)  // TODO: Add context for shutdown of webserver
+	webserver.Start(shutdownChannel, &wg)
 
 	// Connection to node
 	gt, err = rpc.New(*rpcUrl)

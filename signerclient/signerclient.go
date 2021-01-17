@@ -130,8 +130,6 @@ func (s *SignerClient) signGeneric(opPrefix prefix, incBytes, chainID string) (S
 	if err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "failed signer")
 	}
-	//fmt.Println("SignedResponse:    ", respBytes)
-	//fmt.Println("SignedResponseStr: ", string(respBytes))
 
 	// Unmarshal response from signer
 	var edSig SignerResult

@@ -87,7 +87,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		MaxPriority: maxBakePriority,
 	}
 
-	bakingRights, err := gt.BakingRights(bakingRightsFilter)
+	bakingRights, err := baconClient.Current.BakingRights(bakingRightsFilter)
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch baking rights")
 		return
@@ -116,8 +116,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := gt.NetworkConstants.TimeBetweenBlocks[0]
-	blocksPerCommitment := gt.NetworkConstants.BlocksPerCommitment
+	timeBetweenBlocks := baconClient.Current.NetworkConstants.TimeBetweenBlocks[0]
+	blocksPerCommitment := baconClient.Current.NetworkConstants.BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -196,7 +196,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		}
 
 		// Get mempool contents
-		mempoolOps, err := gt.Mempool(mempoolInput)
+		mempoolOps, err := baconClient.Current.Mempool(mempoolInput)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch mempool ops")
 			return
@@ -233,7 +233,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	nowTimestamp := time.Now().UTC().Round(time.Second)
-	minimalInjectionTime, err := gt.MinimalValidTime(endorsingPower, priority, block.ChainID)
+	minimalInjectionTime, err := baconClient.Current.MinimalValidTime(endorsingPower, priority, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Unable to get minimal valid timestamp")
 		return
@@ -278,7 +278,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	preapplyResp, err := gt.PreapplyBlockOperation(preapplyBlockheader)
+	preapplyResp, err := baconClient.Current.PreapplyBlockOperation(preapplyBlockheader)
 	if err != nil {
 		log.WithError(err).WithField("Resp", preapplyResp).Error("Unable to preapply block")
 		return
@@ -300,7 +300,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	log.WithField("S", shellHeader).Trace("SHELL HEADER")
 
 	// Forge the block header
-	forgedBlockHeaderRes, err := gt.ForgeBlockHeader(shellHeader)
+	forgedBlockHeaderRes, err := baconClient.Current.ForgeBlockHeader(shellHeader)
 	if err != nil {
 		log.WithError(err).Error("Unable to forge block header")
 		return
@@ -353,7 +353,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Inject block
-	resp, err := gt.InjectionBlock(ibi)
+	resp, err := baconClient.Current.InjectionBlock(ibi)
 	if err != nil {
 		log.WithError(err).WithField("Extra", string(resp)).Error("Failed Block Injection")
 		return
@@ -428,7 +428,7 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 	// log.WithField("PO", protocolOffset).Debug("OFFSET")
 
 	attempts := 0
-	powThreshold := gt.NetworkConstants.ProofOfWorkThreshold
+	powThreshold := baconClient.Current.NetworkConstants.ProofOfWorkThreshold
 
 	for {
 		attempts++
@@ -603,7 +603,7 @@ func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, er
 			chainID,
 		}
 
-		ep, err := gt.GetEndorsingPower(endorsementOperation) // block.go
+		ep, err := baconClient.Current.GetEndorsingPower(endorsementOperation) // block.go
 		if err != nil {
 			log.WithError(err).WithField("Op", o).Error("Unable to compute endorsing power")
 			ep = 0

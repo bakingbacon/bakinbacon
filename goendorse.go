@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/goat-systems/go-tezos/v3/rpc"
+	rpc "github.com/goat-systems/go-tezos/v3/rpc"
 
 	log "github.com/sirupsen/logrus"
 
@@ -18,8 +18,12 @@ import (
 	"goendorse/storage"
 )
 
+const (
+	BACKUP_RPC = "https://delphinet-tezos.giganode.io/"
+)
+
 var (
-	gt           *rpc.Client
+	baconClient  BaconClient
 	wg           sync.WaitGroup
 	signerWallet *signerclient.SignerClient
 	// wallet       keys.Key
@@ -46,18 +50,29 @@ func main() {
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
 
-	// Connection to node
-	gt, err = rpc.New(*rpcUrl)
+	// Connection to primary node
+	baconClient.Primary, err = rpc.New(*rpcUrl)
 	if err != nil {
 		log.WithError(err).Fatalf("Could not connect to network: %s", *rpcUrl)
 	}
-	log.WithField("Host", *rpcUrl).Info("Connected to RPC server")
+	log.WithField("Host", *rpcUrl).Info("Connected to Primary RPC server")
 
+	// Connection to backup node
+	baconClient.Backup, err = rpc.New(BACKUP_RPC)
+	if err != nil {
+		log.WithError(err).Fatalf("Could not connect to backup RPC: %s", BACKUP_RPC)
+	}
+	log.WithField("Host", BACKUP_RPC).Info("Connected to Backup RPC server")
+
+	// Use primary by default
+	baconClient.UsePrimary()
+
+	// Network constants
 	log.WithFields(log.Fields{
-		"PreservedCycles":       gt.NetworkConstants.PreservedCycles,
-		"BlocksPerCycle":        gt.NetworkConstants.BlocksPerCycle,
-		"BlocksPerRollSnapshot": gt.NetworkConstants.BlocksPerRollSnapshot,
-		"BlocksPerCommitment":   gt.NetworkConstants.BlocksPerCommitment,
+		"PreservedCycles":       baconClient.Current.NetworkConstants.PreservedCycles,
+		"BlocksPerCycle":        baconClient.Current.NetworkConstants.BlocksPerCycle,
+		"BlocksPerRollSnapshot": baconClient.Current.NetworkConstants.BlocksPerRollSnapshot,
+		"BlocksPerCommitment":   baconClient.Current.NetworkConstants.BlocksPerCommitment,
 	}).Debug("Loaded Network Constants")
 
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
@@ -144,21 +159,41 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 
 		defer wg.Done()
 
+		lostTicks := 0
 		curHead := &rpc.Block{}
 
 		// Get network constant time_between_blocks and set sleep-ticker to 25%
-		timeBetweenBlocks := gt.NetworkConstants.TimeBetweenBlocks[0]
+		timeBetweenBlocks := baconClient.Current.NetworkConstants.TimeBetweenBlocks[0]
 		sleepTime := time.Duration(timeBetweenBlocks / 4)
 		ticker := time.NewTicker(sleepTime * time.Second)
 
 		for {
 
+			var block *rpc.Block
+			var err error
+
+			if lostTicks > 4 {
+				baconClient.UseBackup()
+			}
+
 			// watch for new head block
-			block, err := gt.Head()
+			block, err = baconClient.Current.Head()
 			if err != nil {
-				log.WithError(err).Error("Unable to get /head block; Will try again")
+
+				log.WithError(err).Error("Unable to get /head block from RPC; Will try again")
+
+				if baconClient.IsPrimary {
+					// Got error on primary RPC; try again using backup RPC
+					log.Error("Will attempt to use backup RPC on next tick")
+					lostTicks = 99
+				}
+
 			} else {
 
+				// Always increase lost ticks
+				lostTicks += 1
+
+				// See if current head block is newer than previous
 				if curHead.Metadata.Level.Level < block.Metadata.Level.Level &&
 					curHead.Hash != block.Hash {
 
@@ -173,6 +208,10 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 						"Hash":    curHead.Hash,
 						"ChainID": curHead.ChainID,
 					}).Info("New Block")
+
+					// Rest ticks, and retry Primary on successful fetch
+					lostTicks = 0
+					baconClient.UsePrimary()
 				}
 			}
 

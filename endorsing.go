@@ -36,7 +36,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 		Delegate:  (*bakerPkh),
 	}
 
-	endorsingRights, err := gt.EndorsingRights(endorsingRightsFilter)
+	endorsingRights, err := baconClient.Current.EndorsingRights(endorsingRightsFilter)
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch endorsing rights")
 	}
@@ -103,7 +103,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// Validate the operation against the node for any errors
-	preApplyResp, err := gt.PreapplyOperations(preapplyEndoOp)
+	preApplyResp, err := baconClient.Current.PreapplyOperations(preapplyEndoOp)
 	if err != nil {
 		log.WithError(err).Error("Could not preapply operations")
 		return
@@ -131,7 +131,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// Inject endorsement
-	opHash, err := gt.InjectionOperation(injectionInput)
+	opHash, err := baconClient.Current.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).Error("Endorsement Failure")
 		return

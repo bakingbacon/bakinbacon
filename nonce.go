@@ -149,7 +149,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 
 		// Validate the operation against the node for any errors
-		preApplyResp, err := gt.PreapplyOperations(preapplyNonceRevealOp)
+		preApplyResp, err := baconClient.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
 			log.WithError(err).Error("Could not preapply nonce reveal operation")
 			continue
@@ -171,7 +171,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operation: signedNonceReveal.SignedOperation,
 		}
 
-		revealOpHash, err := gt.InjectionOperation(injectionInput)
+		revealOpHash, err := baconClient.Current.InjectionOperation(injectionInput)
 		if err != nil {
 			log.WithError(err).Error("Error Injecting Nonce Reveal")
 			continue

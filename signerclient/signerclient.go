@@ -105,24 +105,38 @@ func (s *SignerClient) SignBlock(blockBytes, chainID string) (SignOperationOutpu
 	return s.signGeneric(blockprefix, blockBytes, chainID)
 }
 
-func (s *SignerClient) signGeneric(opPrefix prefix, incBytes, chainID string) (SignOperationOutput, error) {
+func (s *SignerClient) SignReveal(revealBytes string) (SignOperationOutput, error) {
+	return s.signGeneric(genericopprefix, revealBytes, "")
+}
 
-	// Strip off the network watermark (prefix), and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)
-	chainIdBytes := b58cdecode(chainID, networkprefix)
-	//fmt.Println("ChainIDByt: ", chainIdBytes)
-	//fmt.Println("ChainIDHex: ", hex.EncodeToString(chainIdBytes))
+func (s *SignerClient) signGeneric(opPrefix prefix, incOpHex, chainID string) (SignOperationOutput, error) {
 
-	watermark := append(opPrefix, chainIdBytes...)
+	// Base bytes of operation; all ops begin with prefix
+	var opBytes = opPrefix
 
-	opBytes, err := hex.DecodeString(incBytes)
+	if chainID != "" {
+
+		// Strip off the network watermark (prefix), and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)
+		chainIdBytes := b58cdecode(chainID, networkprefix)
+		//fmt.Println("ChainIDByt: ", chainIdBytes)
+		//fmt.Println("ChainIDHex: ", hex.EncodeToString(chainIdBytes))
+
+		opBytes = append(opBytes, chainIdBytes...)
+	}
+	
+	// Decode the incoming operational hex to bytes
+	incOpBytes, err := hex.DecodeString(incOpHex)
 	if err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "failed to sign operation")
 	}
-	//fmt.Println("IncHex:   ", incBytes)
-	//fmt.Println("IncBytes: ", opBytes)
+	//fmt.Println("IncOpHex:   ", incOpHex)
+	//fmt.Println("IncOpBytes: ", incOpBytes)
 
-	opBytes = append(watermark, opBytes...)
-	finalOpHex := strconv.Quote(hex.EncodeToString(opBytes))  // Must be quote-wrapped
+	// Append incoming op bytes to either prefix, or prefix + chainId
+	opBytes = append(opBytes, incOpBytes...)
+
+	// Convert op bytes back to hex and wrap in quotes as required by the JSON-POST
+	finalOpHex := strconv.Quote(hex.EncodeToString(opBytes))
 	//fmt.Println("ToSignBytes: ", opBytes)
 	//fmt.Println("ToSignByHex: ", finalOpHex)
 
@@ -136,6 +150,7 @@ func (s *SignerClient) signGeneric(opPrefix prefix, incBytes, chainID string) (S
 	if err := json.Unmarshal(respBytes, &edSig); err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "failed to unmarshal signer")
 	}
+	//fmt.Println("FROM_SIGNER:", edSig)
 	
 	// Decode out the signature from the operation
 	decodedSig, err := edSig.decodeSignature()
@@ -145,7 +160,7 @@ func (s *SignerClient) signGeneric(opPrefix prefix, incBytes, chainID string) (S
 	//fmt.Println("DecodedSign: ", decodedSig)
 
 	return SignOperationOutput{
-		SignedOperation: fmt.Sprintf("%s%s", incBytes, decodedSig),
+		SignedOperation: fmt.Sprintf("%s%s", incOpHex, decodedSig),
 		Signature: decodedSig,
 		EDSig: edSig.Signature,
 	}, nil

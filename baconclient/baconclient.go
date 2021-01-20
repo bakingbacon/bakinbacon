@@ -1,9 +1,9 @@
-package main
+package baconclient
 
 import (
 	"sync"
 
-	rpc "github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v4/rpc"
 )
 
 type BaconClient struct {

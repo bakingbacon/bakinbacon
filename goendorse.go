@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	rpc "github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v3/forge"
 
 	log "github.com/sirupsen/logrus"
 
@@ -52,7 +54,7 @@ func main() {
 	shutdownChannel := setupCloseChannel()
 
 	// Web UI
-	//wg.Add(1)  // TODO: Add context for shutdown of webserver
+	wg.Add(1)
 	webserver.Start(shutdownChannel, &wg)
 
 	// Connection to primary node
@@ -80,9 +82,9 @@ func main() {
 		"BlocksPerCommitment":   baconClient.Current.NetworkConstants.BlocksPerCommitment,
 	}).Debug("Loaded Network Constants")
 
-	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
-	// pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
-	// sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
+	// tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs
+	// pk := "edpkti2A2ZtvYEfkYaqQ7ESbCrPEYPBacRCBq6Pmxa4E1jTBYqpKG5"
+	// sk := "edsk3HwPpiN2w34JSoevZ135L9jWpupiqKcYp38SHR5N21XJyK8Ukv"
 	//
 	// // Gotezos wallet
 	// walletInput := keys.NewKeyInput{
@@ -178,6 +180,7 @@ func blockWatcher(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) chan *
 			var err error
 
 			if lostTicks > 4 {
+				log.Error("Switching to back RPC")
 				baconClient.UseBackup()
 			}
 

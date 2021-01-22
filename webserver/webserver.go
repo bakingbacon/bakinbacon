@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	_"html/template"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -11,6 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	
 	"github.com/gorilla/mux"
+	
+	"goendorse/storage"
 )
 
 const (
@@ -22,6 +25,39 @@ var httpSvr *http.Server
 
 func loginPageHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "bakinbacon.html")
+}
+
+func addEndpoint(w http.ResponseWriter, r *http.Request) {
+
+	j := json.NewEncoder(w)
+	
+	body, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+    	j.Encode(map[string]string{"error": err.Error()})
+    	return
+    }
+
+	if e := storage.DB.AddRPCEndpoint(string(body)); e != nil {
+		log.WithError(e).WithField("Endpoint", string(body)).Error("API AddEndpoint")
+		j.Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	
+	log.WithField("Endpoint", string(body)).Debug("API AddEndpoint")
+	j.Encode(map[string]bool{"ok": true})
+}
+
+func listEndpoints(w http.ResponseWriter, r *http.Request) {
+
+	endpoints, err := storage.DB.GetRPCEndpoints()
+	if err != nil {
+		log.WithError(err).Error("Unable to get endpoints")
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	
+	log.WithField("Endpoints", endpoints).Debug("API ListEndpoints")
+	json.NewEncoder(w).Encode(map[string][]string{"endpoints": endpoints})
 }
 
 func Start(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
@@ -38,6 +74,8 @@ func Start(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
 		// an example API handler
 		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
+	router.HandleFunc("/api/endpoints/add", addEndpoint)
+	router.HandleFunc("/api/endpoints/list", listEndpoints)
 	
 	//router.HandleFunc("/tacos", WS.tacosPageHandler)
 	

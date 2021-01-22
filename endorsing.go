@@ -6,19 +6,19 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/goat-systems/go-tezos/v3/forge"
-	"github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v4/forge"
+	"github.com/goat-systems/go-tezos/v4/rpc"
 
 	log "github.com/sirupsen/logrus"
 
 	"goendorse/storage"
 )
 
-func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
+func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	defer wg.Done()
 
-	endorsingLevel := blk.Header.Level
+	endorsingLevel := block.Header.Level
 
 	// Check watermark to ensure we have not endorsed at this level before
 	watermark := storage.DB.GetEndorsingWatermark()
@@ -30,24 +30,25 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// look for endorsing rights at this level
+	hashBlockID := rpc.BlockIDHash(block.Hash)
 	endorsingRightsFilter := rpc.EndorsingRightsInput{
-		BlockHash: blk.Hash,
-		Level:     endorsingLevel,
-		Delegate:  (*bakerPkh),
+		BlockID:  &hashBlockID,
+		Level:    endorsingLevel,
+		Delegate: (*bakerPkh),
 	}
 
-	endorsingRights, err := baconClient.Current.EndorsingRights(endorsingRightsFilter)
+	_, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch endorsing rights")
 	}
 
-	if len(*endorsingRights) == 0 {
+	if len(endorsingRights) == 0 {
 		log.WithField("Level", endorsingLevel).Info("No endorsing rights for this level")
 		return
 	}
 
 	// continue since we have at least 1 endorsing right
-	for _, e := range *endorsingRights {
+	for _, e := range endorsingRights {
 		log.WithField("Slots",
 			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
@@ -57,7 +58,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 		Level: endorsingLevel,
 	}
 
-	endorsementBytes, err := forge.Encode(blk.Hash, endoContent)
+	endorsementBytes, err := forge.Encode(block.Hash, endoContent)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Endorsement")
 		return
@@ -75,7 +76,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 
 	// Sign with tezos-signer
 	// TODO Attempt this more than once
-	signedEndorsement, err := signerWallet.SignEndorsement(endorsementBytes, blk.ChainID)
+	signedEndorsement, err := signerWallet.SignEndorsement(endorsementBytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Signer endorsement failure")
 		return
@@ -89,21 +90,21 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 
 	// Prepare to pre-apply the operation
 	preapplyEndoOp := rpc.PreapplyOperationsInput{
-		Blockhash: blk.Hash,
+		BlockID:    &hashBlockID,
 		Operations: []rpc.Operations{
 			{
-				Branch: blk.Hash,
+				Branch: block.Hash,
 				Contents: rpc.Contents{
 					endoContent,
 				},
-				Protocol:  blk.Protocol,
+				Protocol:  block.Protocol,
 				Signature: signedEndorsement.EDSig,
 			},
 		},
 	}
 
 	// Validate the operation against the node for any errors
-	preApplyResp, err := baconClient.Current.PreapplyOperations(preapplyEndoOp)
+	_, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
 	if err != nil {
 		log.WithError(err).Error("Could not preapply operations")
 		return
@@ -131,7 +132,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, blk rpc.Block) {
 	}
 
 	// Inject endorsement
-	opHash, err := baconClient.Current.InjectionOperation(injectionInput)
+	_, opHash, err := bc.Current.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).Error("Endorsement Failure")
 		return

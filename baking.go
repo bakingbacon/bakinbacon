@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v4/rpc"
 	log "github.com/sirupsen/logrus"
 
 	"goendorse/nonce"
@@ -80,21 +80,22 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Look for baking rights
+	hashBlockID := rpc.BlockIDHash(block.Hash)
 	bakingRightsFilter := rpc.BakingRightsInput{
-		BlockHash:   block.Hash,
+		BlockID:     &hashBlockID,
 		Level:       nextLevelToBake,
 		Delegate:    (*bakerPkh),
 		MaxPriority: maxBakePriority,
 	}
 
-	bakingRights, err := baconClient.Current.BakingRights(bakingRightsFilter)
+	_, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch baking rights")
 		return
 	}
 
 	// Got any rights?
-	if len(*bakingRights) == 0 {
+	if len(bakingRights) == 0 {
 		log.WithFields(log.Fields{
 			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
 		}).Info("No baking rights for level")
@@ -102,22 +103,23 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Have rights. More than one?
-	bakingRight := (*bakingRights)[0]
-	if len(*bakingRights) > 1 {
+	bakingRight := bakingRights[0]
+	if len(bakingRights) > 1 {
 
 		log.WithField("Rights", bakingRights).Warn("Found more than 1 baking right; Picking best priority.")
 
 		// Sort baking rights based on lowest priority; You only get one opportunity
-		for _, r := range *bakingRights {
-			if r.Priority > bakingRight.Priority {
+		for _, r := range bakingRights {
+			if r.Priority < bakingRight.Priority {
 				bakingRight = r
 			}
 		}
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := baconClient.Current.NetworkConstants.TimeBetweenBlocks[0]
-	blocksPerCommitment := baconClient.Current.NetworkConstants.BlocksPerCommitment
+	networkConstants := bc.Current.CurrentConstants()
+	timeBetweenBlocks := int(networkConstants.TimeBetweenBlocks[0])
+	blocksPerCommitment := networkConstants.BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -196,7 +198,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		}
 
 		// Get mempool contents
-		mempoolOps, err := baconClient.Current.Mempool(mempoolInput)
+		_, mempoolOps, err := bc.Current.Mempool(mempoolInput)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch mempool ops")
 			return
@@ -214,7 +216,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 		// compute_endorsing_power with current endorsements
 		// Send all operations in the first slot, which are endorsements
-		endorsingPower, err = computeEndorsingPower(block.ChainID, operations[0])
+		endorsingPower, err = computeEndorsingPower(&hashBlockID, block.ChainID, operations[0])
 		if err != nil {
 			log.WithError(err).Error("Unable to compute endorsing power; Using 0 power")
 			endorsingPower = 0
@@ -233,7 +235,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	nowTimestamp := time.Now().UTC().Round(time.Second)
-	minimalInjectionTime, err := baconClient.Current.MinimalValidTime(endorsingPower, priority, block.ChainID)
+	_, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
+		&hashBlockID,
+		priority,
+		endorsingPower,
+	})
 	if err != nil {
 		log.WithError(err).Error("Unable to get minimal valid timestamp")
 		return
@@ -258,19 +264,22 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 		}
 	}
 
-	dummyProtocolData := rpc.ProtocolData{
+	dummyProtocolData := rpc.PreapplyBlockProtocolData{
 		block.Protocol,
 		priority,
 		"0000000000000000",
-		"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 		n.NonceHash,
+		"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 	}
 
-	preapplyBlockheader := rpc.PreapplyBlockOperationInput{
-		dummyProtocolData,    // ProtocolData
-		operations,           // Operations
+	preapplyBlockheader := rpc.PreapplyBlockInput{
+		&hashBlockID,   // BlockID
+		rpc.PreapplyBlockBody{
+			dummyProtocolData,  // ProtocolData
+			operations,         // Operations
+		},
 		true,                 // Sort
-		minimalInjectionTime, // Timestamp
+		&minimalInjectionTime, // Timestamp
 	}
 
 	// Attempt to preapply the block header we created using the protocol data,
@@ -278,37 +287,49 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	preapplyResp, err := baconClient.Current.PreapplyBlockOperation(preapplyBlockheader)
+	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
-		log.WithError(err).WithField("Resp", preapplyResp).Error("Unable to preapply block")
+		log.WithField("Respy", resp).Debug("Resty")
+		log.WithError(err).WithField("Resp", preapplyBlockResp).Error("Unable to preapply block")
 		return
 	}
-	log.WithField("Resp", preapplyResp).Trace("Preapply Response")
+	log.WithField("Resp", preapplyBlockResp).Trace("Preapply Response")
 
 	// Re-filter the applied operations that came back from pre-apply
-	appliedOperations := parsePreapplyOperations(preapplyResp.Operations)
+	appliedOperations := parsePreapplyOperations(preapplyBlockResp.Operations)
 	log.WithField("Operations", appliedOperations).Trace("Preapply Operations")
 
 	// Start constructing the actual block with info that comes back from the preapply
-	shellHeader := preapplyResp.Shellheader
+	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Actual protocol data will be added during the POW loop
 	protocolData := createProtocolData(priority, "", "", "")
 	log.WithField("ProtocolData", protocolData).Trace("Preapply Shell")
 
-	shellHeader.ProtocolData = protocolData
-	log.WithField("S", shellHeader).Trace("SHELL HEADER")
-
 	// Forge the block header
-	forgedBlockHeaderRes, err := baconClient.Current.ForgeBlockHeader(shellHeader)
+	_, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
+		&hashBlockID,
+		rpc.ForgeBlockHeaderBody{
+			shellHeader.Level,
+			shellHeader.Proto,
+			shellHeader.Predecessor,
+			shellHeader.Timestamp,
+			shellHeader.ValidationPass,
+			shellHeader.OperationsHash,
+			shellHeader.Fitness,
+			shellHeader.Context,
+			protocolData,
+		},
+	})
 	if err != nil {
 		log.WithError(err).Error("Unable to forge block header")
 		return
 	}
-	log.WithField("Forged", forgedBlockHeaderRes).Trace("Forged Header")
+	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header")
 
 	// Get just the forged block header
-	forgedBlock := forgedBlockHeaderRes.BlockHeader
+	// TODO: Why subtract 22 positions?
+	forgedBlock := forgedBlockHeader.Block
 	forgedBlock = forgedBlock[:len(forgedBlock)-22]
 
 	// Perform a lame proof-of-work computation
@@ -333,7 +354,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// The data of the block
 	ibi := rpc.InjectionBlockInput{
-		SignedBytes: signedBlock.SignedOperation,
+		SignedBlock: signedBlock.SignedOperation,
 		Operations:  appliedOperations,
 	}
 
@@ -353,13 +374,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 
 	// Inject block
-	resp, err := baconClient.Current.InjectionBlock(ibi)
+	injectionResp, err := bc.Current.InjectionBlock(ibi)
 	if err != nil {
-		log.WithError(err).WithField("Extra", string(resp)).Error("Failed Block Injection")
+		log.WithError(err).WithField("Extra", injectionResp.Status()).Error("Failed Block Injection")
 		return
 	}
 
-	blockHash := util.StripQuote(string(resp))
+	blockHash := stripQuote(injectionResp.String())
 
 	log.WithFields(log.Fields{
 		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
@@ -378,7 +399,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}
 }
 
-func parsePreapplyOperations(ops []rpc.ShellOperations) [][]interface{} {
+func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {
 
 	operations := make([][]interface{}, 4)
 	for i := range operations {
@@ -410,9 +431,11 @@ func stampcheck(buf []byte) uint64 {
 
 func powLoop(forgedBlock string, priority int, seed string) (string, int, error) {
 
-	// powHeader = 00                 bc0303
-	//             Protocol Revision  Git Hash
-	// 42 42 31 30 = BB10 (BakinBacon v1.0)
+	// Normally,
+	//  powHeader = 00                 bc0303
+	//              Protocol Revision  Git Hash
+	// But we are special,
+	//  42 42 31 30 = BB10 (BakinBacon v1.0)
 	newProtocolData := createProtocolData(priority, "42423130", "00000000", seed)
 
 	blockBytes := forgedBlock + newProtocolData
@@ -428,7 +451,7 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 	// log.WithField("PO", protocolOffset).Debug("OFFSET")
 
 	attempts := 0
-	powThreshold := baconClient.Current.NetworkConstants.ProofOfWorkThreshold
+	powThreshold := bc.Current.CurrentConstants().ProofOfWorkThreshold
 
 	for {
 		attempts++
@@ -492,7 +515,7 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed)
 }
 
-func parseMempoolOperations(ops rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
+func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
 
 	// 	for(var i = 0; i < r.applied.length; i++){
 	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
@@ -580,7 +603,7 @@ func parseMempoolOperations(ops rpc.Mempool, curBranch string, curLevel int, hea
 	return operations, nil
 }
 
-func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, error) {
+func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc.Operations) (int, error) {
 
 	// https://blog.nomadic-labs.com/emmy-an-improved-consensus-algorithm.html
 	// >>>>149: http://172.17.0.5:8732/chains/NetXjD3HPJJjmcd/blocks/BLfXz42dc2.../endorsing_power
@@ -598,12 +621,20 @@ func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, er
 
 	for _, o := range operations {
 
-		endorsementOperation := rpc.EndorsingPowerInput{ // block.go
-			o,
-			chainID,
+		endorsementPowInput := rpc.EndorsingPowerInput{   // block.go
+			blockId,
+			0,
+			rpc.EndorsingPower{
+				rpc.EndorsingOperation{
+					o.Branch,
+					o.Contents,
+					o.Signature,
+				},
+				chainId,
+			},
 		}
 
-		ep, err := baconClient.Current.GetEndorsingPower(endorsementOperation) // block.go
+		_, ep, err := bc.Current.EndorsingPower(endorsementPowInput) // block.go
 		if err != nil {
 			log.WithError(err).WithField("Op", o).Error("Unable to compute endorsing power")
 			ep = 0
@@ -613,3 +644,15 @@ func computeEndorsingPower(chainID string, operations []rpc.Operations) (int, er
 
 	return endorsingPower, nil
 }
+
+func stripQuote(s string) string {
+    m := strings.TrimSpace(s)
+    if len(m) > 0 && m[0] == '"' {
+        m = m[1:]
+    }
+    if len(m) > 0 && m[len(m)-1] == '"' {
+        m = m[:len(m)-1]
+    }
+    return m
+}
+

@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/hex"
 
-	"github.com/goat-systems/go-tezos/v3/crypto"
-	"github.com/goat-systems/go-tezos/v3/keys"
+	"github.com/goat-systems/go-tezos/v4/crypto"
+	"github.com/goat-systems/go-tezos/v4/keys"
 
 	log "github.com/sirupsen/logrus"
 	"testing"

@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"sync"
 
-	"github.com/goat-systems/go-tezos/v3/crypto"
-	"github.com/goat-systems/go-tezos/v3/forge"
-	"github.com/goat-systems/go-tezos/v3/rpc"
+	"github.com/goat-systems/go-tezos/v4/crypto"
+	"github.com/goat-systems/go-tezos/v4/forge"
+	"github.com/goat-systems/go-tezos/v4/rpc"
 
 	log "github.com/sirupsen/logrus"
 
@@ -99,6 +99,8 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 	log.WithField("Cycle", previousCycle).Infof("Found %d unrevealed nonces", len(unrevealedNonces))
 
+	hashBlockID := rpc.BlockIDHash(block.Hash)
+
 	// loop over unrevealed nonces and inject
 	for _, nonce := range unrevealedNonces {
 
@@ -135,7 +137,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		// }
 
 		preapplyNonceRevealOp := rpc.PreapplyOperationsInput{
-			Blockhash: block.Hash,
+			BlockID:    &hashBlockID,
 			Operations: []rpc.Operations{
 				{
 					Branch: block.Hash,
@@ -149,7 +151,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 
 		// Validate the operation against the node for any errors
-		preApplyResp, err := baconClient.Current.PreapplyOperations(preapplyNonceRevealOp)
+		_, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
 			log.WithError(err).Error("Could not preapply nonce reveal operation")
 			continue
@@ -171,7 +173,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operation: signedNonceReveal.SignedOperation,
 		}
 
-		revealOpHash, err := baconClient.Current.InjectionOperation(injectionInput)
+		_, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
 		if err != nil {
 			log.WithError(err).Error("Error Injecting Nonce Reveal")
 			continue

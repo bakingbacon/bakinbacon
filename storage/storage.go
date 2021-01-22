@@ -15,6 +15,7 @@ const (
 	BAKING_BUCKET    = "bakes"
 	ENDORSING_BUCKET = "endorses"
 	NONCE_BUCKET     = "nonces"
+	CONFIG_BUCKET    = "config"
 )
 
 type Storage struct {
@@ -32,6 +33,10 @@ func init() {
 	
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
+
+		if _, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET)); err != nil {
+			return fmt.Errorf("Cannot create config bucket: %s", err)
+		}
 
 		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create endorsing bucket: %s", err)

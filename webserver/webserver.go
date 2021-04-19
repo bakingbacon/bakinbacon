@@ -3,17 +3,17 @@ package webserver
 import (
 	"context"
 	"encoding/json"
-	_"html/template"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 	
 	log "github.com/sirupsen/logrus"
 	
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	
-	"goendorse/storage"
+	//"bakinbacon/storage"
+	"bakinbacon/baconclient"
 )
 
 const (
@@ -21,76 +21,60 @@ const (
 	BIND_PORT = "8082"
 )
 
-var httpSvr *http.Server
+var (
+	// Global vars for the webserver package
+	httpSvr *http.Server
+	baconClient *baconclient.BaconClient
+)
 
-func loginPageHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "bakinbacon.html")
+type ApiError struct {
+	Error string `json:"err"`
 }
 
-func addEndpoint(w http.ResponseWriter, r *http.Request) {
 
-	j := json.NewEncoder(w)
-	
-	body, err := ioutil.ReadAll(r.Body)
-    if err != nil {
-    	j.Encode(map[string]string{"error": err.Error()})
-    	return
-    }
+func Start(_baconClient *baconclient.BaconClient, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
 
-	if e := storage.DB.AddRPCEndpoint(string(body)); e != nil {
-		log.WithError(e).WithField("Endpoint", string(body)).Error("API AddEndpoint")
-		j.Encode(map[string]string{"error": err.Error()})
-		return
-	}
-	
-	log.WithField("Endpoint", string(body)).Debug("API AddEndpoint")
-	j.Encode(map[string]bool{"ok": true})
-}
-
-func listEndpoints(w http.ResponseWriter, r *http.Request) {
-
-	endpoints, err := storage.DB.GetRPCEndpoints()
-	if err != nil {
-		log.WithError(err).Error("Unable to get endpoints")
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-		return
-	}
-	
-	log.WithField("Endpoints", endpoints).Debug("API ListEndpoints")
-	json.NewEncoder(w).Encode(map[string][]string{"endpoints": endpoints})
-}
-
-func Start(shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
-
-	// Parse template files
-	//templates := template.Must(template.ParseFiles(
-//		"./static/bakinbacon.tpl",
-//	))
+	// Set the package global
+	baconClient = _baconClient
 	
 	// Set things up
 	var router = mux.NewRouter()
-	router.HandleFunc("/", loginPageHandler)
-	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		// an example API handler
+	
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "webserver/build/index.html")
+	})
+	
+	apiRouter := router.PathPrefix("/api").Subrouter()
+	
+	apiRouter.HandleFunc("/endpoints/add", addEndpoint)
+	apiRouter.HandleFunc("/endpoints/list", listEndpoints)
+	
+	apiRouter.HandleFunc("/status", getStatus)
+	apiRouter.HandleFunc("/delegate", getDelegate).Methods("GET")
+	apiRouter.HandleFunc("/delegate", setDelegate).Methods("POST")
+	
+	apiRouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 	})
-	router.HandleFunc("/api/endpoints/add", addEndpoint)
-	router.HandleFunc("/api/endpoints/list", listEndpoints)
 	
-	//router.HandleFunc("/tacos", WS.tacosPageHandler)
-	
-	//router.HandleFunc("/resetpassword", resetpasswordHandler)
+	// APIs dealing with the setup wizards
+	wizardRouter := apiRouter.PathPrefix("/wizard").Subrouter()
+	wizardRouter.HandleFunc("/generateNewKey", generateNewKey)
+	wizardRouter.HandleFunc("/importKey", importSecretKey).Methods("POST", "OPTIONS")
+	wizardRouter.HandleFunc("/registerbaker", registerBaker).Methods("POST", "OPTIONS")
 	
 	//router.HandleFunc("/login", WS.loginHandler).Methods("POST")
 	//router.HandleFunc("/logout", WS.logoutHandler)
 	
-	router.PathPrefix("/css").Handler(http.StripPrefix("/css", http.FileServer(http.Dir("static/css"))))
-	router.PathPrefix("/images").Handler(http.StripPrefix("/images", http.FileServer(http.Dir("static/images"))))
-	router.PathPrefix("/js").Handler(http.StripPrefix("/js", http.FileServer(http.Dir("static/js"))))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("webserver/build/static"))))
 
 	httpAddr := BIND_ADDR + ":" + BIND_PORT
 	httpSvr = &http.Server{
-		Handler: router,
+		Handler: handlers.CORS(
+			handlers.AllowedHeaders([]string{"Content-Type"}),
+			handlers.AllowedOrigins([]string{"*"}),
+			handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"}),
+		)(router),
 		Addr: httpAddr,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout: 15 * time.Second,

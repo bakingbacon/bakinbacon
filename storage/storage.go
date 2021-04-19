@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	DATABASE_FILE = "goendorse.db"
+	DATABASE_FILE = "bakinbacon.db"
 
 	BAKING_BUCKET    = "bakes"
 	ENDORSING_BUCKET = "endorses"
 	NONCE_BUCKET     = "nonces"
 	CONFIG_BUCKET    = "config"
+	RIGHTS_BUCKET    = "rights"
 )
 
 type Storage struct {
@@ -49,6 +50,10 @@ func init() {
 		if _, err := tx.CreateBucketIfNotExists([]byte(NONCE_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create nonce bucket: %s", err)
 		}
+		
+		if _, err := tx.CreateBucketIfNotExists([]byte(RIGHTS_BUCKET)); err != nil {
+			return fmt.Errorf("Cannot create rights bucket: %s", err)
+		}
 
 		return nil
 	})
@@ -72,4 +77,8 @@ func itob(v int) []byte {
     b := make([]byte, 8)
     binary.BigEndian.PutUint64(b, uint64(v))
     return b
+}
+
+func btoi(b []byte) int {
+	return int(binary.BigEndian.Uint64(b))
 }

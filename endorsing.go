@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/goat-systems/go-tezos/v4/forge"
-	"github.com/goat-systems/go-tezos/v4/rpc"
+	"github.com/bakingbacon/go-tezos/v4/forge"
+	"github.com/bakingbacon/go-tezos/v4/rpc"
 
 	log "github.com/sirupsen/logrus"
 
-	"goendorse/storage"
+	"bakinbacon/storage"
 )
 
 func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -34,12 +34,18 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	endorsingRightsFilter := rpc.EndorsingRightsInput{
 		BlockID:  &hashBlockID,
 		Level:    endorsingLevel,
-		Delegate: (*bakerPkh),
+		Delegate: bc.Signer.BakerPkh,
 	}
 
-	_, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+
+	log.WithFields(log.Fields{
+		"Request": resp.Request.URL, "Response": string(resp.Body()),
+	}).Debug("Fetching endorsing rights")
+
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch endorsing rights")
+		return
 	}
 
 	if len(endorsingRights) == 0 {
@@ -76,7 +82,8 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Sign with tezos-signer
 	// TODO Attempt this more than once
-	signedEndorsement, err := signerWallet.SignEndorsement(endorsementBytes, block.ChainID)
+	// ERRO[2021-02-02T22:56:53Z] Signer endorsement failure                    error="failed signer: failed to execute request: Post \"http://127.0.0.1:18734/keys/tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+	signedEndorsement, err := bc.Signer.SignEndorsement(endorsementBytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Signer endorsement failure")
 		return
@@ -141,4 +148,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Save endorsement to DB for watermarking
 	storage.DB.RecordEndorsement(endorsingLevel, opHash)
+	
+	// Update status for UI
+	bc.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
 }

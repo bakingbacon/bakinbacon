@@ -1,0 +1,58 @@
+body {
+  font: 14px "Century Gothic", Futura, sans-serif;
+  margin: 20px;
+}
+
+.bg-light {
+  background-color: #eeeeee;
+}
+
+.card-header {
+  background-color: #eeeeee;
+}
+
+div.row {
+  margin-top: 1em !important;
+}
+
+.baconstatus {
+  display: inline-block;
+  width: 25px;
+  height: 25px;
+  vertical-align: text-bottom;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.baconstatus-red {
+  background-color: red;
+}
+
+.baconstatus-green {
+  background-color: green;
+}
+
+.table-balances td { text-align: left; }
+.table-balances td:first-child { 
+  text-align: right;
+  width: 200px;
+}
+
+.stats-title, .stats-title-w {
+  display: inline-block;
+  text-align: right;
+  width: 100px;
+}
+.stats-title-w {
+  width: 150px;
+}
+
+.stats-val {
+  display: inline-block;
+  text-align: left;
+}
+
+.btn-primary {
+  background-color: #ED9051;
+  border-color: #D65337;
+}

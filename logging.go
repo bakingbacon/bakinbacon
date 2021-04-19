@@ -21,7 +21,7 @@ func setupLogging(logDebug bool) {
 	if err != nil {
 		log.Fatalf("Failed to determine working directory: %s", err)
 	}
-	runID := time.Now().Format("goendorse-2006-01-02")
+	runID := time.Now().Format("log-bakinbacon-2006-01-02")
 	logLocation := filepath.Join(cwd, runID + ".log")
 
 	logFile, err = os.OpenFile(logLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

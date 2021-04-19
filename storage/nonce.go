@@ -8,7 +8,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 	log "github.com/sirupsen/logrus"
 
-	"goendorse/nonce"
+	"bakinbacon/nonce"
 )
 
 func (s *Storage) SaveNonce(cycle int, n nonce.Nonce) error {

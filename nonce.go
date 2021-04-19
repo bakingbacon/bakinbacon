@@ -4,17 +4,22 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"regexp"
 	"sync"
 
-	"github.com/goat-systems/go-tezos/v4/crypto"
-	"github.com/goat-systems/go-tezos/v4/forge"
-	"github.com/goat-systems/go-tezos/v4/rpc"
+	"github.com/bakingbacon/go-tezos/v4/crypto"
+	"github.com/bakingbacon/go-tezos/v4/forge"
+	"github.com/bakingbacon/go-tezos/v4/rpc"
 
 	log "github.com/sirupsen/logrus"
 
-	"goendorse/nonce"
-	"goendorse/storage"
-	"goendorse/util"
+	"bakinbacon/nonce"
+	"bakinbacon/storage"
+	"bakinbacon/util"
+)
+
+var (
+	previouslyInjectedErr = regexp.MustCompile(`while applying operation ([a-zA-Z0-9]{51}).*previously revealed`)
 )
 
 func generateNonce() (nonce.Nonce, error) {
@@ -59,7 +64,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Only reveal in levels 1-16 of cycle
 	cyclePosition := block.Metadata.Level.CyclePosition
-	if cyclePosition == 0 || cyclePosition > 16 {
+	if cyclePosition == 0 || cyclePosition > 256 {
 		return
 	}
 
@@ -122,7 +127,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
 		// Sign using http(s) signer
-		signedNonceReveal, err := signerWallet.SignNonce(nonceRevelationBytes, block.ChainID)
+		signedNonceReveal, err := bc.Signer.SignNonce(nonceRevelationBytes, block.ChainID)
 		if err != nil {
 			log.WithError(err).Error("Signer nonce failure")
 			continue
@@ -173,10 +178,22 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operation: signedNonceReveal.SignedOperation,
 		}
 
-		_, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
+		resp, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
 		if err != nil {
-			log.WithError(err).Error("Error Injecting Nonce Reveal")
-			continue
+			
+			// Check error message for possible previous injection. If notice not present
+			// then we have a real error on our hands. If notice present, let func finish
+			// and save operational hash to DB
+			parts := previouslyInjectedErr.FindStringSubmatch(resp.String())
+			if len(parts) > 0 {
+				revealOpHash = parts[1]
+			} else {
+			
+				log.WithError(err).WithFields(log.Fields{
+					"Response": resp.String(),
+				}).Error("Error Injecting Nonce Reveal")
+				continue
+			}
 		}
 
 		log.WithField("OperationHash", revealOpHash).Info("Nonce Reveal Injected")

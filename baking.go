@@ -10,15 +10,17 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/goat-systems/go-tezos/v4/rpc"
+	"github.com/bakingbacon/go-tezos/v4/rpc"
 	log "github.com/sirupsen/logrus"
 
-	"goendorse/nonce"
-	"goendorse/storage"
-	"goendorse/util"
+	"bakinbacon/nonce"
+	"bakinbacon/storage"
+	"bakinbacon/util"
 )
 
 const (
+	MAX_BAKE_PRIORITY int = 4
+
 	PRIORITY_LENGTH   int = 2
 	POW_HEADER_LENGTH int = 4
 	POW_LENGTH        int = 4
@@ -33,7 +35,7 @@ var (
 	}
 )
 
-func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBakePriority int) {
+func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	defer wg.Done()
 
@@ -84,20 +86,22 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	bakingRightsFilter := rpc.BakingRightsInput{
 		BlockID:     &hashBlockID,
 		Level:       nextLevelToBake,
-		Delegate:    (*bakerPkh),
-		MaxPriority: maxBakePriority,
+		Delegate:    bc.Signer.BakerPkh,
+		MaxPriority: MAX_BAKE_PRIORITY,
 	}
 
-	_, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
+	resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
 	if err != nil {
-		log.WithError(err).Error("Unable to fetch baking rights")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": resp.Body(),
+		}).Error("Unable to fetch baking rights")
 		return
 	}
 
 	// Got any rights?
 	if len(bakingRights) == 0 {
 		log.WithFields(log.Fields{
-			"Level": nextLevelToBake, "MaxPriority": maxBakePriority,
+			"Level": nextLevelToBake, "MaxPriority": MAX_BAKE_PRIORITY,
 		}).Info("No baking rights for level")
 		return
 	}
@@ -128,8 +132,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	}).Info("Baking slot found")
 
 	// Ignore baking rights of priority higher than what we care about
-	if bakingRight.Priority > maxBakePriority {
-		log.Infof("Priority higher than %d; Ignoring", maxBakePriority)
+	if bakingRight.Priority > MAX_BAKE_PRIORITY {
+		log.Infof("Priority higher than %d; Ignoring", MAX_BAKE_PRIORITY)
 		return
 	}
 
@@ -287,9 +291,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
+	_, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
-		log.WithField("Respy", resp).Debug("Resty")
 		log.WithError(err).WithField("Resp", preapplyBlockResp).Error("Unable to preapply block")
 		return
 	}
@@ -345,7 +348,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 
 	// Take blockbytes and sign it with signer
 	// TODO Attempt this more than once
-	signedBlock, err := signerWallet.SignBlock(blockBytes, block.ChainID)
+	signedBlock, err := bc.Signer.SignBlock(blockBytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Signer block failure")
 		return
@@ -397,6 +400,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, maxBak
 	if n.SeedHashHex != "" {
 		storage.DB.SaveNonce(block.Metadata.Level.Cycle, n)
 	}
+	
+	// Update status for UI
+	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {

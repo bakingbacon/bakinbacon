@@ -1,4 +1,4 @@
-package signerclient
+package baconsigner
 
 import (
 	"bytes"

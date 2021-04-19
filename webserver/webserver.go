@@ -62,9 +62,7 @@ func Start(_baconClient *baconclient.BaconClient, shutdownChannel <-chan interfa
 	wizardRouter.HandleFunc("/generateNewKey", generateNewKey)
 	wizardRouter.HandleFunc("/importKey", importSecretKey).Methods("POST", "OPTIONS")
 	wizardRouter.HandleFunc("/registerbaker", registerBaker).Methods("POST", "OPTIONS")
-	
-	//router.HandleFunc("/login", WS.loginHandler).Methods("POST")
-	//router.HandleFunc("/logout", WS.logoutHandler)
+	wizardRouter.HandleFunc("/finish", finishWizard)
 	
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("webserver/build/static"))))
 

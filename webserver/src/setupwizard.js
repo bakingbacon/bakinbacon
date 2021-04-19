@@ -31,8 +31,13 @@ class WizardWallet extends React.Component {
 	
 	generateNewKey(e) {
 		const generateKeyApiUrl = "http://10.10.10.203:8082/api/wizard/generateNewKey";
-
 		fetch(generateKeyApiUrl)
+			.then(response => {
+				if (!response.ok) {
+					throw Error(response.statusText);
+				}
+				return response;
+			})
 			.then(response => response.json())
 			.then(jRes => {
 				this.setState({
@@ -40,14 +45,37 @@ class WizardWallet extends React.Component {
 					pkh: jRes.pkh,
 					step: 2,
 				});
+			})
+			.catch(error => {
+				this.setState({
+					err: error,
+				});
+				// TODO: Toaster
+				console.log(error);
 			});
-
-		// TODO: Catch error and display
 	}
 	
 	exitWizardWallet(e) {
-		this.props.onFinishWizard()
-		this.setState({step: 99})
+		const finishWizardApiUrl = "http://10.10.10.203:8082/api/wizard/finish";
+		fetch(finishWizardApiUrl)
+			.then(response => {
+				if (!response.ok) {
+					throw Error(response.statusText);
+				}
+				return response;
+			})
+			.then(response => {
+				// Ignore response body; just need 200 OK
+				this.props.onFinishWizard()
+				this.setState({step: 99})
+			})
+			.catch(error => {
+				this.setState({
+					err: error
+				});
+				// TODO: Toaster
+				console.log(error);
+			});
 	}
 	
 	onSecretKeyChange(e) {
@@ -69,9 +97,9 @@ class WizardWallet extends React.Component {
 			})
 			return
 		}
-		if (edskInput.length !== 54) {
+		if (edskInput.length !== 54 && edskInput.length !== 98) {
 			this.setState({
-				err: "Secret key must be 54 characters long."
+				err: "Secret key must be 54 or 98 characters long."
 			})
 			return
 		}
@@ -150,17 +178,17 @@ class WizardWallet extends React.Component {
 			);
 		}
 		
-		// Successfully generated/imported new key; display for user
-		if (this.state.step === 2 || this.state.step === 3) {
+		// Successfully generated new key; display for user
+		if (this.state.step === 2) {
 			const edsk = this.state.edsk;
 			const pkh = this.state.pkh;
-			const verb = (this.state.step === 2) ? "generated new" : "imported secret";
+			
 			return (
 				<>
 				<Card.Title>Setup Software Wallet</Card.Title>
 				<Row className="justify-content-md-center">
 					<Col>
-						<Alert variant="success">Successfully {verb} key!</Alert>
+						<Alert variant="success">Successfully generated new key!</Alert>
 						<Card.Text>Below you will see your unencrypted secret key, along with your public key hash.</Card.Text>
 						<Alert variant="warning">Save a copy of your secret key <b>NOW!</b> <em>It will never be displayed again.</em> Save it somewhere safe. In the future, if you need to restore Bakin'Bacon, you can import this key.</Alert>
 					</Col>
@@ -175,6 +203,29 @@ class WizardWallet extends React.Component {
 				</Row>
 				<Row>
 					<Col md={3}><Button variant="primary" block onClick={this.exitWizardWallet}>I saved my key; Continue</Button></Col>
+				</Row>
+				</>
+			);
+		}
+		
+		// Successfully imported key
+		if (this.state.step === 3) {
+			const pkh = this.state.pkh;
+			return (
+				<>
+				<Card.Title>Setup Software Wallet</Card.Title>
+				<Row className="justify-content-md-center">
+					<Col>
+						<Alert variant="success">Successfully imported secret key!</Alert>
+						<Card.Text>Below you will see your public key hash. Confirm this is the correct address. If not, reload this page to try again.</Card.Text>
+					</Col>
+				</Row>
+				<Row>
+					<Col md={2}><b>Public Key Hash:</b></Col>
+					<Col>{pkh}</Col>
+				</Row>
+				<Row>
+					<Col md={3}><Button variant="primary" block onClick={this.exitWizardWallet}>Key is Correct; Continue</Button></Col>
 				</Row>
 				</>
 			);

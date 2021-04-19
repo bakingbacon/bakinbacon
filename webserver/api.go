@@ -28,12 +28,6 @@ func generateNewKey(w http.ResponseWriter, r *http.Request) {
     	return
 	}
 	
-	if err := baconClient.Signer.SetSignerTypeWallet(); err != nil {
-	    e, _ := json.Marshal(ApiError{ err.Error() })
-        http.Error(w, string(e), http.StatusBadRequest)
-    	return
-	}
-	
 	log.WithFields(log.Fields{
 		"EDSK": newEdsk, "PKH": newPkh,
 	}).Info("Generated new key-pair")
@@ -78,12 +72,6 @@ func importSecretKey(w http.ResponseWriter, r *http.Request) {
         return
     }
     
-    if err := baconClient.Signer.SetSignerTypeWallet(); err != nil {
-    	e, _ := json.Marshal(ApiError{ err.Error() })
-    	http.Error(w, string(e), http.StatusBadRequest)
-    	return
-	}
-    
     log.WithFields(log.Fields{
 		"EDSK": edsk, "PKH": pkh,
 	}).Info("Imported secret key-pair")
@@ -124,6 +112,27 @@ func registerBaker(w http.ResponseWriter, r *http.Request) {
 	// Return to UI
 	json.NewEncoder(w).Encode(map[string]string{
 		"ophash": opHash,
+	})
+	
+	return
+}
+
+//
+// Finish wizard
+// This API saves the generated, or imported, secret key to the DB and saves the signer method
+func finishWizard(w http.ResponseWriter, r *http.Request) {
+
+	log.Debug("API - FinishWizard")
+
+	if err := baconClient.Signer.SaveKeyWalletTypeToDB(); err != nil {
+		e, _ := json.Marshal(ApiError{ err.Error() })
+    	http.Error(w, string(e), http.StatusBadRequest)
+    	return
+	}
+	
+	// Return to UI
+	json.NewEncoder(w).Encode(map[string]string{
+		"ok": "ok",
 	})
 	
 	return

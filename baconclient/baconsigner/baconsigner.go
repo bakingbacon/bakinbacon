@@ -21,6 +21,7 @@ const (
 
 type BaconSigner struct {
 	BakerPkh		string
+	bakerSk			string // temp for UI wizard
 	SignerOk		bool
 	SignerType		int
 	
@@ -142,7 +143,7 @@ func (s *BaconSigner) LoadSigner() (error) {
 	return nil
 }
 
-// Generates a new ED25519 keypair, saves to DB, and sets signer type to wallet
+// Generates a new ED25519 keypair
 func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 	
 	newKey, err := gtks.Generate(gtks.Ed25519)
@@ -151,13 +152,11 @@ func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 		return "", "", errors.Wrap(err, "failed to generate new key")
 	}
 	
-	edsk := newKey.GetSecretKey()
-	pkh := newKey.PubKey.GetAddress()
+	s.bakerSk = newKey.GetSecretKey()
+	s.BakerPkh = newKey.PubKey.GetAddress()
+	s.SignerType = SIGNER_WALLET
 	
-	// Save generated key to storage
-	storage.DB.SetDelegate(edsk, pkh)
-	
-	return edsk, pkh, nil
+	return s.bakerSk, s.BakerPkh, nil
 }
 
 // Imports a secret key, saves to DB, and sets signer type to wallet
@@ -169,22 +168,33 @@ func (s *BaconSigner) ImportSecretKey(iEdsk string) (string, string, error) {
 		return "", "", errors.Wrap(err, "failed to import key")
 	}
 	
-	pkh := key.PubKey.GetAddress()
+	s.bakerSk = iEdsk
+	s.BakerPkh = key.PubKey.GetAddress()
+	s.SignerType = SIGNER_WALLET
 	
-	// Save generated key to storage
-	storage.DB.SetDelegate(iEdsk, pkh)
-	
-	return iEdsk, pkh, nil
+	return s.bakerSk, s.BakerPkh, nil
 }
 
-// Sets signing type to wallet in DB
-func (s *BaconSigner) SetSignerTypeWallet() (error) {
-	return storage.DB.SetSignerType(SIGNER_WALLET)
-}
+// Saves Sk/Pkh to DB
+func (s *BaconSigner) SaveKeyWalletTypeToDB() (error) {
 
-// Sets signing type to ledger in DB
-func (s *BaconSigner) SetSignerTypeLedger() (error) {
-	return storage.DB.SetSignerType(SIGNER_LEDGER)
+	if err := storage.DB.SetDelegate(s.bakerSk, s.BakerPkh); err != nil {
+		return errors.Wrap(err, "Unable to save key/wallet")
+	}
+
+	if s.SignerType == SIGNER_WALLET {
+		if err := storage.DB.SetSignerType(SIGNER_WALLET); err != nil {
+			return errors.Wrap(err, "Unable to save key/wallet")
+		}
+	}
+
+	if s.SignerType == SIGNER_LEDGER {
+		if err := storage.DB.SetSignerType(SIGNER_LEDGER); err != nil {
+			return errors.Wrap(err, "Unable to save key/wallet")
+		}
+	}
+
+	return nil
 }
 
 // Gets the public key, depending on signer type

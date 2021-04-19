@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/Messer4/base58check v0.0.0-20180328134002-7531a92ae9ba
-	github.com/bakingbacon/go-tezos/v4 v4.0.8
+	github.com/bakingbacon/go-tezos/v4 v4.1.0
 	github.com/bakingbacon/goledger v1.0.0 // indirect
 	github.com/bakingbacon/goledger/ledger-apps/tezos v0.0.0-20210318214534-90bad189f425
 	github.com/btcsuite/btcutil v1.0.2
@@ -17,3 +17,5 @@ require (
 )
 
 replace github.com/sirupsen/logrus => /home/drmac/go/src/github.com/sirupsenNEW/logrus
+
+replace github.com/bakingbacon/go-tezos/v4 => /home/drmac/go/src/github.com/bakingbacon/go-tezos

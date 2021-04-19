@@ -127,11 +127,11 @@ class DelegateInfo extends React.Component {
 		if (isLoading || !isConnOk) {
 			return (
 				<>
-				<Row>
-					<Col className="text-center"><Loader type="Circles" color="#EFC700" height={50} width={50} /><br/>Loading Baker Info...</Col>
-				</Row>
+				<Col md={8} className="text-center padded-top-30">
+					<Loader type="Circles" color="#EFC700" height={50} width={50} /><br/>Loading Baker Info...
+				</Col>
 				{ hasError &&
-					<Row><Col className="text-center"><Alert variant="danger">{hasError}</Alert></Col></Row>
+					<Col md={8} className="text-center"><Alert variant="danger">{hasError}</Alert></Col>
 				}
 				</>
 			)
@@ -140,10 +140,8 @@ class DelegateInfo extends React.Component {
 		if (bakeState === CAN_BAKE) {
 			return (
 				<>
-				<Row>
-					<Col md={4}><DelegateBalances frozen={this.state.frozen} spendable={this.state.spendable} total={this.state.total} /></Col>
-					<Col md={4}><DelegateStats nbDels={this.state.nbDelegators} stakeBal={this.state.stakingBalance} deleBal={this.state.delegatedBalance} /></Col>
-				</Row>
+				<Col md={4}><DelegateBalances frozen={this.state.frozen} spendable={this.state.spendable} total={this.state.total} /></Col>
+				<Col md={4}><DelegateStats nbDels={this.state.nbDelegators} stakeBal={this.state.stakingBalance} deleBal={this.state.delegatedBalance} /></Col>
 				</>
 			)
 		}
@@ -159,7 +157,7 @@ class DelegateBalances extends React.Component {
 	render() {
 		return (
 			<Card>
-				<Card.Header as="h5">Delegate Balances</Card.Header>
+				<Card.Header as="h5">Baker Balances</Card.Header>
 				<ListGroup variant="flush">
 					<ListGroup.Item><div className="stats-title">Frozen:</div> <NumberFormat value={this.props.frozen} displayType={'text'} suffix={'ꜩ'} renderText={value => <div className="stats-val">{value}</div>} /></ListGroup.Item>
 					<ListGroup.Item><div className="stats-title">Spendable:</div> <NumberFormat value={this.props.spendable} displayType={'text'} suffix={'ꜩ'} renderText={value => <div className="stats-val">{value}</div>} /></ListGroup.Item>
@@ -175,7 +173,7 @@ class DelegateStats extends React.Component {
 	render() {
 		return (
 			<Card>
-				<Card.Header as="h5">Delegated Stats</Card.Header>
+				<Card.Header as="h5">Baker Stats</Card.Header>
 				<ListGroup variant="flush">
 					<ListGroup.Item><div className="stats-title-w">Delegated Balance:</div> <NumberFormat value={this.props.deleBal} displayType={'text'} suffix={'ꜩ'} renderText={value => <div className="stats-val">{value}</div>} /></ListGroup.Item>
 					<ListGroup.Item><div className="stats-title-w">Staking Balance:</div> <NumberFormat value={this.props.stakeBal} displayType={'text'} suffix={'ꜩ'} renderText={value => <div className="stats-val">{value}</div>} /></ListGroup.Item>

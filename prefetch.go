@@ -124,12 +124,12 @@ func fetchEndorsingRights(nextCycle int) {
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
-		}).Error("Unable to fetch next cycle's endorsing rights")
+		}).Error("Unable to fetch next cycle endorsing rights")
 		return
 	}
 
 	if len(endorsingRights) == 0 {
-		log.WithField("Cycle", nextCycle).Info("Pre-fetch returned no endorsing rights for next cycle")
+		log.WithField("Cycle", nextCycle).Info("Pre-fetch no endorsing rights")
 	}
 	
 	// Save rights to DB, even if len == 0 so that it is noted we queried this cycle
@@ -153,7 +153,7 @@ func fetchBakingRights(nextCycle int) {
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
-		}).Error("Unable to fetch next cycle's baking rights")
+		}).Error("Unable to fetch next cycle baking rights")
 		return
 	}
 
@@ -161,7 +161,7 @@ func fetchBakingRights(nextCycle int) {
 	if len(bakingRights) == 0 {
 		log.WithFields(log.Fields{
 			"Cycle": nextCycle, "MaxPriority": MAX_BAKE_PRIORITY,
-		}).Info("Pre-fetch returned no baking rights for cycle")
+		}).Info("Pre-fetch no baking rights")
 	}
 
 	// Filter max priority

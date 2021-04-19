@@ -9,6 +9,7 @@ import Navbar from 'react-bootstrap/Navbar'
 import ProgressBar from 'react-bootstrap/ProgressBar';
 
 import DelegateInfo from './delegateinfo.js'
+import NextOpportunities from './nextopportunities.js'
 import SetupWizard from './setupwizard.js'
 
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
@@ -105,9 +106,8 @@ class Bakinbacon extends React.Component {
 						<Navbar.Text>{delegate}</Navbar.Text>
 					</Navbar.Collapse>
 				</Navbar>
-				<br />
 				<Row>
-					<Col>
+					<Col md={4}>
 						<Card>
 						  <Card.Header as="h5">Current Status</Card.Header>
 						  <Card.Body>
@@ -118,7 +118,10 @@ class Bakinbacon extends React.Component {
 						  </Card.Body>
 						</Card>
 					</Col>
-					<Col>
+					<DelegateInfo delegate={delegate} status={status} />
+				</Row>
+				<Row>
+					<Col md={5}>
 						<Card>
 					  		<Card.Header as="h5">Recent Activity</Card.Header>
 					  		<Card.Body>
@@ -139,46 +142,31 @@ class Bakinbacon extends React.Component {
 							</Card.Body>
 						</Card>
 					</Col>
+					<Col md={7}>
+						<NextOpportunities status={status} connOk={connOk} />
+					</Col>
 				</Row>
-				<DelegateInfo delegate={delegate} status={status} />
 				<Row>
 					<Col>
 						<Card>
-							<Card.Header as="h5">Next Opportunity</Card.Header>
-							<Card.Body>
-								<Row>
-						  			<Col>
-						  				<Card.Title>Baking</Card.Title>
-										<Card.Subtitle className="mb-2 text-muted">Level: {status.nbl}</Card.Subtitle>
-										<Card.Subtitle className="mb-2 text-muted">Cycle: {status.nbc}</Card.Subtitle>
-										<Card.Subtitle className="mb-2 text-muted">Priority: {status.nbp}</Card.Subtitle>
-									</Col>
-						  			<Col>
-						  				<Card.Title>Endorsement</Card.Title>
-										<Card.Subtitle className="mb-2 text-muted">Level: {status.nel}</Card.Subtitle>
-										<Card.Subtitle className="mb-2 text-muted">Cycle: {status.nec}</Card.Subtitle>
-									</Col>
-								</Row>
-							</Card.Body>
 							<Card.Footer>
-								<Row>
-									<Col><BaconStatus state={connOk} />Last Update: {lastUpdate}</Col>
-								</Row>
+								<BaconStatus state={connOk} />Last Update: {lastUpdate}
 							</Card.Footer>
 						</Card>
 					</Col>
 				</Row>
+
 			</Container>
 		);
 	}
 }
 
-function substr(g) {
-	return String(g).substring(0,10)
-}
-
 function BaconStatus(props) {
 	return <div className={ "baconstatus baconstatus-" + (props.state ? "green" : "red") }></div>
+}
+
+function substr(g) {
+	return String(g).substring(0,10)
 }
 
 // function AlertDismissible() {

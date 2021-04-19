@@ -56,3 +56,7 @@ div.row {
   background-color: #ED9051;
   border-color: #D65337;
 }
+
+.padded-top-30 {
+  padding-top: 30px;
+}

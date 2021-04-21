@@ -10,10 +10,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
     - name: Setup Go
       uses: actions/setup-go@v2
+      
+    - name: Install linter
+      uses: golangci/golangci-lint-action@v2
+      with:
+        skip-go-installation: true
+
+    - name: Dryer lint
+      run: golangci-lint run ./...
 
     - name: Fry some bacon
       run: go build .

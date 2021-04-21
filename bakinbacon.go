@@ -10,16 +10,17 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"bakinbacon/baconclient"
 	"bakinbacon/storage"
 	"bakinbacon/webserver"
-	"bakinbacon/baconclient"
 )
 
 var (
-	bc                *baconclient.BaconClient
+	bc *baconclient.BaconClient
 
 	// Flags
 	logDebug          *bool
+	logTrace          *bool
 	dryRunEndorsement *bool
 	dryRunBake        *bool
 )
@@ -32,7 +33,7 @@ func main() {
 	parseArgs()
 
 	// Logging
-	setupLogging(*logDebug)
+	setupLogging(*logDebug, *logTrace)
 
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
@@ -61,7 +62,8 @@ func main() {
 	}).Debug("Loaded Network Constants")
 
 	// loop forever, waiting for new blocks on the channel
-	ctx, ctxCancel := context.WithCancel(context.Background())
+	var ctx context.Context
+	_, ctxCancel := context.WithCancel(context.Background())
 
 	// Update bacon-status with most recent bake/endorse info
 	updateRecentBaconStatus()
@@ -92,8 +94,7 @@ func main() {
 
 			wg.Add(1)
 			go handleBake(ctx, &wg, *block)
-			
-			
+
 			//
 			// Utility
 			//
@@ -139,14 +140,14 @@ func setupCloseChannel() chan interface{} {
 func parseArgs() {
 
 	// Args
-	logDebug = flag.Bool("debug", false, "Enable debug logging")
+	logDebug = flag.Bool("debug", false, "Enable debug-level logging")
+	logTrace = flag.Bool("trace", false, "Enable trace-level logging")
 
 	dryRunEndorsement = flag.Bool("dry-run-endorse", false, "Compute, but don't inject endorsements")
 	dryRunBake = flag.Bool("dry-run-bake", false, "Compute, but don't inject blocks")
 
 	flag.Parse()
 }
-
 
 // tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs
 // pk := "edpkti2A2ZtvYEfkYaqQ7ESbCrPEYPBacRCBq6Pmxa4E1jTBYqpKG5"

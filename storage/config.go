@@ -2,42 +2,46 @@ package storage
 
 import (
 	"bytes"
-	
+
 	"github.com/pkg/errors"
-	
+
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
-	PUBLIC_KEY_HASH = "pkh"
+	PUBLIC_KEY_HASH  = "pkh"
 	ENDPOINTS_BUCKET = "endpoints"
-	SIGNER_TYPE = "signertype"
-	SIGNER_SK = "signersk"
+	SIGNER_TYPE      = "signertype"
+	SIGNER_SK        = "signersk"
 )
 
-func (s *Storage) GetDelegate() (string, string) {
+func (s *Storage) GetDelegate() (string, string, error) {
 	var sk, pkh string
-	s.db.View(func(tx *bolt.Tx) error {
+	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
 		return nil
 	})
-	return sk, pkh
+	return sk, pkh, err
 }
 
 func (s *Storage) SetDelegate(sk, pkh string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		b.Put([]byte(SIGNER_SK), []byte(sk))
-		b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh))
+		if err := b.Put([]byte(SIGNER_SK), []byte(sk)); err != nil {
+			return err
+		}
+		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
+			return err
+		}
 		return nil
 	})
 }
 
-func (s *Storage) GetSignerType() int {
+func (s *Storage) GetSignerType() (int, error) {
 	var st int = 0
-	s.db.View(func(tx *bolt.Tx) error {
+	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		_st := b.Get([]byte(SIGNER_TYPE))
 		if _st != nil {
@@ -45,32 +49,30 @@ func (s *Storage) GetSignerType() int {
 		}
 		return nil
 	})
-	return st
+	return st, err
 }
 
 func (s *Storage) SetSignerType(d int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		b.Put([]byte(SIGNER_TYPE), itob(d))
-		return nil
+		return b.Put([]byte(SIGNER_TYPE), itob(d))
 	})
 }
 
-func (s *Storage) GetSignerSk() string {
+func (s *Storage) GetSignerSk() (string, error) {
 	var sk string
-	s.db.View(func(tx *bolt.Tx) error {
+	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		return nil
 	})
-	return sk
+	return sk, err
 }
 
 func (s *Storage) SetSignerSk(sk string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		b.Put([]byte(SIGNER_SK), []byte(sk))
-		return nil
+		return b.Put([]byte(SIGNER_SK), []byte(sk))
 	})
 }
 
@@ -81,22 +83,24 @@ func (s *Storage) AddRPCEndpoint(endpoint string) error {
 		if err != nil {
 			return errors.Wrap(err, "Unable to create endpoints bucket")
 		}
-		
+
 		var foundDup bool
 		endpointBytes := []byte(endpoint)
 
-		b.ForEach(func(k, v []byte) error {
-			if bytes.Compare(v, endpointBytes) == 0 {
+		if err := b.ForEach(func(k, v []byte) error {
+			if bytes.Equal(v, endpointBytes) {
 				foundDup = true
 			}
 			return nil
-		})
-		
+		}); err != nil {
+			return err
+		}
+
 		if foundDup {
 			// Found duplicate, exit
 			return nil
 		}
-		
+
 		// else, add
 		id, _ := b.NextSequence()
 
@@ -114,14 +118,16 @@ func (s *Storage) GetRPCEndpoints() ([]string, error) {
 			return errors.New("Unable to locate endpoints bucket")
 		}
 
-		b.ForEach(func(k, v []byte) error {
+		if err := b.ForEach(func(k, v []byte) error {
 			endpoints = append(endpoints, string(v))
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
 
 		return nil
 	})
-	
+
 	return endpoints, err
 }
 
@@ -134,12 +140,15 @@ func (s *Storage) DeleteRPCEndpoint(endpoint string) error {
 		}
 
 		endpointBytes := []byte(endpoint)
-		b.ForEach(func(k, v []byte) error {
-			if bytes.Compare(v, endpointBytes) == 0 {
-				b.Delete(k)
+		if err := b.ForEach(func(k, v []byte) error {
+			if bytes.Equal(v, endpointBytes) {
+				return b.Delete(k)
 			}
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
+
 		return nil
 	})
 }

@@ -21,7 +21,12 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	endorsingLevel := block.Header.Level
 
 	// Check watermark to ensure we have not endorsed at this level before
-	watermark := storage.DB.GetEndorsingWatermark()
+	watermark, err := storage.DB.GetEndorsingWatermark()
+	if err != nil {
+		// watermark = 0 on DB error
+		log.WithError(err).Error("Unable to get endorsing watermark from DB")
+	}
+
 	if watermark >= endorsingLevel {
 		log.WithFields(log.Fields{
 			"EndorsingLevel": endorsingLevel, "Watermark": watermark,
@@ -41,7 +46,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	log.WithFields(log.Fields{
 		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Debug("Fetching endorsing rights")
+	}).Trace("Fetching endorsing rights")
 
 	if err != nil {
 		log.WithError(err).Error("Unable to fetch endorsing rights")
@@ -97,7 +102,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Prepare to pre-apply the operation
 	preapplyEndoOp := rpc.PreapplyOperationsInput{
-		BlockID:    &hashBlockID,
+		BlockID: &hashBlockID,
 		Operations: []rpc.Operations{
 			{
 				Branch: block.Hash,
@@ -147,8 +152,10 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	log.WithField("Operation", opHash).Info("Endorsement Injected")
 
 	// Save endorsement to DB for watermarking
-	storage.DB.RecordEndorsement(endorsingLevel, opHash)
-	
+	if err := storage.DB.RecordEndorsement(endorsingLevel, opHash); err != nil {
+		log.WithError(err).Error("Unable to save endorsement to DB")
+	}
+
 	// Update status for UI
 	bc.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
 }

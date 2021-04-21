@@ -7,7 +7,6 @@ type Nonce struct {
 	NonceHash   string `json:"noncehash"`
 	SeedHashHex string `json:"seedhashhex"`
 
-	Level       int    `json:"level"`
-	RevealOp    string `json:"revealed"`
+	Level    int    `json:"level"`
+	RevealOp string `json:"revealed"`
 }
-

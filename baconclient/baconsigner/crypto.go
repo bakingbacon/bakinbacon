@@ -13,6 +13,7 @@ import (
 
 type prefix []byte
 
+//nolint:deadcode,unused,varcheck // Keeping these in here for completeness
 var (
 	// For (de)constructing addresses
 	tz1prefix         prefix = []byte{6, 161, 159}

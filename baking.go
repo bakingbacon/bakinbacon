@@ -27,12 +27,12 @@ const (
 )
 
 var (
-	// Chain constants backup
-	MinimumBlockTimes = map[string]int{
-		"NetXdQprcVkpaWU": 60, // Mainnet
-		"NetXjD3HPJJjmcd": 30, // Carthagenet
-		"NetXm8tYqnMWky1": 30, // Delphinet
-	}
+// Chain constants backup
+//	MinimumBlockTimes = map[string]int{
+//		"NetXdQprcVkpaWU": 60, // Mainnet
+//		"NetXjD3HPJJjmcd": 30, // Carthagenet
+//		"NetXm8tYqnMWky1": 30, // Delphinet
+//	}
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -73,7 +73,12 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	nextLevelToBake := block.Header.Level + 1
 
 	// Check watermark to ensure we have not baked at this level before
-	watermark := storage.DB.GetBakingWatermark()
+	watermark, err := storage.DB.GetBakingWatermark()
+	if err != nil {
+		// watermark = 0 on DB error
+		log.WithError(err).Error("Unable to get baking watermark from DB")
+	}
+
 	if watermark >= nextLevelToBake {
 		log.WithFields(log.Fields{
 			"BakingLevel": nextLevelToBake, "Watermark": watermark,
@@ -240,9 +245,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	nowTimestamp := time.Now().UTC().Round(time.Second)
 	_, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
-		&hashBlockID,
-		priority,
-		endorsingPower,
+		BlockID:        &hashBlockID,
+		Priority:       priority,
+		EndorsingPower: endorsingPower,
 	})
 	if err != nil {
 		log.WithError(err).Error("Unable to get minimal valid timestamp")
@@ -269,21 +274,21 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	dummyProtocolData := rpc.PreapplyBlockProtocolData{
-		block.Protocol,
-		priority,
-		"0000000000000000",
-		n.NonceHash,
-		"edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
+		Protocol:         block.Protocol,
+		Priority:         priority,
+		ProofOfWorkNonce: "0000000000000000",
+		SeedNonceHash:    n.NonceHash,
+		Signature:        "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 	}
 
 	preapplyBlockheader := rpc.PreapplyBlockInput{
-		&hashBlockID,   // BlockID
-		rpc.PreapplyBlockBody{
-			dummyProtocolData,  // ProtocolData
-			operations,         // Operations
+		BlockID: &hashBlockID, // BlockID
+		Block: rpc.PreapplyBlockBody{
+			ProtocolData: dummyProtocolData, // ProtocolData
+			Operations:   operations,        // Operations
 		},
-		true,                 // Sort
-		&minimalInjectionTime, // Timestamp
+		Sort:      true,                  // Sort
+		Timestamp: &minimalInjectionTime, // Timestamp
 	}
 
 	// Attempt to preapply the block header we created using the protocol data,
@@ -311,17 +316,17 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Forge the block header
 	_, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
-		&hashBlockID,
-		rpc.ForgeBlockHeaderBody{
-			shellHeader.Level,
-			shellHeader.Proto,
-			shellHeader.Predecessor,
-			shellHeader.Timestamp,
-			shellHeader.ValidationPass,
-			shellHeader.OperationsHash,
-			shellHeader.Fitness,
-			shellHeader.Context,
-			protocolData,
+		BlockID: &hashBlockID,
+		BlockHeader: rpc.ForgeBlockHeaderBody{
+			Level:          shellHeader.Level,
+			Proto:          shellHeader.Proto,
+			Predecessor:    shellHeader.Predecessor,
+			Timestamp:      shellHeader.Timestamp,
+			ValidationPass: shellHeader.ValidationPass,
+			OperationsHash: shellHeader.OperationsHash,
+			Fitness:        shellHeader.Fitness,
+			Context:        shellHeader.Context,
+			ProtocolData:   protocolData,
 		},
 	})
 	if err != nil {
@@ -398,9 +403,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Save nonce to DB for reveal in next cycle
 	if n.SeedHashHex != "" {
-		storage.DB.SaveNonce(block.Metadata.Level.Cycle, n)
+		if err := storage.DB.SaveNonce(block.Metadata.Level.Cycle, n); err != nil {
+			log.WithError(err).Error("Unable to save nonce for reveal")
+		}
 	}
-	
+
 	// Update status for UI
 	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 }
@@ -456,11 +463,10 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
 	// log.WithField("PO", protocolOffset).Debug("OFFSET")
 
-	attempts := 0
 	powThreshold := bc.Current.CurrentConstants().ProofOfWorkThreshold
 
-	for {
-		attempts++
+	var attempts int
+	for attempts = 0; attempts < 1e7; attempts++ {
 
 		for i := POW_LENGTH - 1; i >= 0; i-- {
 			if hashBuffer[protocolOffset+i] == 255 {
@@ -484,14 +490,10 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 
 			return mhex, attempts, nil
 		}
-
-		// Safety
-		if attempts > 1e7 {
-			return "", attempts, errors.New("POW exceeded safety limits")
-		}
 	}
 
-	return "", 0, nil
+	// Exited loop due to safety limit of 1e7 attempts
+	return "", attempts, errors.New("POW exceeded safety limits")
 }
 
 func createProtocolData(priority int, powHeader, pow, seed string) string {
@@ -627,16 +629,16 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 
 	for _, o := range operations {
 
-		endorsementPowInput := rpc.EndorsingPowerInput{   // block.go
-			blockId,
-			0,
-			rpc.EndorsingPower{
-				rpc.EndorsingOperation{
-					o.Branch,
-					o.Contents,
-					o.Signature,
+		endorsementPowInput := rpc.EndorsingPowerInput{ // block.go
+			BlockID: blockId,
+			Cycle:   0,
+			EndorsingPower: rpc.EndorsingPower{
+				EndorsementOperation: rpc.EndorsingOperation{
+					Branch:    o.Branch,
+					Contents:  o.Contents,
+					Signature: o.Signature,
 				},
-				chainId,
+				ChainID: chainId,
 			},
 		}
 
@@ -652,13 +654,12 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 }
 
 func stripQuote(s string) string {
-    m := strings.TrimSpace(s)
-    if len(m) > 0 && m[0] == '"' {
-        m = m[1:]
-    }
-    if len(m) > 0 && m[len(m)-1] == '"' {
-        m = m[:len(m)-1]
-    }
-    return m
+	m := strings.TrimSpace(s)
+	if len(m) > 0 && m[0] == '"' {
+		m = m[1:]
+	}
+	if len(m) > 0 && m[len(m)-1] == '"' {
+		m = m[:len(m)-1]
+	}
+	return m
 }
-

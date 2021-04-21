@@ -18,4 +18,4 @@ require (
 
 replace github.com/sirupsen/logrus => /home/drmac/go/src/github.com/sirupsenNEW/logrus
 
-replace github.com/bakingbacon/go-tezos/v4 => /home/drmac/go/src/github.com/bakingbacon/go-tezos
+replace github.com/bakingbacon/go-tezos/v4 => ../github.com/bakingbacon/go-tezos

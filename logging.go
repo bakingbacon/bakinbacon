@@ -11,7 +11,7 @@ import (
 
 var logFile *os.File
 
-func setupLogging(logDebug bool) {
+func setupLogging(logDebug bool, logTrace bool) {
 
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp: true,
@@ -22,7 +22,7 @@ func setupLogging(logDebug bool) {
 		log.Fatalf("Failed to determine working directory: %s", err)
 	}
 	runID := time.Now().Format("log-bakinbacon-2006-01-02")
-	logLocation := filepath.Join(cwd, runID + ".log")
+	logLocation := filepath.Join(cwd, runID+".log")
 
 	logFile, err = os.OpenFile(logLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -31,6 +31,9 @@ func setupLogging(logDebug bool) {
 
 	if logDebug {
 		log.SetLevel(log.DebugLevel)
+	}
+	if logTrace {
+		log.SetLevel(log.TraceLevel)
 	}
 
 	// Write everything to log file too

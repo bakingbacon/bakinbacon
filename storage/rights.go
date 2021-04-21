@@ -2,11 +2,11 @@ package storage
 
 import (
 	"bytes"
-	
+
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 
 	"github.com/pkg/errors"
-	
+
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -25,13 +25,17 @@ func (s *Storage) SaveEndorsingRightsForCycle(cycle int, endorsingRights []rpc.E
 		}
 
 		// Use the bucket's sequence to save the highest cycle for which rights have been fetched
-		b.SetSequence(uint64(cycle))
+		if err := b.SetSequence(uint64(cycle)); err != nil {
+			return err
+		}
 
 		// Keys of values are not related to the sequence
 		for _, r := range endorsingRights {
-			b.Put(itob(r.Level), itob(cycle))
+			if err := b.Put(itob(r.Level), itob(cycle)); err != nil {
+				return err
+			}
 		}
-		
+
 		return nil
 	})
 }
@@ -44,15 +48,19 @@ func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingR
 		if err != nil {
 			return errors.Wrap(err, "Unable to create baking rights bucket")
 		}
-		
+
 		// Use the bucket's sequence to save the highest cycle for which rights have been fetched
-		b.SetSequence(uint64(cycle))
-		
+		if err := b.SetSequence(uint64(cycle)); err != nil {
+			return err
+		}
+
 		// Keys of values are not related to the sequence
 		for _, r := range bakingRights {
-			b.Put(itob(r.Level), itob(r.Priority))
+			if err := b.Put(itob(r.Level), itob(r.Priority)); err != nil {
+				return err
+			}
 		}
-		
+
 		return nil
 	})
 }
@@ -66,16 +74,16 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 	curLevelBytes := itob(curLevel)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-	
+
 		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(ENDORSING_RIGHTS_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing Rights Bucket Not Found")
 		}
-		
+
 		highestFetchCycle = int(b.Sequence())
-		
+
 		c := b.Cursor()
-		
+
 		for k, _ := c.First(); k != nil && nextLevel == 0; k, _ = c.Next() {
 			switch o := bytes.Compare(curLevelBytes, k); o {
 			case 1, 0:
@@ -105,16 +113,16 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 	curLevelBytes := itob(curLevel)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-	
+
 		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(BAKING_RIGHTS_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing Rights Bucket Not Found")
 		}
-		
+
 		highestFetchCycle = int(b.Sequence())
-		
+
 		c := b.Cursor()
-		
+
 		for k, v := c.First(); k != nil && nextLevel == 0; k, v = c.Next() {
 			switch o := bytes.Compare(curLevelBytes, k); o {
 			case 1, 0:
@@ -140,9 +148,9 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 
 	var recentEndorsementLevel int = 0
 	var recentEndorsementHash string = ""
-	
+
 	err := s.db.View(func(tx *bolt.Tx) error {
-	
+
 		b := tx.Bucket([]byte(ENDORSING_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing history bucket not found")
@@ -166,9 +174,9 @@ func (s *Storage) GetRecentBake() (int, string, error) {
 
 	var recentBakeLevel int = 0
 	var recentBakeHash string = ""
-	
+
 	err := s.db.View(func(tx *bolt.Tx) error {
-	
+
 		b := tx.Bucket([]byte(BAKING_BUCKET))
 		if b == nil {
 			return errors.New("Baking history bucket not found")

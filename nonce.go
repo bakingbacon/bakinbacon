@@ -142,7 +142,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		// }
 
 		preapplyNonceRevealOp := rpc.PreapplyOperationsInput{
-			BlockID:    &hashBlockID,
+			BlockID: &hashBlockID,
 			Operations: []rpc.Operations{
 				{
 					Branch: block.Hash,
@@ -180,7 +180,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		resp, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
 		if err != nil {
-			
+
 			// Check error message for possible previous injection. If notice not present
 			// then we have a real error on our hands. If notice present, let func finish
 			// and save operational hash to DB
@@ -188,7 +188,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			if len(parts) > 0 {
 				revealOpHash = parts[1]
 			} else {
-			
+
 				log.WithError(err).WithFields(log.Fields{
 					"Response": resp.String(),
 				}).Error("Error Injecting Nonce Reveal")
@@ -200,6 +200,8 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// Update DB with hash of reveal operation
 		nonce.RevealOp = revealOpHash
-		storage.DB.SaveNonce(previousCycle, nonce)
+		if err := storage.DB.SaveNonce(previousCycle, nonce); err != nil {
+			log.WithError(err).Error("Unable to save nonce reveal to DB")
+		}
 	}
 }

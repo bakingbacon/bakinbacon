@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
-    log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 type Storage struct {
-        db *bolt.DB
+	db *bolt.DB
 }
 
 var DB Storage
@@ -31,7 +31,7 @@ func init() {
 	if err != nil {
 		log.Fatal("Failed to init db:", err)
 	}
-	
+
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
 
@@ -50,7 +50,7 @@ func init() {
 		if _, err := tx.CreateBucketIfNotExists([]byte(NONCE_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create nonce bucket: %s", err)
 		}
-		
+
 		if _, err := tx.CreateBucketIfNotExists([]byte(RIGHTS_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create rights bucket: %s", err)
 		}
@@ -74,9 +74,9 @@ func (s *Storage) Close() {
 
 // itob returns an 8-byte big endian representation of v.
 func itob(v int) []byte {
-    b := make([]byte, 8)
-    binary.BigEndian.PutUint64(b, uint64(v))
-    return b
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(v))
+	return b
 }
 
 func btoi(b []byte) int {

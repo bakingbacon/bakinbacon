@@ -5,8 +5,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	bolt "go.etcd.io/bbolt"
 	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 
 	"bakinbacon/nonce"
 )

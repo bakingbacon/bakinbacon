@@ -21,6 +21,7 @@ func setupLogging(logDebug bool, logTrace bool) {
 	if err != nil {
 		log.Fatalf("Failed to determine working directory: %s", err)
 	}
+
 	runID := time.Now().Format("log-bakinbacon-2006-01-02")
 	logLocation := filepath.Join(cwd, runID+".log")
 
@@ -32,6 +33,7 @@ func setupLogging(logDebug bool, logTrace bool) {
 	if logDebug {
 		log.SetLevel(log.DebugLevel)
 	}
+
 	if logTrace {
 		log.SetLevel(log.TraceLevel)
 	}

@@ -218,6 +218,7 @@ func addEndpoint(w http.ResponseWriter, r *http.Request) {
 	if e := storage.DB.AddRPCEndpoint(string(body)); e != nil {
 		log.WithError(e).WithField("Endpoint", string(body)).Error("API AddEndpoint")
 		apiError(errors.Wrap(err, "Cannot add endpoint to DB"), w)
+
 		return
 	}
 

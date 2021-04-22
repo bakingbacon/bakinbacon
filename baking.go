@@ -83,6 +83,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithFields(log.Fields{
 			"BakingLevel": nextLevelToBake, "Watermark": watermark,
 		}).Error("Watermark level higher than baking level; Cancel bake to prevent double baking")
+
 		return
 	}
 
@@ -100,6 +101,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
 		}).Error("Unable to fetch baking rights")
+
 		return
 	}
 
@@ -108,6 +110,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithFields(log.Fields{
 			"Level": nextLevelToBake, "MaxPriority": MAX_BAKE_PRIORITY,
 		}).Info("No baking rights for level")
+
 		return
 	}
 
@@ -185,6 +188,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
 	endorsingPower := 0
+
 	var operations [][]rpc.Operations
 
 	mempoolInput := rpc.MempoolInput{
@@ -228,8 +232,10 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		endorsingPower, err = computeEndorsingPower(&hashBlockID, block.ChainID, operations[0])
 		if err != nil {
 			log.WithError(err).Error("Unable to compute endorsing power; Using 0 power")
+
 			endorsingPower = 0
 		}
+
 		log.WithField("EndorsingPower", endorsingPower).Debug("Computed Endorsing Power")
 	}
 
@@ -243,7 +249,6 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
-	nowTimestamp := time.Now().UTC().Round(time.Second)
 	_, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
 		BlockID:        &hashBlockID,
 		Priority:       priority,
@@ -254,7 +259,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		return
 	}
 
+	nowTimestamp := time.Now().UTC().Round(time.Second)
 	minimalInjectionTime = minimalInjectionTime.Add(1 * time.Second).Round(time.Second) // Just a 1s buffer
+
 	log.WithFields(log.Fields{
 		"MinimalTS": minimalInjectionTime.Format(time.RFC3339Nano), "CurrentTS": nowTimestamp.Format(time.RFC3339Nano),
 	}).Debug("Minimal Injection Timestamp")
@@ -301,6 +308,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithError(err).WithField("Resp", preapplyBlockResp).Error("Unable to preapply block")
 		return
 	}
+
 	log.WithField("Resp", preapplyBlockResp).Trace("Preapply Response")
 
 	// Re-filter the applied operations that came back from pre-apply
@@ -333,6 +341,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithError(err).Error("Unable to forge block header")
 		return
 	}
+
 	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header")
 
 	// Get just the forged block header
@@ -358,6 +367,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.WithError(err).Error("Signer block failure")
 		return
 	}
+
 	log.WithField("Signature", signedBlock.EDSig).Debug("Block Signer Signature")
 
 	// The data of the block
@@ -439,6 +449,7 @@ func stampcheck(buf []byte) uint64 {
 	for i := 0; i < 8; i++ {
 		value = (value * 256) + uint64(buf[i])
 	}
+
 	return value
 }
 
@@ -561,16 +572,21 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 					if level != curLevel {
 						return -1
 					}
+
 					if branch != curBranch {
 						return -1
 					}
+
 					return 0
+
 				case rpc.PROPOSALS, rpc.BALLOT:
 					return 1
+
 				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
 					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
 					return 2
 				}
+
 				return 3
 			}(op.Branch, op.Contents[0].Kind, op.Contents[0].Level)
 		}
@@ -605,7 +621,6 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			Contents:  op.Contents,
 			Signature: op.Signature,
 		})
-
 	}
 
 	return operations, nil
@@ -645,8 +660,10 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 		_, ep, err := bc.Current.EndorsingPower(endorsementPowInput) // block.go
 		if err != nil {
 			log.WithError(err).WithField("Op", o).Error("Unable to compute endorsing power")
+
 			ep = 0
 		}
+
 		endorsingPower += ep
 	}
 
@@ -654,12 +671,16 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 }
 
 func stripQuote(s string) string {
+
 	m := strings.TrimSpace(s)
+
 	if len(m) > 0 && m[0] == '"' {
 		m = m[1:]
 	}
+
 	if len(m) > 0 && m[len(m)-1] == '"' {
 		m = m[:len(m)-1]
 	}
+
 	return m
 }

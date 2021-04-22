@@ -14,7 +14,6 @@ import (
 func (s *Storage) SaveNonce(cycle int, n nonce.Nonce) error {
 
 	// Nonces are stored within a cycle bucket for easy retrieval
-
 	nonceBytes, err := json.Marshal(n)
 	if err != nil {
 		return errors.Wrap(err, "Unable to marshal nonce")

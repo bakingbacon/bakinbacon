@@ -31,6 +31,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithFields(log.Fields{
 			"EndorsingLevel": endorsingLevel, "Watermark": watermark,
 		}).Error("Watermark level higher than endorsing level; Canceling to prevent double endorsing")
+
 		return
 	}
 
@@ -74,6 +75,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).Error("Error Forging Endorsement")
 		return
 	}
+
 	log.WithField("Bytes", endorsementBytes).Debug("Forged Endorsement")
 
 	// Check if a new block has been posted to /head and we should abort
@@ -93,6 +95,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).Error("Signer endorsement failure")
 		return
 	}
+
 	log.WithField("Signature", signedEndorsement.EDSig).Debug("Signer Signature")
 
 	// Really low-level debugging
@@ -121,6 +124,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).Error("Could not preapply operations")
 		return
 	}
+
 	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
 
 	// Create injection
@@ -149,6 +153,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).Error("Endorsement Failure")
 		return
 	}
+
 	log.WithField("Operation", opHash).Info("Endorsement Injected")
 
 	// Save endorsement to DB for watermarking

@@ -17,12 +17,14 @@ const (
 
 func (s *Storage) GetDelegate() (string, string, error) {
 	var sk, pkh string
+
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
 		return nil
 	})
+
 	return sk, pkh, err
 }
 
@@ -41,6 +43,7 @@ func (s *Storage) SetDelegate(sk, pkh string) error {
 
 func (s *Storage) GetSignerType() (int, error) {
 	var st int = 0
+
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		_st := b.Get([]byte(SIGNER_TYPE))
@@ -49,6 +52,7 @@ func (s *Storage) GetSignerType() (int, error) {
 		}
 		return nil
 	})
+
 	return st, err
 }
 
@@ -61,11 +65,13 @@ func (s *Storage) SetSignerType(d int) error {
 
 func (s *Storage) GetSignerSk() (string, error) {
 	var sk string
+
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		return nil
 	})
+
 	return sk, err
 }
 
@@ -77,7 +83,6 @@ func (s *Storage) SetSignerSk(sk string) error {
 }
 
 func (s *Storage) AddRPCEndpoint(endpoint string) error {
-
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.Bucket([]byte(CONFIG_BUCKET)).CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET))
 		if err != nil {
@@ -109,7 +114,6 @@ func (s *Storage) AddRPCEndpoint(endpoint string) error {
 }
 
 func (s *Storage) GetRPCEndpoints() ([]string, error) {
-
 	var endpoints []string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -132,7 +136,6 @@ func (s *Storage) GetRPCEndpoints() ([]string, error) {
 }
 
 func (s *Storage) DeleteRPCEndpoint(endpoint string) error {
-
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {

@@ -37,6 +37,7 @@ func generateNonce() (nonce.Nonce, error) {
 		log.WithError(err).Error("Unable to read random bytes")
 		return nonce.Nonce{}, err
 	}
+
 	seed := hex.EncodeToString(randBytes)[:64]
 
 	seedHash, err := util.CryptoGenericHash(seed, []byte{})
@@ -79,6 +80,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
+
 	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
 	if err != nil {
 		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
@@ -87,13 +89,16 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Filter out nonces which have been revealed
 	var unrevealedNonces []nonce.Nonce
+
 	for _, n := range nonces {
 		if n.RevealOp != "" {
 			log.WithFields(log.Fields{
 				"Level": n.Level, "RevealedOp": n.RevealOp,
 			}).Debug("Nonce already revealed")
+
 			continue
 		}
+
 		unrevealedNonces = append(unrevealedNonces, n)
 	}
 
@@ -102,6 +107,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.Trace("No nonces to reveal")
 		return
 	}
+
 	log.WithField("Cycle", previousCycle).Infof("Found %d unrevealed nonces", len(unrevealedNonces))
 
 	hashBlockID := rpc.BlockIDHash(block.Hash)
@@ -122,16 +128,20 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		nonceRevelationBytes, err := forge.Encode(block.Hash, nonceRevelation)
 		if err != nil {
 			log.WithError(err).Error("Error Forging Nonce Reveal")
+
 			return
 		}
+
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
 		// Sign using http(s) signer
 		signedNonceReveal, err := bc.Signer.SignNonce(nonceRevelationBytes, block.ChainID)
 		if err != nil {
 			log.WithError(err).Error("Signer nonce failure")
+
 			continue
 		}
+
 		log.WithField("Signature", signedNonceReveal.EDSig).Debug("Signed Nonce Reveal")
 
 		// Go-Tezos Wallet
@@ -159,8 +169,10 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		_, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
 			log.WithError(err).Error("Could not preapply nonce reveal operation")
+
 			continue
 		}
+
 		log.Info("Nonce Preapply Successful")
 		log.WithField("Response", preApplyResp).Trace("Nonce Preapply")
 
@@ -170,6 +182,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			log.Warn("New block arrived; Canceling nonce reveal")
 			return
 		default:
+			// No need to wait
 			break
 		}
 
@@ -192,6 +205,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 				log.WithError(err).WithFields(log.Fields{
 					"Response": resp.String(),
 				}).Error("Error Injecting Nonce Reveal")
+
 				continue
 			}
 		}

@@ -100,17 +100,21 @@ func Start(_baconClient *baconclient.BaconClient, shutdownChannel <-chan interfa
 		if err := httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.WithError(err).Errorf("Httpserver: ListenAndServe()")
 		}
+
 		log.Info("Httpserver: Shutdown")
 	}()
 
 	// Wait for shutdown signal on channel
 	go func() {
 		<-shutdownChannel
+
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		if err := httpSvr.Shutdown(ctx); err != nil {
 			log.WithError(err).Errorf("Httpserver: Shutdown()")
 		}
+
 		wg.Done()
 	}()
 }

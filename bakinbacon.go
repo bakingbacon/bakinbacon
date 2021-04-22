@@ -27,8 +27,12 @@ var (
 
 func main() {
 
-	var err error
-	var wg sync.WaitGroup
+	// Used throughout main
+	var (
+		err error
+		wg  sync.WaitGroup
+		ctx context.Context
+	)
 
 	parseArgs()
 
@@ -54,20 +58,19 @@ func main() {
 
 	// Network constants
 	networkConstants := bc.Current.CurrentConstants()
-	log.WithFields(log.Fields{
+	log.WithFields(log.Fields{ //nolint:wsl
 		"PreservedCycles":       networkConstants.PreservedCycles,
 		"BlocksPerCycle":        networkConstants.BlocksPerCycle,
 		"BlocksPerRollSnapshot": networkConstants.BlocksPerRollSnapshot,
 		"BlocksPerCommitment":   networkConstants.BlocksPerCommitment,
 	}).Debug("Loaded Network Constants")
 
-	// loop forever, waiting for new blocks on the channel
-	var ctx context.Context
 	_, ctxCancel := context.WithCancel(context.Background())
 
 	// Update bacon-status with most recent bake/endorse info
 	updateRecentBaconStatus()
 
+	// loop forever, waiting for new blocks on the channel
 	Main:
 	for {
 
@@ -124,6 +127,7 @@ func main() {
 
 func setupCloseChannel() chan interface{} {
 
+	// Create channels for signals
 	signalChan := make(chan os.Signal, 1)
 	closingChan := make(chan interface{}, 1)
 

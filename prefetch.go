@@ -18,6 +18,7 @@ func updateRecentBaconStatus() {
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent endorsement")
 	}
+
 	bc.Status.SetRecentEndorsement(recentEndorsementLevel, getCycleFromLevel(recentEndorsementLevel), recentEndorsementHash)
 
 	// Update baconClient.Status with most recent bake
@@ -25,6 +26,7 @@ func updateRecentBaconStatus() {
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent bake")
 	}
+
 	bc.Status.SetRecentBake(recentBakeLevel, getCycleFromLevel(recentBakeLevel), recentBakeHash)
 }
 
@@ -53,12 +55,13 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		switch {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Endorsing Rights")
+
 			go fetchEndorsingRights(metadataLevel.Cycle)
 
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Endorsing Rights")
-			go fetchEndorsingRights(nextCycle)
 
+			go fetchEndorsingRights(nextCycle)
 		}
 	}
 
@@ -81,9 +84,11 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		switch {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Baking Rights")
+
 			go fetchBakingRights(metadataLevel.Cycle)
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Baking Rights")
+
 			go fetchBakingRights(nextCycle)
 		}
 	}
@@ -124,6 +129,7 @@ func fetchEndorsingRights(nextCycle int) {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
 		}).Error("Unable to fetch next cycle endorsing rights")
+
 		return
 	}
 
@@ -155,6 +161,7 @@ func fetchBakingRights(nextCycle int) {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
 		}).Error("Unable to fetch next cycle baking rights")
+
 		return
 	}
 
@@ -167,6 +174,7 @@ func fetchBakingRights(nextCycle int) {
 
 	// Filter max priority
 	var filteredRights []rpc.BakingRights
+
 	for _, r := range bakingRights {
 		if r.Priority < MAX_BAKE_PRIORITY {
 			filteredRights = append(filteredRights, r)

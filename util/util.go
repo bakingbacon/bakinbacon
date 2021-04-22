@@ -43,8 +43,10 @@ func StripQuote(s string) string {
 	if len(m) > 0 && m[0] == '"' {
 		m = m[1:]
 	}
+
 	if len(m) > 0 && m[len(m)-1] == '"' {
 		m = m[:len(m)-1]
 	}
+
 	return m
 }

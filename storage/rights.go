@@ -1,3 +1,4 @@
+//nolint:wsl
 package storage
 
 import (
@@ -69,8 +70,11 @@ func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingR
 // and also the highest cycle for which rights have been previously fetched.
 func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 
-	var nextLevel int
-	var highestFetchCycle int
+	var (
+		nextLevel int
+		highestFetchCycle int
+	)
+
 	curLevelBytes := itob(curLevel)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -107,9 +111,12 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 // and also the highest cycle for which rights have been previously fetched.
 func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 
-	var nextLevel int
-	var nextPriority int
-	var highestFetchCycle int
+	var (
+		nextLevel int
+		nextPriority int
+		highestFetchCycle int
+	)
+
 	curLevelBytes := itob(curLevel)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -146,8 +153,10 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 // GetRecentEndorsement returns the level of the most recent endorsement
 func (s *Storage) GetRecentEndorsement() (int, string, error) {
 
-	var recentEndorsementLevel int = 0
-	var recentEndorsementHash string = ""
+	var (
+		recentEndorsementLevel int = 0
+		recentEndorsementHash string = ""
+	)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 
@@ -172,8 +181,10 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 // GetRecentBake returns the level of the most recent bake
 func (s *Storage) GetRecentBake() (int, string, error) {
 
-	var recentBakeLevel int = 0
-	var recentBakeHash string = ""
+	var (
+		recentBakeLevel int = 0
+		recentBakeHash string = ""
+	)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 

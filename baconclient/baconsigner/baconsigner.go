@@ -148,6 +148,7 @@ func (s *BaconSigner) LoadSigner() error {
 		if err != nil {
 			return errors.Wrap(err, "No key-path authorized for baking")
 		}
+
 		log.Debug("GetAuthKeyPath:", authKeyPath)
 	}
 
@@ -215,12 +216,15 @@ func (s *BaconSigner) GetPublicKey() (string, error) {
 	switch s.SignerType {
 	case SIGNER_WALLET:
 		return s.gt_wallet.PubKey.GetPublicKey(), nil
+
 	case SIGNER_LEDGER:
 		pk, _, err := s.lg_wallet.GetPublicKey()
 		if err != nil {
 			return "", err
 		}
+
 		return pk, nil
+
 	default:
 		return "", errors.New("No signer type defined. Loading failed?")
 	}
@@ -262,7 +266,6 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	var opBytes = opPrefix
 
 	if chainID != "" {
-
 		// Strip off the network watermark (prefix), and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)
 		chainIdBytes := b58cdecode(chainID, networkprefix)
 		//fmt.Println("ChainIDByt: ", chainIdBytes)
@@ -288,12 +291,14 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	//fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig := ""
+
 	switch s.SignerType {
 	case SIGNER_WALLET:
 		sig, err := s.gt_wallet.SignRawBytes(opBytes) // Returns 'Signature' object
 		if err != nil {
 			return SignOperationOutput{}, errors.Wrap(err, "Failed wallet signer")
 		}
+
 		edSig = sig.ToBase58()
 
 	case SIGNER_LEDGER:

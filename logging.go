@@ -50,10 +50,6 @@ func setupLogging(logDebug bool, logTrace bool) {
 			log.FatalLevel,
 			log.PanicLevel,
 		},
-		Formatter: &log.TextFormatter{
-			FullTimestamp: true,
-			DisableColors: true,
-		},
 	})
 }
 

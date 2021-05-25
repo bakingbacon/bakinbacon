@@ -4,6 +4,3 @@ linters:
   - dogsled
   - bodyclose
   - asciicheck
-linters-settings:
-  wsl:
-    allow-separated-leading-comment: true

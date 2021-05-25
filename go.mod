@@ -16,6 +16,4 @@ require (
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 )
 
-replace github.com/sirupsen/logrus => /home/drmac/go/src/github.com/sirupsenNEW/logrus
-
 replace github.com/bakingbacon/go-tezos/v4 => ../github.com/bakingbacon/go-tezos

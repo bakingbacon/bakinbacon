@@ -30,7 +30,7 @@ class WizardWallet extends React.Component {
 	}
 	
 	generateNewKey(e) {
-		const generateKeyApiUrl = "http://10.10.10.203:8082/api/wizard/generateNewKey";
+		const generateKeyApiUrl = "/api/wizard/generateNewKey";
 		fetch(generateKeyApiUrl)
 			.then(response => {
 				if (!response.ok) {
@@ -56,7 +56,7 @@ class WizardWallet extends React.Component {
 	}
 	
 	exitWizardWallet(e) {
-		const finishWizardApiUrl = "http://10.10.10.203:8082/api/wizard/finish";
+		const finishWizardApiUrl = "/api/wizard/finish";
 		fetch(finishWizardApiUrl)
 			.then(response => {
 				if (!response.ok) {
@@ -104,7 +104,7 @@ class WizardWallet extends React.Component {
 			return
 		}
 	
-		const importKeyApiUrl = "http://10.10.10.203:8082/api/wizard/importKey";
+		const importKeyApiUrl = "/api/wizard/importKey";
 		const postBody = {
 			edsk: this.state.importEdsk,
 		};
@@ -329,7 +329,7 @@ class SetupWizard extends React.Component {
 						   <li>Ledger Device
 							<ul>
 							 <li>Pro: Ultra-secure device, proven in the industry</li>
-							 <li>Con: Cannot export private key</li>
+							 <li>Pro: Physical confirmation required for transfers</li>
 							 <li>Con: Lost device/Lost seed means lost bakery</li>
 							</ul>
 						   </li>
@@ -353,8 +353,11 @@ class SetupWizard extends React.Component {
 						{ wizardType === "fin" &&
 							<>
 							<Card.Title>Setup Complete</Card.Title>
-							<Card.Text>Congratulations! You have set up Bakin'Bacon. Reload this page to see your baking status.</Card.Text>
-						    <Card.Text>(TODO: Add text about funding address, initial cycles, reveal, etc...)</Card.Text>
+							<Card.Text>Congratulations! You have set up Bakin'Bacon.</Card.Text>
+						    <Card.Text>Now that you have an address for use on the Tezos blockchain, you will need to fund this address with a minimum of 8,001 XTZ in order to become a baker.</Card.Text>
+						    <Card.Text>For every 8,000 XTZ in your adress, the network grants you 1 roll. In simplistic terms, at the start of every cycle, the blockchain takes all the rolls from every baker and randomly assigns baking rights based on how many rolls each baker has. The more rolls you have, the more chances you have to earn baking and endorsing rights.</Card.Text>
+						    <Card.Text>There is no guarantee you will get rights every cycle. It is pure random chance. This is one aspect that makes Tezos hard to take advantage of by malicious attackers.</Card.Text>
+						    <Card.Text>You can refresh this page to see your status.</Card.Text>
 							</>
 						}
 						  

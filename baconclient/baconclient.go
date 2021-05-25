@@ -321,8 +321,9 @@ func (b *BaconClient) IsRevealed() (bool, error) {
 
 func (b *BaconClient) RegisterBaker() (string, error) {
 
-	pkh := b.Signer.BakerPkh
 	var registrationContents []rpc.Content
+
+	pkh := b.Signer.BakerPkh
 
 	// Need counter
 	resp, counter, err := b.Current.ContractCounter(rpc.ContractCounterInput{

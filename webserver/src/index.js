@@ -33,6 +33,7 @@ class Bakinbacon extends React.Component {
 		};
 		
 		this.didEnterWizard = this.didEnterWizard.bind(this)
+		console.log(window.location.href)
 	}
 
 	componentDidMount() {

@@ -3,6 +3,7 @@ package webserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -14,11 +15,6 @@ import (
 
 	//"bakinbacon/storage"
 	"bakinbacon/baconclient"
-)
-
-const (
-	BIND_ADDR = "10.10.10.203"
-	BIND_PORT = "8082"
 )
 
 var (
@@ -36,7 +32,7 @@ func apiError(err error, w http.ResponseWriter) {
 	http.Error(w, string(e), http.StatusBadRequest)
 }
 
-func Start(_baconClient *baconclient.BaconClient, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
+func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
 
 	// Set the package global
 	baconClient = _baconClient
@@ -74,7 +70,7 @@ func Start(_baconClient *baconclient.BaconClient, shutdownChannel <-chan interfa
 
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("webserver/build/static"))))
 
-	httpAddr := BIND_ADDR + ":" + BIND_PORT
+	httpAddr := fmt.Sprintf("%s:%d", bindAddr, bindPort)
 	httpSvr = &http.Server{
 		Handler: handlers.CORS(
 			handlers.AllowedHeaders([]string{"Content-Type"}),

@@ -23,6 +23,8 @@ var (
 	logTrace          *bool
 	dryRunEndorsement *bool
 	dryRunBake        *bool
+	webUiAddr         *string
+	webUiPort         *int
 )
 
 func main() {
@@ -50,7 +52,7 @@ func main() {
 
 	// Web UI
 	wg.Add(1)
-	webserver.Start(bc, shutdownChannel, &wg)
+	webserver.Start(bc, *webUiAddr, *webUiPort, shutdownChannel, &wg)
 
 	// Launch background monitoring of new /head
 	// Returns channel for new head block notifications
@@ -149,6 +151,9 @@ func parseArgs() {
 
 	dryRunEndorsement = flag.Bool("dry-run-endorse", false, "Compute, but don't inject endorsements")
 	dryRunBake = flag.Bool("dry-run-bake", false, "Compute, but don't inject blocks")
+
+	webUiAddr = flag.String("webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
+	webUiPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
 
 	flag.Parse()
 }

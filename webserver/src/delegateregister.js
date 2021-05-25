@@ -20,7 +20,7 @@ class DelegateRegister extends React.Component {
 	}
 	
 	registerBaker() {
-		const registerBakerApiUrl = "http://10.10.10.203:8082/api/wizard/registerbaker";
+		const registerBakerApiUrl = "/api/wizard/registerbaker";
 		const requestMetadata = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

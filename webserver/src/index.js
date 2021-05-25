@@ -33,7 +33,6 @@ class Bakinbacon extends React.Component {
 		};
 		
 		this.didEnterWizard = this.didEnterWizard.bind(this)
-		console.log(window.location.href)
 	}
 
 	componentDidMount() {
@@ -55,8 +54,8 @@ class Bakinbacon extends React.Component {
 	}
 	
 	fetchStatus() {
-		const delegateApiUrl = "http://10.10.10.203:8082/api/delegate";
-		const statusApiUrl = "http://10.10.10.203:8082/api/status";
+		const delegateApiUrl = "/api/delegate";
+		const statusApiUrl = "/api/status";
 
 		Promise.all([
 			fetch(delegateApiUrl),

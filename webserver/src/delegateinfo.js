@@ -56,7 +56,7 @@ class DelegateInfo extends React.Component {
 		// If baker is not yet revealed/registered, we just need to monitor basic balance so we can display the button
 		if (dState === NOT_REGISTERED) {
 
-			const balanceUrl = "https://florence-tezos.giganode.io/chains/main/blocks/head/context/contracts/" + this.props.delegate
+			const balanceUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + this.props.delegate
 			fetch(balanceUrl)
 				.then(response => {
 					if (!response.ok) {
@@ -84,7 +84,7 @@ class DelegateInfo extends React.Component {
 		}
 
 		// Fetch delegator info which is only necessary when looking at the UI
-		const apiUrl = "https://florence-tezos.giganode.io/chains/main/blocks/head/context/delegates/" + this.props.delegate
+		const apiUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + this.props.delegate
 		fetch(apiUrl)
 			.then(response => {
 				if (!response.ok) {

@@ -16,13 +16,10 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v2
       
-    - name: Install linter
+    - name: Dryer lint
       uses: golangci/golangci-lint-action@v2
       with:
         skip-go-installation: true
-
-    - name: Dryer lint
-      run: golangci-lint run ./...
 
     - name: Fry some bacon
       run: go build .

@@ -76,8 +76,8 @@ func init() {
 	}
 
 	// Statically add BakinBacon's RPC endpoints
-	DB.AddRPCEndpoint("http://florencenet-us.rpc.bakinbacon.io")
-	DB.AddRPCEndpoint("http://florencenet-eu.rpc.bakinbacon.io")
+	_ = DB.AddRPCEndpoint("http://florencenet-us.rpc.bakinbacon.io")
+	_ = DB.AddRPCEndpoint("http://florencenet-eu.rpc.bakinbacon.io")
 }
 
 func (s *Storage) Close() {

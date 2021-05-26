@@ -17,6 +17,7 @@ const (
 	NONCE_BUCKET     = "nonces"
 	CONFIG_BUCKET    = "config"
 	RIGHTS_BUCKET    = "rights"
+	ENDPOINTS_BUCKET = "endpoints"
 )
 
 type Storage struct {
@@ -35,10 +36,18 @@ func init() {
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET)); err != nil {
+		// Config bucket
+		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET))
+		if err != nil {
 			return fmt.Errorf("Cannot create config bucket: %s", err)
 		}
 
+		// Nested bucket inside config
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET)); err != nil {
+			return fmt.Errorf("Cannot create endpoints bucket: %s", err)
+		}
+
+		// Root buckets
 		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create endorsing bucket: %s", err)
 		}
@@ -65,6 +74,10 @@ func init() {
 	DB = Storage{
 		db: db,
 	}
+
+	// Statically add BakinBacon's RPC endpoints
+	DB.AddRPCEndpoint("http://florencenet-us.rpc.bakinbacon.io")
+	DB.AddRPCEndpoint("http://florencenet-eu.rpc.bakinbacon.io")
 }
 
 func (s *Storage) Close() {

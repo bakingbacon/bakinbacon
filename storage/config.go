@@ -10,7 +10,6 @@ import (
 
 const (
 	PUBLIC_KEY_HASH  = "pkh"
-	ENDPOINTS_BUCKET = "endpoints"
 	SIGNER_TYPE      = "signertype"
 	SIGNER_SK        = "signersk"
 )
@@ -84,9 +83,9 @@ func (s *Storage) SetSignerSk(sk string) error {
 
 func (s *Storage) AddRPCEndpoint(endpoint string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.Bucket([]byte(CONFIG_BUCKET)).CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET))
-		if err != nil {
-			return errors.Wrap(err, "Unable to create endpoints bucket")
+		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		if b == nil {
+			return errors.New("AddRPC - Unable to locate endpoints bucket")
 		}
 
 		var foundDup bool
@@ -119,7 +118,7 @@ func (s *Storage) GetRPCEndpoints() ([]string, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
-			return errors.New("Unable to locate endpoints bucket")
+			return errors.New("GetRPC - Unable to locate endpoints bucket")
 		}
 
 		if err := b.ForEach(func(k, v []byte) error {

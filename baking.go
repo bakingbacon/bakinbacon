@@ -392,23 +392,21 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Inject block
-	injectionResp, err := bc.Current.InjectionBlock(ibi)
+	resp, blockHash, err := bc.Current.InjectionBlock(ibi)
 	if err != nil {
-		log.WithError(err).WithField("Extra", injectionResp.Status()).Error("Failed Block Injection")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Error("Block Injection Failure")
 		return
 	}
 
-	blockHash := stripQuote(injectionResp.String())
-
 	log.WithFields(log.Fields{
 		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
-	}).Info("Successfully injected block")
+	}).Info("Block Injected")
 
 	// Save watermark to DB
 	if err := storage.DB.RecordBakedBlock(nextLevelToBake, blockHash); err != nil {
 		log.WithError(err).Error("Unable to save block; Watermark compromised")
-	} else {
-		log.Info("Saved injected block watermark")
 	}
 
 	// Save nonce to DB for reveal in next cycle
@@ -567,7 +565,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 		if len(op.Contents) == 1 {
 			opSlot = func(branch string, opKind rpc.Kind, level int) int {
 				switch opKind {
-				case rpc.ENDORSEMENT:
+				case rpc.ENDORSEMENT_WITH_SLOT:
 					// Endorsements must match the current head block level and block hash
 					if level != curLevel {
 						return -1
@@ -588,7 +586,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 				}
 
 				return 3
-			}(op.Branch, op.Contents[0].Kind, op.Contents[0].Level)
+			}(op.Branch, op.Contents[0].Kind, op.Contents[0].Endorsement.Operations.Level)
 		}
 
 		// For now, skip transactions and other unknown operations
@@ -668,19 +666,4 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 	}
 
 	return endorsingPower, nil
-}
-
-func stripQuote(s string) string {
-
-	m := strings.TrimSpace(s)
-
-	if len(m) > 0 && m[0] == '"' {
-		m = m[1:]
-	}
-
-	if len(m) > 0 && m[len(m)-1] == '"' {
-		m = m[:len(m)-1]
-	}
-
-	return m
 }

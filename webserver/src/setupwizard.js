@@ -329,12 +329,14 @@ class SetupWizard extends React.Component {
 						   <li>Ledger Device
 							<ul>
 							 <li>Pro: Ultra-secure device, proven in the industry</li>
-							 <li>Pro: Physical confirmation required for transfers</li>
-							 <li>Con: Lost device/Lost seed means lost bakery</li>
+							 <li>Pro: Physical confirmation required for any transaction</li>
+							 <li>Con: External hardware component creates additional dependencies</li>
 							</ul>
 						   </li>
 						  </ul>
-						
+
+						  <Card.Text><b>We highly recommend the use of a ledger device for maximum security.</b></Card.Text>
+
 						  <Card.Text>Please select your choice by clicking on one of the buttons below:</Card.Text>
 						
 						  <Alert variant="warning"><strong>WARNING:</strong> This choice is <em>permanent</em>! If you pick software wallet now, you <strong>cannot</strong> switch to ledger in the future, as ledger does not support importing keys. Similarly, if you pick Ledger now you <strong>cannot</strong> switch to software wallet, as ledger does not allow you to export keys.</Alert>
@@ -355,7 +357,7 @@ class SetupWizard extends React.Component {
 							<Card.Title>Setup Complete</Card.Title>
 							<Card.Text>Congratulations! You have set up Bakin'Bacon.</Card.Text>
 						    <Card.Text>Now that you have an address for use on the Tezos blockchain, you will need to fund this address with a minimum of 8,001 XTZ in order to become a baker.</Card.Text>
-						    <Card.Text>For every 8,000 XTZ in your adress, the network grants you 1 roll. In simplistic terms, at the start of every cycle, the blockchain takes all the rolls from every baker and randomly assigns baking rights based on how many rolls each baker has. The more rolls you have, the more chances you have to earn baking and endorsing rights.</Card.Text>
+						    <Card.Text>For every 8,000 XTZ in your adress, the network grants you 1 roll. In simplistic terms, at the start of every cycle, the blockchain determines how many rolls each baker has and randomly assigns baking rights based on how many each baker has. The more rolls you have, the more chances you have to earn baking and endorsing rights.</Card.Text>
 						    <Card.Text>There is no guarantee you will get rights every cycle. It is pure random chance. This is one aspect that makes Tezos hard to take advantage of by malicious attackers.</Card.Text>
 						    <Card.Text>You can refresh this page to see your status.</Card.Text>
 							</>

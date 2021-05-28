@@ -237,7 +237,7 @@ func (b *BaconClient) CheckBakerRegistered() error {
 
 	log.WithFields(log.Fields{
 		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Debug("Fetching delegate info")
+	}).Trace("Fetching delegate info")
 
 	if err != nil {
 		return errors.Wrap(err, "Unable to fetch delegate info")
@@ -269,7 +269,7 @@ func (b *BaconClient) CheckBalance() error {
 
 	log.WithFields(log.Fields{
 		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Debug("Fetching balance")
+	}).Trace("Fetching balance")
 
 	if err != nil {
 		return errors.Wrap(err, "Unable to fetch balance")

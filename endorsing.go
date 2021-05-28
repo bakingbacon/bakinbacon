@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -13,6 +14,22 @@ import (
 
 	"bakinbacon/storage"
 )
+
+/*
+$ ~/.opam/for_tezos/bin/tezos-codec decode 009-PsFLoren.operation from 5b3c0553c157d641f205f97c6fa480c98b156a75ca2db43e2a202c2460b689f90a000000655b3c0553c157d641f205f97c6fa480c98b156a75ca2db43e2a202c2460b689f9000002392a9b99b4c1f735fb26bc376703ef3ab6b3bf69e07aab1dd09596ac7f196c9a365dbf384d88147aef2c697577596176c6991f46dcd9eb43752ce9632774e2c26008000900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+{ "branch": "BLQToCX7mDU2bVuDQXcNAD4FixVNxBA8CBEpcmSQBiPRfgAk6Mc",
+  "contents":
+    [ { "kind": "endorsement_with_slot",
+        "endorsement":
+          { "branch": "BLQToCX7mDU2bVuDQXcNAD4FixVNxBA8CBEpcmSQBiPRfgAk6Mc",
+            "operations": { "kind": "endorsement", "level": 145706 },
+            "signature":
+              "sigiLztJohJDzskahhQ2YAfcjRrZjRE8GuxTZK3B3bLdEtfQtHyeQ7VWbBYwiquYg4yU5CDPyGgW4Fecd54q9NiVVWHurdtR" },
+        "slot": 9 } ],
+  "signature":
+    "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q" }
+*/
+
 
 func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
@@ -60,24 +77,65 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// continue since we have at least 1 endorsing right
+	var allSlots []int
 	for _, e := range endorsingRights {
+		allSlots = append(allSlots, e.Slots...)
 		log.WithField("Slots",
 			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
 
+	// Florence requires the lowest slot be submitted
+	sort.Ints(allSlots)
+
+	// Inner endorsement; forge and sign
 	endoContent := rpc.Content{
 		Kind:  rpc.ENDORSEMENT,
 		Level: endorsingLevel,
 	}
-
+	
+	// Inner endorsement bytes
 	endorsementBytes, err := forge.Encode(block.Hash, endoContent)
 	if err != nil {
-		log.WithError(err).Error("Error Forging Endorsement")
+		log.WithError(err).Error("Error Forging Inner Endorsement")
+		return
+	}
+	
+	log.WithField("Bytes", endorsementBytes).Debug("Forged Inlined Endorsement")
+
+	// sign inner endorsement
+	signedInnerEndorsement, err := bc.Signer.SignEndorsement(endorsementBytes, block.ChainID)
+	if err != nil {
+		log.WithError(err).Error("Signer endorsement failure")
+		return
+	}
+	
+	// Outer endorsement
+	endoWithSlot := rpc.Content{
+		Kind: rpc.ENDORSEMENT_WITH_SLOT,
+		Endorsement: &rpc.InlinedEndorsement{
+			Branch: block.Hash,
+			Operations: &rpc.InlinedEndorsementOperations{
+				Kind:  rpc.ENDORSEMENT,
+				Level: endorsingLevel,
+			},
+			Signature: signedInnerEndorsement.EDSig,
+		},
+		Slot: allSlots[0],
+	}
+	
+	// Outer bytes
+	endoWithSlotBytes, err := forge.Encode(block.Hash, endoWithSlot)
+	if err != nil {
+		log.WithError(err).Error("Error Forging Outer Endorsement")
 		return
 	}
 
-	log.WithField("Bytes", endorsementBytes).Debug("Forged Endorsement")
+	// Really low-level debugging
+	//log.WithField("SignedOp", signedInnerEndorsement.SignedOperation).Debug("SIGNED OP")
+	//log.WithField("DecodedSig", signedInnerEndorsement.Signature).Debug("DECODED SIG")
+	//log.WithField("Signature", signedInnerEndorsement.EDSig).Debug("EDSIG")
 
+	// 
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
@@ -87,49 +145,37 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		break
 	}
 
-	// Sign with tezos-signer
-	// TODO Attempt this more than once
-	// ERRO[2021-02-02T22:56:53Z] Signer endorsement failure                    error="failed signer: failed to execute request: Post \"http://127.0.0.1:18734/keys/tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
-	signedEndorsement, err := bc.Signer.SignEndorsement(endorsementBytes, block.ChainID)
-	if err != nil {
-		log.WithError(err).Error("Signer endorsement failure")
-		return
-	}
+	// TODO Fix Preapply
 
-	log.WithField("Signature", signedEndorsement.EDSig).Debug("Signer Signature")
-
-	// Really low-level debugging
-	//log.WithField("SignedOp", signedEndorsement.SignedOperation).Debug("SIGNED OP")
-	//log.WithField("Signature", signedEndorsement.EDSig).Debug("Wallet Signature")
-	//log.WithField("DecodedSig", signedEndorsement.Signature).Debug("DECODED SIG")
-
-	// Prepare to pre-apply the operation
-	preapplyEndoOp := rpc.PreapplyOperationsInput{
-		BlockID: &hashBlockID,
-		Operations: []rpc.Operations{
-			{
-				Branch: block.Hash,
-				Contents: rpc.Contents{
-					endoContent,
-				},
-				Protocol:  block.Protocol,
-				Signature: signedEndorsement.EDSig,
-			},
-		},
-	}
-
-	// Validate the operation against the node for any errors
-	_, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
-	if err != nil {
-		log.WithError(err).Error("Could not preapply operations")
-		return
-	}
-
-	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
+//	// Prepare to pre-apply the operation
+//	preapplyEndoOp := rpc.PreapplyOperationsInput{
+//		BlockID: &hashBlockID,
+//		Operations: []rpc.Operations{
+//			{
+//				Branch: block.Hash,
+//				Contents: rpc.Contents{
+//					endoWithSlot,
+//				},
+//				Protocol:  block.Protocol,
+//				Signature: signedInnerEndorsement.EDSig,
+//			},
+//		},
+//	}
+//
+//	// Validate the operation against the node for any errors
+//	resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
+//	if err != nil {
+//		log.WithError(err).WithFields(log.Fields{
+//			"Request": resp.Request.URL, "Response": string(resp.Body()),
+//		}).Error("Could not preapply operations")
+//		//return
+//	}
+//
+//	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{
-		Operation: signedEndorsement.SignedOperation,
+		Operation: endoWithSlotBytes,
 	}
 
 	// Check if a new block has been posted to /head and we should abort
@@ -148,9 +194,11 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Inject endorsement
-	_, opHash, err := bc.Current.InjectionOperation(injectionInput)
+	resp, opHash, err := bc.Current.InjectionOperation(injectionInput)
 	if err != nil {
-		log.WithError(err).Error("Endorsement Failure")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Error("Endorsement Injection Failure")
 		return
 	}
 
@@ -158,7 +206,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Save endorsement to DB for watermarking
 	if err := storage.DB.RecordEndorsement(endorsingLevel, opHash); err != nil {
-		log.WithError(err).Error("Unable to save endorsement to DB")
+		log.WithError(err).Error("Unable to save endorsement; Watermark compromised")
 	}
 
 	// Update status for UI

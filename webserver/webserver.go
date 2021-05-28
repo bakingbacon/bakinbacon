@@ -2,8 +2,11 @@ package webserver
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io/fs"
 	"net/http"
 	"sync"
 	"time"
@@ -23,6 +26,10 @@ var (
 	baconClient *baconclient.BaconClient
 )
 
+// Embed all UI objects
+//go:embed build
+var staticUi embed.FS
+
 type ApiError struct {
 	Error string `json:"err"`
 }
@@ -37,11 +44,20 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	// Set the package global
 	baconClient = _baconClient
 
+	// Repoint web ui down one directory
+	contentStatic, _ := fs.Sub(staticUi, "build")
+
+	// index.html
+	indexTemplate, err := template.ParseFS(contentStatic, "index.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Set things up
 	var router = mux.NewRouter()
 
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "webserver/build/index.html")
+		indexTemplate.Execute(w, nil)
 	})
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
@@ -68,7 +84,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	wizardRouter.HandleFunc("/registerbaker", registerBaker).Methods("POST", "OPTIONS")
 	wizardRouter.HandleFunc("/finish", finishWizard)
 
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("webserver/build/static"))))
+	router.PathPrefix("/static/").Handler(http.FileServer(http.FS(contentStatic)))
 
 	httpAddr := fmt.Sprintf("%s:%d", bindAddr, bindPort)
 	httpSvr = &http.Server{

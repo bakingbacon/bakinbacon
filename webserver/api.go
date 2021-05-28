@@ -29,9 +29,7 @@ func generateNewKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"EDSK": newEdsk, "PKH": newPkh,
-	}).Info("Generated new key-pair")
+	log.WithField("PKH", newPkh).Info("Generated new key-pair")
 
 	// Return back to UI
 	if err := json.NewEncoder(w).Encode(map[string]string{
@@ -71,9 +69,7 @@ func importSecretKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"EDSK": edsk, "PKH": pkh,
-	}).Info("Imported secret key-pair")
+	log.WithField("PKH", pkh).Info("Imported secret key-pair")
 
 	// Return back to UI
 	if err := json.NewEncoder(w).Encode(map[string]string{

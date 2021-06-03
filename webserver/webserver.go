@@ -57,7 +57,9 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	var router = mux.NewRouter()
 
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		indexTemplate.Execute(w, nil)
+		if err := indexTemplate.Execute(w, nil); err != nil {
+			log.WithError(err).Error("Unable to render index")
+		}
 	})
 
 	apiRouter := router.PathPrefix("/api").Subrouter()

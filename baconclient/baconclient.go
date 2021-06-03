@@ -130,7 +130,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}
 			log.
 				WithField("Endpoint", client.Host).
 				WithError(err).
-				Error("Unable to get /head block from RPC; Will try again")
+				Error("Unable to get /head; Will try again")
 
 		} else {
 
@@ -184,7 +184,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}
 func (b *BaconClient) CanBake() bool {
 
 	// Passed these checks before? No need to check every new block.
-	if b.Status.CanBake() {
+	if b.Status.State == CAN_BAKE {
 		return true
 	}
 
@@ -207,7 +207,7 @@ func (b *BaconClient) CanBake() bool {
 	}
 
 	// If revealed, balance too low?
-	if err := b.CheckBalance(); err != nil {
+	if err := b.CheckDelegateBalance(); err != nil {
 		b.Status.SetState(LOW_BALANCE)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking baker balance")
@@ -256,42 +256,74 @@ func (b *BaconClient) CheckBakerRegistered() error {
 }
 
 // Check if the balance of the baker is > 8001 Tez; Extra 1 Tez is for submitting reveal, if necessary
-func (b *BaconClient) CheckBalance() error {
-
-	pkh := b.Signer.BakerPkh
+func (b *BaconClient) CheckDelegateBalance() error {
 
 	dbi := rpc.DelegateBalanceInput{
 		BlockID:  &rpc.BlockIDHead{},
-		Delegate: pkh,
+		Delegate: b.Signer.BakerPkh,
 	}
 
-	resp, balance, err := b.Current.DelegateBalance(dbi)
+	resp, delegateBalance, err := b.Current.DelegateBalance(dbi)
 
 	log.WithFields(log.Fields{
 		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Trace("Fetching balance")
+	}).Trace("Fetching delegate balance")
 
 	if err != nil {
-		return errors.Wrap(err, "Unable to fetch balance")
+		return errors.Wrap(err, "Unable to fetch delegate balance")
 	}
 
 	// Convert string to number
-	bal, _ := strconv.Atoi(balance)
-	if bal < MIN_BAKE_BALANCE {
-		return errors.Errorf("Balance, %d XTZ, is too low", bal/1e6)
+	balance, _ := strconv.Atoi(delegateBalance)
+	if err != nil {
+		return errors.Wrap(err, "Unable to parse delegate balance")
+	}
+
+	if balance < MIN_BAKE_BALANCE {
+		return errors.Errorf("Balance, %d XTZ, is too low", balance/1e6)
 	}
 
 	return nil
 }
 
+// Returns spendable balance to determine if we can post bond
+func (b *BaconClient) GetSpendableBalance() (int, error) {
+
+	di := rpc.DelegateInput{
+		BlockID:  &rpc.BlockIDHead{},
+		Delegate: b.Signer.BakerPkh,
+	}
+
+	resp, delegateInfo, err := b.Current.Delegate(di)
+
+	log.WithFields(log.Fields{
+		"Request": resp.Request.URL, "Response": string(resp.Body()),
+	}).Trace("Fetching delegate balances")
+
+	if err != nil {
+		return 0, errors.Wrap(err, "Unable to fetch balances (delegate info)")
+	}
+
+	// Spendable balance is "total balance" - frozen balance
+	balance, err := strconv.Atoi(delegateInfo.Balance)
+	if err != nil {
+		return 0, errors.Wrap(err, "Unable to parse balance")
+	}
+
+	frozen, _ := strconv.Atoi(delegateInfo.FrozenBalance)
+	if err != nil {
+		return 0, errors.Wrap(err, "Unable to parse frozen balance")
+	}
+
+	return balance - frozen, nil
+}
+
 // Check if the baker has revealed their public key. If not, display UI message indicating the need to do this step.
 func (b *BaconClient) IsRevealed() (bool, error) {
 
-	pkh := b.Signer.BakerPkh
-
 	cmki := rpc.ContractManagerKeyInput{
 		BlockID:    &rpc.BlockIDHead{},
-		ContractID: pkh,
+		ContractID: b.Signer.BakerPkh,
 	}
 
 	resp, manager, err := b.Current.ContractManagerKey(cmki)

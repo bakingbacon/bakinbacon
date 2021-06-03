@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
+
 func CryptoGenericHash(buffer string, watermark []byte) ([]byte, error) {
 
 	// Convert hex buffer to bytes

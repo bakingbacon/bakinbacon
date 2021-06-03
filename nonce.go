@@ -61,7 +61,15 @@ func generateNonce() (nonce.Nonce, error) {
 
 func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
+	// Decrement waitGroup on exit
 	defer wg.Done()
+
+	// Handle panic gracefully
+	defer func() {
+		if r := recover(); r != nil {
+			log.WithField("Message", r).Error("Panic recovered in revealNonces")
+		}
+	}()
 
 	// Only reveal in levels 1-16 of cycle
 	cyclePosition := block.Metadata.Level.CyclePosition

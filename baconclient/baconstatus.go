@@ -68,7 +68,3 @@ func (b *BaconStatus) ClearError() {
 func (b *BaconStatus) SetState(s string) {
 	b.State = s
 }
-
-func (b *BaconStatus) CanBake() bool {
-	return b.State == CAN_BAKE
-}

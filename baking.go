@@ -26,18 +26,18 @@ const (
 	POW_LENGTH        int = 4
 )
 
-var (
-// Chain constants backup
-//	MinimumBlockTimes = map[string]int{
-//		"NetXdQprcVkpaWU": 60, // Mainnet
-//		"NetXjD3HPJJjmcd": 30, // Carthagenet
-//		"NetXm8tYqnMWky1": 30, // Delphinet
-//	}
-)
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
+	// Decrement waitGroup on exit
 	defer wg.Done()
+
+	// Handle panic gracefully
+	defer func() {
+		if r := recover(); r != nil {
+			log.WithField("Message", r).Error("Panic recovered in handleBake")
+		}
+	}()
 
 	// Reference
 	// https://gitlab.com/tezos/tezos/-/blob/mainnet-staging/src/proto_006_PsCARTHA/lib_delegate/client_baking_forge.ml
@@ -143,6 +143,31 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if bakingRight.Priority > MAX_BAKE_PRIORITY {
 		log.Infof("Priority higher than %d; Ignoring", MAX_BAKE_PRIORITY)
 		return
+	}
+
+	// Check if we have enough bond to cover the bake
+	requiredBond := networkConstants.BlockSecurityDeposit
+
+	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
+		log.WithError(err).Error("Unable to get spendable balance")
+
+		// Even if error here, we can still proceed.
+		// Might have enough to post bond, might not.
+
+	} else {
+
+		// If not enough bond, exit early
+		if requiredBond > spendableBalance {
+
+			msg := "Spendable balance too low for baking bond"
+			log.WithFields(log.Fields{
+				"Spendable": spendableBalance, "ReqBond": requiredBond,
+			}).Error(msg)
+
+			bc.Status.SetError(errors.New(msg))
+
+			return
+		}
 	}
 
 	// If the priority is > 0, we need to wait at least priority * minBlockTime.
@@ -558,16 +583,24 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 		operations[i] = make([]rpc.Operations, 0)
 	}
 
+	// Determine the type of each applied operation to find out into which slot it goes
 	for _, op := range ops.Applied {
 
-		// Determine the type of op to find out into which slot it goes
+		// Default slot
 		var opSlot int = 3
+
+		// If there's more than one, probably a transfer which we don't handle yet
 		if len(op.Contents) == 1 {
-			opSlot = func(branch string, opKind rpc.Kind, level int) int {
-				switch opKind {
+
+			opSlot = func(branch string, opContent rpc.Content) int {
+
+				switch opContent.Kind {
 				case rpc.ENDORSEMENT_WITH_SLOT:
+
+					endorsement := op.Contents[0].Endorsement
+
 					// Endorsements must match the current head block level and block hash
-					if level != curLevel {
+					if endorsement.Operations.Level != curLevel {
 						return -1
 					}
 
@@ -586,7 +619,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 				}
 
 				return 3
-			}(op.Branch, op.Contents[0].Kind, op.Contents[0].Endorsement.Operations.Level)
+			}(op.Branch, op.Contents[0])
 		}
 
 		// For now, skip transactions and other unknown operations

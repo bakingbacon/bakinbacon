@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/bakingbacon/go-tezos/v4/forge"
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 
@@ -30,10 +32,17 @@ $ ~/.opam/for_tezos/bin/tezos-codec decode 009-PsFLoren.operation from 5b3c0553c
     "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q" }
 */
 
-
 func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
+	// Decrement waitGroup on exit
 	defer wg.Done()
+
+	// Handle panic gracefully
+	defer func() {
+		if r := recover(); r != nil {
+			log.WithField("Message", r).Error("Panic recovered in handleEndorsement")
+		}
+	}()
 
 	endorsingLevel := block.Header.Level
 
@@ -76,7 +85,33 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		return
 	}
 
-	// continue since we have at least 1 endorsing right
+	// Continue since we have at least 1 endorsing right
+	networkConstants := bc.Current.CurrentConstants()
+	requiredBond := networkConstants.EndorsementSecurityDeposit
+
+	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
+		log.WithError(err).Error("Unable to get spendable balance")
+
+		// Even if error here, we can still proceed.
+		// Might have enough to post bond, might not.
+
+	} else {
+
+		// If not enough bond, exit early
+		if requiredBond > spendableBalance {
+
+			msg := "Spendable balance too low to cover bond"
+			log.WithFields(log.Fields{
+				"Spendable": spendableBalance, "ReqBond": requiredBond,
+			}).Error(msg)
+
+			bc.Status.SetError(errors.New(msg))
+
+			return
+		}
+	}
+
+	// Join up all endorsing slots for sorting
 	var allSlots []int
 	for _, e := range endorsingRights {
 		allSlots = append(allSlots, e.Slots...)
@@ -199,6 +234,9 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
 		}).Error("Endorsement Injection Failure")
+
+		// TODO
+		// Check error message against known issues
 		return
 	}
 

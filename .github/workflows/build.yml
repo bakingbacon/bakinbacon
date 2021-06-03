@@ -22,6 +22,7 @@ jobs:
       uses: golangci/golangci-lint-action@v2
       with:
         skip-go-installation: true
+        skip-build-cache: true
 
     - name: Fry some bacon
       run: go build .

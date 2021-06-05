@@ -21,7 +21,7 @@ jobs:
     - name: Dryer lint
       uses: golangci/golangci-lint-action@v2
       with:
-        working-directory: bakinbacon
+        working-directory: /home/runner/work/bakinbacon/bakinbacon/
         skip-go-installation: true
 
     - name: Fry some bacon

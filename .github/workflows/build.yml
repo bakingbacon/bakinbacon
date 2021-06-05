@@ -21,6 +21,7 @@ jobs:
     - name: Dryer lint
       uses: golangci/golangci-lint-action@v2
       with:
+        version: v1.39
         skip-go-installation: true
         skip-build-cache: true
 

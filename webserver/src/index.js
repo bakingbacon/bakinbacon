@@ -15,7 +15,7 @@ import SetupWizard from './setupwizard.js'
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 
-import logo from './BakinBacon_32x32.png';
+import logo from './logo512.png';
 
 
 class Bakinbacon extends React.Component {
@@ -89,7 +89,7 @@ class Bakinbacon extends React.Component {
 			return (
 				<Container>
 					<Navbar bg="light">
-						<Navbar.Brand><img src={logo} alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
+						<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
 					</Navbar>
 					<br />
 					<SetupWizard didEnterWizard={this.didEnterWizard} />
@@ -101,7 +101,7 @@ class Bakinbacon extends React.Component {
 		return (
 			<Container>
 				<Navbar bg="light">
-					<Navbar.Brand><img src={logo} alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
+					<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
 					<Navbar.Collapse className="justify-content-end">
 						<Navbar.Text>{delegate}</Navbar.Text>
 					</Navbar.Collapse>

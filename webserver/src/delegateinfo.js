@@ -18,6 +18,9 @@ const CAN_BAKE = "canbake"
 const LOW_BALANCE = "lowbal"
 const NOT_REGISTERED = "noreg"
 const NO_SIGNER = "nosign"
+const myHeaders = new Headers({
+	"User-agent": "BakinBacon/ui-1.0.1"
+})
 
 class DelegateInfo extends React.Component {
 
@@ -57,65 +60,71 @@ class DelegateInfo extends React.Component {
 		if (dState === NOT_REGISTERED) {
 
 			const balanceUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + this.props.delegate
-			fetch(balanceUrl)
-				.then(response => {
-					if (!response.ok) {
-						throw new Error("Error fetching balance");
-					}
-					return response;
+			fetch(balanceUrl, {
+				method: "GET",
+				headers: myHeaders
+			})
+			.then(response => {
+				if (!response.ok) {
+					throw new Error("Error fetching balance");
+				}
+				return response;
+			})
+			.then(response => response.json())
+			.then(data => {
+				this.setState({
+					spendable: (parseInt(data.balance, 10) / 1e6).toFixed(1),
+					isLoading: false,
 				})
-				.then(response => response.json())
-				.then(data => {
-					this.setState({
-						spendable: (parseInt(data.balance, 10) / 1e6).toFixed(1),
-						isLoading: false,
-					})
-				})
-				.catch(error => {
-					this.setState({
-						connOk: false,
-						isLoading: false,
-					});
-					console.log(error)
-					// TODO: Toaster
-				})
+			})
+			.catch(error => {
+				this.setState({
+					connOk: false,
+					isLoading: false,
+				});
+				console.log(error)
+				// TODO: Toaster
+			})
 			
 			return
 		}
 
 		// Fetch delegator info which is only necessary when looking at the UI
 		const apiUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + this.props.delegate
-		fetch(apiUrl)
-			.then(response => {
-				if (!response.ok) {
-					throw new Error("Error fetching delegate info");
-				}
-				response.json().then(data => {
-					const balance = parseInt(data.balance, 10);
-					const frozenBalance = parseInt(data.frozen_balance, 10);
-					const spendable = balance - frozenBalance;
-					const nbDels = data.delegated_contracts.length;
-					const stakingBalance = parseInt(data.staking_balance, 10);
-					const delegatedBalance = parseInt(data.delegated_balance, 10);
-					this.setState({
-						frozen: (frozenBalance / 1e6).toFixed(2),
-						spendable: (spendable / 1e6).toFixed(2),
-						total: (balance / 1e6).toFixed(2),
-						stakingBalance: (stakingBalance / 1e6).toFixed(2),
-						delegatedBalance: (delegatedBalance / 1e6).toFixed(2),
-						nbDelegators: nbDels,
-						isLoading: false,
-					});
-				});
-			})
-			.catch(error => {
+		fetch(apiUrl, {
+			method: "GET",
+			headers: myHeaders
+		})
+		.then(response => {
+			if (!response.ok) {
+				throw new Error("Error fetching delegate info");
+			}
+			response.json().then(data => {
+				const balance = parseInt(data.balance, 10);
+				const frozenBalance = parseInt(data.frozen_balance, 10);
+				const spendable = balance - frozenBalance;
+				const nbDels = data.delegated_contracts.length;
+				const stakingBalance = parseInt(data.staking_balance, 10);
+				const delegatedBalance = parseInt(data.delegated_balance, 10);
 				this.setState({
-					connOk: false,
-					isLoading: false
+					frozen: (frozenBalance / 1e6).toFixed(2),
+					spendable: (spendable / 1e6).toFixed(2),
+					total: (balance / 1e6).toFixed(2),
+					stakingBalance: (stakingBalance / 1e6).toFixed(2),
+					delegatedBalance: (delegatedBalance / 1e6).toFixed(2),
+					nbDelegators: nbDels,
+					isLoading: false,
 				});
-				// TODO: Toaster
-				console.log(error);
 			});
+		})
+		.catch(error => {
+			this.setState({
+				connOk: false,
+				isLoading: false
+			});
+			// TODO: Toaster
+			console.log(error);
+		});
 	}
 	
 	render() {

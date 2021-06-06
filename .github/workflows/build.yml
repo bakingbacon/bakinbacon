@@ -6,6 +6,9 @@ on:
   pull_request:
     branches:
     - master
+defaults:
+  run:
+    working-directory: ./
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,15 +21,13 @@ jobs:
       with:
         go-version: '1.16'
 
-    - name: File viewer
-      run: ls -R ~/
-
-    - name: Dryer lint
-      uses: golangci/golangci-lint-action@v2
+    - name: Setup golangci-lint Action
+      uses: nickhstr/action-setup-golangci-lint@v0.1.0
       with:
-        working-directory: /home/runner/work/bakinbacon/bakinbacon/
-        skip-go-installation: true
+        version: 1.39.0
+    
+    - name: Dryer lint
+      run: golangci-lint run --path-prefix=/home/runner/work/bakinbacon/bakinbacon/ ...
 
     - name: Fry some bacon
       run: go build .
-

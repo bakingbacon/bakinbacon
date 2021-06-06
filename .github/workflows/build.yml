@@ -21,13 +21,5 @@ jobs:
       with:
         go-version: '1.16'
 
-    - name: Setup golangci-lint Action
-      uses: nickhstr/action-setup-golangci-lint@v0.1.0
-      with:
-        version: 1.39.0
-    
-    - name: Dryer lint
-      run: golangci-lint run --path-prefix=/home/runner/work/bakinbacon/bakinbacon/ ...
-
     - name: Fry some bacon
       run: go build .

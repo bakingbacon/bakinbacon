@@ -32,7 +32,7 @@ jobs:
         path: ~/.npm
 
     - name: lister
-      run: ls -la /home/runner/work/bakinbacon/bakinbacon/webserver
+      run: ls -la /home/runner/work/bakinbacon/bakinbacon/webserver ~/.npm
 
     - name: Install node_modules
       working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
@@ -40,6 +40,8 @@ jobs:
 
     - name: Build web ui
       working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      env:
+        CI: "false"
       run: npm run build
 
     - name: Fry some bacon

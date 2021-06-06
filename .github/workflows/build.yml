@@ -29,10 +29,10 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('/home/runner/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
-        path: ~/.npm
+        path: /home/runner/work/bakinbacon/bakinbacon/webserver/node_modules
 
     - name: lister
-      run: ls -la /home/runner/work/bakinbacon/bakinbacon/webserver ~/.npm
+      run: ls -la /home/runner/work/bakinbacon/bakinbacon/webserver
 
     - name: Install node_modules
       working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver

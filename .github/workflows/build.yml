@@ -6,13 +6,12 @@ on:
   pull_request:
     branches:
     - master
-defaults:
-  run:
-    working-directory: ./
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+
     - name: Checkout code
       uses: actions/checkout@v2
 
@@ -21,5 +20,25 @@ jobs:
       with:
         go-version: '1.16'
 
+    - name: Setup Node/NPM
+      uses: actions/setup-node@v1
+      with:
+        node-version: 14.15
+
+    - name: Cache node_modules
+      uses: actions/cache@v2
+      with:
+        key: bakinbacon-npm-${{ hashFiles('package-lock.json') }}
+        path: ~/.npm
+
+    - name: Install node_modules
+      working-directory: ~/work/bakinbacon/bakinbacon/webserver
+      run: npm install
+
+    - name: Build web ui
+      working-directory: ~/work/bakinbacon/bakinbacon/webserver
+      run: npm run build
+
     - name: Fry some bacon
+      working-directory: ~/work/bakinbacon/bakinbacon
       run: go build .

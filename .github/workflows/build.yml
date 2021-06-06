@@ -28,17 +28,20 @@ jobs:
     - name: Cache node_modules
       uses: actions/cache@v2
       with:
-        key: bakinbacon-npm-${{ hashFiles('~/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
+        key: bakinbacon-npm-${{ hashFiles('/home/runner/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
         path: ~/.npm
 
+    - name: lister
+      run: ls -la /home/runner/work/bakinbacon/bakinbacon/webserver
+
     - name: Install node_modules
-      working-directory: ~/work/bakinbacon/bakinbacon/webserver
+      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
       run: npm install
 
     - name: Build web ui
-      working-directory: ~/work/bakinbacon/bakinbacon/webserver
+      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
       run: npm run build
 
     - name: Fry some bacon
-      working-directory: ~/work/bakinbacon/bakinbacon
+      working-directory: /home/runner/work/bakinbacon/bakinbacon
       run: go build .

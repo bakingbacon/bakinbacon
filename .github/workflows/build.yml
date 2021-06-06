@@ -6,10 +6,12 @@ on:
   pull_request:
     branches:
     - master
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+
     - name: Checkout code
       uses: actions/checkout@v2
 
@@ -17,13 +19,28 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '1.16'
-      
-    - name: Dryer lint
-      uses: golangci/golangci-lint-action@v2
+
+    - name: Setup Node/NPM
+      uses: actions/setup-node@v1
       with:
-        working-directory: /home/runner/work/...
-        skip-go-installation: true
+        node-version: 14.15
+
+    - name: Cache node_modules
+      uses: actions/cache@v2
+      with:
+        key: bakinbacon-npm-${{ hashFiles('/home/runner/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
+        path: /home/runner/work/bakinbacon/bakinbacon/webserver/node_modules
+
+    - name: Install node_modules
+      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      run: npm install
+
+    - name: Build web ui
+      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      env:
+        CI: "false"
+      run: npm run build
 
     - name: Fry some bacon
+      working-directory: /home/runner/work/bakinbacon/bakinbacon
       run: go build .
-

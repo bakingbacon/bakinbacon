@@ -44,3 +44,11 @@ jobs:
     - name: Fry some bacon
       working-directory: /home/runner/work/bakinbacon/bakinbacon
       run: go build .
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: bakinbacon
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -27,6 +27,7 @@ jobs:
 
     - name: Cache node_modules
       uses: actions/cache@v2
+      working-directory: ~/work/bakinbacon/bakinbacon/webserver
       with:
         key: bakinbacon-npm-${{ hashFiles('package-lock.json') }}
         path: ~/.npm

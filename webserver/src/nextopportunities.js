@@ -4,10 +4,11 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 
-class NextOpportunities extends React.Component {
+const NextOpportunities = (props) => {
 
-	nextBake() {
-		const status = this.props.status
+	const status = props.status
+
+	const nextBake = () => {
 		return (
 			<>
 			<Card.Title>Baking</Card.Title>
@@ -18,7 +19,7 @@ class NextOpportunities extends React.Component {
 		)
 	}
 	
-	noBaking() {
+	const noBaking = () => {
 		return (
 			<>
 			<Card.Title>Baking</Card.Title>
@@ -28,8 +29,7 @@ class NextOpportunities extends React.Component {
 		)
 	}
 
-	nextEndorsement() {
-		const status = this.props.status
+	const nextEndorsement = () => {
 		return (
 			<>
 			<Card.Title>Endorsement</Card.Title>
@@ -39,7 +39,7 @@ class NextOpportunities extends React.Component {
 		)
 	}
 	
-	noEndorsements() {
+	const noEndorsements = () => {
 		return (
 			<>
 			<Card.Title>Endorsement</Card.Title>
@@ -49,30 +49,23 @@ class NextOpportunities extends React.Component {
 		)
 	}
 
-	render() {
-		const status = this.props.status
-		const connOk = this.props.connOk
-		const lastUpdate = this.props.lastUpdate
-
-		return (
-			<Card>
-				<Card.Header as="h5">Next Opportunity</Card.Header>
-				<Card.Body>
-					<Row>
-						<Col>
-							{ status.nbl === 0 && this.noBaking() }
-							{ status.nbl > 0 && this.nextBake() }
-						</Col>
-						<Col>
-							{ status.nel === 0 && this.noEndorsements() }
-							{ status.nel > 0 && this.nextEndorsement() }
-						</Col>
-					</Row>
-				</Card.Body>
-			</Card>
-		)
-	}
+	return (
+		<Card>
+			<Card.Header as="h5">Next Opportunity</Card.Header>
+			<Card.Body>
+				<Row>
+					<Col>
+						{ status.nbl === 0 && noBaking() }
+						{ status.nbl > 0 && nextBake() }
+					</Col>
+					<Col>
+						{ status.nel === 0 && noEndorsements() }
+						{ status.nel > 0 && nextEndorsement() }
+					</Col>
+				</Row>
+			</Card.Body>
+		</Card>
+	)
 }
 
-export default NextOpportunities
-		
+export default NextOpportunities;

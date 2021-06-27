@@ -3,6 +3,10 @@ body {
   margin: 20px;
 }
 
+a.nav-link {
+  color: #495057;
+}
+
 .bg-light {
   background-color: #eeeeee;
 }
@@ -59,4 +63,51 @@ div.row {
 
 .padded-top-30 {
   padding-top: 30px;
+}
+
+.tab-pane {
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  border-radius: 0px 0px 5px 5px;
+  padding: 10px;
+}
+
+.nav-tabs {
+  margin-bottom: 0;
+}
+
+.navbar {
+  margin-bottom: 5px;
+}
+
+.toasters-container {
+  position: fixed;
+  z-index: 999999;
+  top: 12px;
+  right: 12px;
+}
+
+/* Main toaster box */
+.toast {
+  width: 300px;
+}
+
+.toaster-warning, .toaster-warning .toast-header {
+  color: #eee;
+  background-color: #f0ad4e;
+}
+
+.toaster-danger, .toaster-danger .toast-header {
+  color: #eee;
+  background-color: #d9534f;
+}
+
+.toaster-success, .toaster-success .toast-header {
+  color: #eee;
+  background-color: #5cb85c;
+}
+
+.alert-secondary {
+  background-color: #eeeeee;
 }

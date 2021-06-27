@@ -1,199 +1,138 @@
-import React from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import ReactDOM from 'react-dom';
 
-import Container from 'react-bootstrap/Container';
-import Col from 'react-bootstrap/Col';
-import Row from 'react-bootstrap/Row';
+import Alert from 'react-bootstrap/Alert'
 import Card from 'react-bootstrap/Card';
+import Col from 'react-bootstrap/Col';
+import Container from 'react-bootstrap/Container';
 import Navbar from 'react-bootstrap/Navbar'
-import ProgressBar from 'react-bootstrap/ProgressBar';
+import Row from 'react-bootstrap/Row';
+import Tabs from 'react-bootstrap/Tabs';
+import Tab from 'react-bootstrap/Tab';
 
-import DelegateInfo from './delegateinfo.js'
-import NextOpportunities from './nextopportunities.js'
+import BakinDashboard from './dashboard.js'
+import Settings from './settings.js'
 import SetupWizard from './setupwizard.js'
+
+import ToasterContext, { ToasterContextProvider } from './toaster.js';
 
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 
 import logo from './logo512.png';
 
+//const BASE_URL = ""
+const BASE_URL = "http://10.10.10.203:8082"
 
-class Bakinbacon extends React.Component {
+const Bakinbacon = () => {
 
-	constructor(props) {
-		super(props);
-		
-		this.state = {
-			delegate: "",
-			status: {},
-			lastUpdate: "",
-			connOk: false,
-			isLoading: false,
-			inWizard: false,
+	const [ delegate, setDelegate ] = useState("");
+	const [ status, setStatus ] = useState({});
+	const [ lastUpdate, setLastUpdate ] = useState(new Date().toLocaleTimeString());
+	const [ connOk, setConnOk ] = useState(false);
+	const [ isLoading, setIsLoading ] = useState(true);
+	const [ inWizard, setInWizard ] = useState(false);
+
+	const addToast = useContext(ToasterContext);
+
+	useEffect(() => {
+		setIsLoading(true);
+		fetchStatus();
+
+		// Update every 10 seconds
+		let fetchStatusTimer = setInterval(() => fetchStatus(), 10000);
+		return () => {
+			// componentWillUnmount()
+			clearInterval(fetchStatusTimer);
+			fetchStatusTimer = null;
 		};
-		
-		this.didEnterWizard = this.didEnterWizard.bind(this)
-	}
-
-	componentDidMount() {
-		this.setState({ isLoading: true });
-		this.fetchStatus();
-		this.fetchStatusTimer = setInterval(() => this.fetchStatus(), 10000);
-	}
-	
-	componentWillUnmount() {
-		clearInterval(this.fetchStatusTimer);
-		this.fetchStatusTimer = null;
-	}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 	
 	// Update the state of being in the wizard from within the wizard
-	didEnterWizard(s) {
-		this.setState({
-			inWizard: s,
-		});
+	const didEnterWizard = (wizType) => {
+		setInWizard(wizType);
 	}
-	
-	fetchStatus() {
-		const delegateApiUrl = "/api/delegate";
-		const statusApiUrl = "/api/status";
 
-		Promise.all([
-			fetch(delegateApiUrl),
-			fetch(statusApiUrl)
-		]).then(([delegateResp, statusResp]) => {
+	const fetchStatus = () => {
+		const delegateApiUrl = BASE_URL + "/api/delegate";
+		const statusApiUrl = BASE_URL + "/api/status";
+
+		Promise.all([fetch(delegateApiUrl), fetch(statusApiUrl)])
+		.then(([delegateResp, statusResp]) => {
 			return Promise.all([delegateResp.json(), statusResp.json()])
-		}).then(([delegate, status]) => {
-			var df = new Date(status.ts * 1000).toLocaleTimeString()
-			this.setState({
-				delegate: delegate.pkh,
-				status: status,
-				lastUpdate: df,
-				connOk: true,
-				isLoading: false,
-			});
-		}).catch((e) => {
+		})
+		.then(([delegateRes, statusRes]) => {
+			setDelegate(delegateRes.pkh);
+			setStatus(statusRes);
+			setLastUpdate(new Date(statusRes.ts * 1000).toLocaleTimeString());
+			setConnOk(true);
+			setIsLoading(false);
+		})
+		.catch((e) => {
 			console.log(e)
-			// TODO: Need toaster for errors
+			setConnOk(false);
+			addToast({
+				title: "Fetch Status Error",
+				msg: "Unable to fetch status from BakinBacon ("+e.message+"). Is the server running?",
+				type: "danger",
+				autohide: 10000,
+			});
 		})
 	}
 
-	render() {
-		const { delegate, status, lastUpdate, connOk, isLoading, inWizard } = this.state
-
-		if (isLoading) {
-			return (<p>Loading...</p>)
-		}
-
-		if (!delegate || inWizard) {
-			// Need to run setup wizard
-			return (
-				<Container>
-					<Navbar bg="light">
-						<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
-					</Navbar>
-					<br />
-					<SetupWizard didEnterWizard={this.didEnterWizard} />
-				</Container>
-			);
-		}
-
-		// Done loading; Display
+	// Returns
+	if (!isLoading && (!delegate || inWizard)) {
+		// Need to run setup wizard
 		return (
 			<Container>
+				<Navbar bg="light">
+					<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
+				</Navbar>
+				<br />
+				<SetupWizard didEnterWizard={didEnterWizard} />
+			</Container>
+		);
+	}
+
+	// Done loading; Display
+	return (
+		<>
+		<Container>
+			<Row>
+			  <Col>
 				<Navbar bg="light">
 					<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
 					<Navbar.Collapse className="justify-content-end">
 						<Navbar.Text>{delegate}</Navbar.Text>
 					</Navbar.Collapse>
 				</Navbar>
-				<Row>
-					<Col md={4}>
-						<Card>
-						  <Card.Header as="h5">Current Status</Card.Header>
-						  <Card.Body>
-							<Card.Title>Level: {status.level}</Card.Title>
-							<Card.Subtitle className="mb-2 text-muted">Cycle: {status.cycle}</Card.Subtitle>
-							<Card.Subtitle className="mb-2 text-muted">Hash: {substr(status.hash)}</Card.Subtitle>
-							<ProgressBar now={(status.cycleposition / 2048) * 100} />
-						  </Card.Body>
-						</Card>
-					</Col>
-					<DelegateInfo delegate={delegate} status={status} />
-				</Row>
-				<Row>
-					<Col md={5}>
-						<Card>
-					  		<Card.Header as="h5">Recent Activity</Card.Header>
-					  		<Card.Body>
-					  			<Row>
-					  				<Col>
-							  			<Card.Title>Baking</Card.Title>
-							  			<Card.Subtitle className="mb-2 text-muted">Level: {status.pbl}</Card.Subtitle>
-							  			<Card.Subtitle className="mb-2 text-muted">Cycle: {status.pbc}</Card.Subtitle>
-					  					<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://tzstats.com/"+status.pbh}>{substr(status.pbh)}</Card.Link></Card.Subtitle>
-							  		</Col>
-							  		<Col>
-							  			<Card.Title>Endorsement</Card.Title>
-						  				<Card.Subtitle className="mb-2 text-muted">Level: {status.pel}</Card.Subtitle>
-						  				<Card.Subtitle className="mb-2 text-muted">Cycle: {status.pec}</Card.Subtitle>
-						  				<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://tzstats.com/"+status.peh}>{substr(status.peh)}</Card.Link></Card.Subtitle>
-							  		</Col>
-							  	</Row>
-							</Card.Body>
-						</Card>
-					</Col>
-					<Col md={7}>
-						<NextOpportunities status={status} connOk={connOk} />
-					</Col>
-				</Row>
-				<Row>
-					<Col>
-						<Card>
-							<Card.Footer>
-								<BaconStatus state={connOk} />Last Update: {lastUpdate}
-							</Card.Footer>
-						</Card>
-					</Col>
-				</Row>
-
-			</Container>
-		);
-	}
+			  </Col>
+			</Row>
+			{ isLoading ? <Row><Col>Loading dashboard...</Col></Row> : 
+			<Row>
+			  <Col>
+				<Tabs defaultActiveKey="dashboard" id="bakinbacon-tabs" mountOnEnter={true} unmountOnExit={true}>
+					<Tab eventKey="dashboard" title="Dashboard">
+						<BakinDashboard delegate={delegate} status={status} />
+					</Tab>
+					<Tab eventKey="settings" title="Settings">
+						<Settings status={status} />
+					</Tab>
+				</Tabs>
+			  </Col>
+			</Row>
+			}
+			<Row>
+			  <Col>
+				<Alert variant="secondary">
+					<div className={"baconstatus baconstatus-" + (connOk ? "green" : "red") }></div>Last Update: {lastUpdate}
+				</Alert>
+			  </Col>
+			</Row>
+		</Container>
+		</>
+	);
 }
 
-function BaconStatus(props) {
-	return <div className={ "baconstatus baconstatus-" + (props.state ? "green" : "red") }></div>
-}
-
-function substr(g) {
-	return String(g).substring(0,10)
-}
-
-// function AlertDismissible() {
-//   const [show, setShow] = useState(true);
-// 
-//   return (
-//     <>
-//       <Alert show={show} variant="success">
-//         <Alert.Heading>How's it going?!</Alert.Heading>
-//         <p>
-//           Duis mollis, est non commodo luctus, nisi erat porttitor ligula, eget
-//           lacinia odio sem nec elit. Cras mattis consectetur purus sit amet
-//           fermentum.
-//         </p>
-//         <hr />
-//         <div className="d-flex justify-content-end">
-//           <Button onClick={() => setShow(false)} variant="outline-success">
-//             Close me y'all!
-//           </Button>
-//         </div>
-//       </Alert>
-// 
-//       {!show && <Button onClick={() => setShow(true)}>Show Alert</Button>}
-//     </>
-//   );
-// }
-
-// ========================================
-
-ReactDOM.render(<Bakinbacon />, document.getElementById('bakinbacon'));
+ReactDOM.render(<ToasterContextProvider><Bakinbacon /></ToasterContextProvider>, document.getElementById('bakinbacon'));

@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	PUBLIC_KEY_HASH  = "pkh"
-	SIGNER_TYPE      = "signertype"
-	SIGNER_SK        = "signersk"
+	PUBLIC_KEY_HASH = "pkh"
+	SIGNER_TYPE     = "signertype"
+	SIGNER_SK       = "signersk"
 )
 
 func (s *Storage) GetDelegate() (string, string, error) {
@@ -81,8 +81,10 @@ func (s *Storage) SetSignerSk(sk string) error {
 	})
 }
 
-func (s *Storage) AddRPCEndpoint(endpoint string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
+	var rpcId int = 0
+
+	err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("AddRPC - Unable to locate endpoints bucket")
@@ -107,13 +109,16 @@ func (s *Storage) AddRPCEndpoint(endpoint string) error {
 
 		// else, add
 		id, _ := b.NextSequence()
+		rpcId = int(id)
 
 		return b.Put(itob(int(id)), endpointBytes)
 	})
+
+	return rpcId, err
 }
 
-func (s *Storage) GetRPCEndpoints() ([]string, error) {
-	var endpoints []string
+func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
+	endpoints := make(map[int]string)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
@@ -122,7 +127,8 @@ func (s *Storage) GetRPCEndpoints() ([]string, error) {
 		}
 
 		if err := b.ForEach(func(k, v []byte) error {
-			endpoints = append(endpoints, string(v))
+			id := btoi(k)
+			endpoints[id] = string(v)
 			return nil
 		}); err != nil {
 			return err
@@ -134,23 +140,13 @@ func (s *Storage) GetRPCEndpoints() ([]string, error) {
 	return endpoints, err
 }
 
-func (s *Storage) DeleteRPCEndpoint(endpoint string) error {
+func (s *Storage) DeleteRPCEndpoint(endpointId int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("Unable to locate endpoints bucket")
 		}
 
-		endpointBytes := []byte(endpoint)
-		if err := b.ForEach(func(k, v []byte) error {
-			if bytes.Equal(v, endpointBytes) {
-				return b.Delete(k)
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		return nil
+		return b.Delete(itob(endpointId))
 	})
 }

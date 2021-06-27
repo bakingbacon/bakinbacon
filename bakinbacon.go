@@ -45,7 +45,7 @@ func main() {
 	shutdownChannel := setupCloseChannel()
 
 	// Set up RPC polling-monitoring
-	bc, err = baconclient.New()
+	bc, err = baconclient.New(shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Could not connect create BaconClient")
 	}
@@ -53,10 +53,6 @@ func main() {
 	// Web UI
 	wg.Add(1)
 	webserver.Start(bc, *webUiAddr, *webUiPort, shutdownChannel, &wg)
-
-	// Launch background monitoring of new /head
-	// Returns channel for new head block notifications
-	newHeadNotifier := bc.Run(shutdownChannel, &wg)
 
 	// Network constants
 	networkConstants := bc.Current.CurrentConstants()
@@ -72,12 +68,12 @@ func main() {
 	// Update bacon-status with most recent bake/endorse info
 	updateRecentBaconStatus()
 
-	// loop forever, waiting for new blocks on the channel
+	// loop forever, waiting for new blocks coming from the RPC monitors
 	Main:
 	for {
 
 		select {
-		case block := <-newHeadNotifier:
+		case block := <-bc.NewBlockNotifier:
 
 			// New block means to cancel any existing baking work as someone else beat us to it.
 			// Noop on very first block from channel

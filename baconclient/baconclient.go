@@ -22,11 +22,13 @@ const (
 
 type BaconSlice struct {
 	*rpc.Client
+	clientId int
 	isActive bool
+	shutdown chan interface{}
 }
 
 type BaconClient struct {
-	newBlockNotifier chan *rpc.Block
+	NewBlockNotifier chan *rpc.Block
 
 	Current    *BaconSlice
 	rpcClients []*BaconSlice
@@ -35,9 +37,21 @@ type BaconClient struct {
 	Signer *baconsigner.BaconSigner
 
 	lock sync.Mutex
+
+	shutdown  chan interface{}
+	waitGroup *sync.WaitGroup
 }
 
-func New() (*BaconClient, error) {
+func New(globalShutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+
+	newBaconClient := &BaconClient{
+		NewBlockNotifier: make(chan *rpc.Block, 1),
+		rpcClients:       make([]*BaconSlice, 0),
+		Status:           &BaconStatus{},
+		Signer:           baconsigner.New(),
+		shutdown:         globalShutdown,
+		waitGroup:        wg,
+	}
 
 	// Pull endpoints from storage
 	endpoints, err := storage.DB.GetRPCEndpoints()
@@ -48,59 +62,67 @@ func New() (*BaconClient, error) {
 
 	if len(endpoints) < 1 {
 		// This shouldn't happen, but just in case
-		log.Error("No endpoints found")
-		return nil, errors.New("No endpoints found")
+		log.Error("No endpoints found. Please add an RPC endpoint.")
 	}
-
-	clients := make([]*BaconSlice, 0)
-
-	// Foreach endpoint, create an rpc client
-	for _, e := range endpoints {
-
-		active := true
-
-		gtRpc, err := rpc.New(e)
-		if err != nil {
-			log.WithError(err).Error("Error from RPC")
-			active = false
-		}
-		log.WithField("Endpoint", e).Info("Connected to RPC")
-
-		// TODO: Add client even if error, but set "inActive" flag
-		clients = append(clients, &BaconSlice{
-			gtRpc,
-			active,
-		})
-	}
-
-	return &BaconClient{
-		newBlockNotifier: make(chan *rpc.Block, 1),
-		Current:          clients[0],
-		rpcClients:       clients,
-		Status:           &BaconStatus{},
-		Signer:           baconsigner.New(),
-	}, nil
-}
-
-func (b *BaconClient) Run(shutdown <-chan interface{}, wg *sync.WaitGroup) chan *rpc.Block {
 
 	// For each RPC client, thread off a polling monitor.
-	// Return the main channel so caller can receive new blocks
-	// coming from any monitor.
-
-	for _, c := range b.rpcClients {
-
-		wg.Add(1)
-		go b.blockWatch(c, shutdown, wg)
+	for id, e := range endpoints {
+		newBaconClient.AddRpc(id, e)
 
 		// Small throttle to offset each poller
 		<-time.After(2 * time.Second)
 	}
 
-	return b.newBlockNotifier
+	return newBaconClient, nil
 }
 
-func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}, wg *sync.WaitGroup) {
+func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
+
+	active := true
+
+	gtRpc, err := rpc.New(rpcEndpointUrl)
+	if err != nil {
+		log.WithField("Endpoint", rpcEndpointUrl).WithError(err).Error("Error from RPC")
+		active = false
+	} else {
+		log.WithField("Endpoint", rpcEndpointUrl).Info("Connected to RPC")
+	}
+
+	newBaconSlice := &BaconSlice{
+		gtRpc,
+		rpcId,
+		active,
+		make(chan interface{}, 1), // For shutting down individual BaconSlices
+	}
+
+	// Add client to list
+	b.rpcClients = append(b.rpcClients, newBaconSlice)
+
+	// Launch client
+	b.waitGroup.Add(1)
+	go b.blockWatch(newBaconSlice, b.shutdown, b.waitGroup)
+}
+
+func (b *BaconClient) ShutdownRpc(rpcId int) error {
+
+	newClients := make([]*BaconSlice, 0)
+
+	// Iterate through list of rpc clients (BaconSlices) and find matching id
+	for _, r := range b.rpcClients {
+		if r.clientId == rpcId {
+			close(r.shutdown)
+		} else {
+			newClients = append(newClients, r) // save those that did not match
+		}
+	}
+
+	// new list with match removed
+	b.rpcClients = newClients
+
+	return nil
+}
+
+func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interface{}, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
@@ -111,7 +133,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}
 	sleepTime := time.Duration(timeBetweenBlocks / 4)
 	ticker := time.NewTicker(sleepTime * time.Second)
 
-	log.WithField("Endpoint", client.Host).Info("Running...")
+	log.WithField("Endpoint", client.Host).Info("Blockwatch running...")
 
 	for {
 
@@ -145,14 +167,19 @@ func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}
 				lostTicks = 0
 
 				// notify new block
-				b.newBlockNotifier <- block
+				b.NewBlockNotifier <- block
 
 				b.lock.Lock()
 				b.Status.Hash = block.Hash
 				b.Status.Level = block.Metadata.Level.Level
 				b.Status.Cycle = block.Metadata.Level.Cycle
 				b.Status.CyclePosition = block.Metadata.Level.CyclePosition
-				b.Current = client
+
+				if b.Current != client {
+					log.WithField("Endpoint", client.Host).Warn("Switched active RPC")
+					b.Current = client
+				}
+
 				b.lock.Unlock()
 
 				log.WithFields(log.Fields{
@@ -173,9 +200,12 @@ func (b *BaconClient) blockWatch(client *BaconSlice, shutdown <-chan interface{}
 		// wait here for timer, or shutdown
 		select {
 		case <-ticker.C:
-			log.Debug("tick...")
-		case <-shutdown:
+			log.WithField("Id", client.clientId).Debug("tick...")
+		case <-client.shutdown:
 			log.WithField("Endpoint", client.Host).Info("Shutting down RPC client")
+			return
+		case <-globalShutdown:
+			log.WithField("Endpoint", client.Host).Info("(Global) Shutting down RPC client")
 			return
 		}
 	}

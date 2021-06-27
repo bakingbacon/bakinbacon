@@ -71,7 +71,7 @@ func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingR
 func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 
 	var (
-		nextLevel int
+		nextLevel         int
 		highestFetchCycle int
 	)
 
@@ -112,8 +112,8 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 
 	var (
-		nextLevel int
-		nextPriority int
+		nextLevel         int
+		nextPriority      int
 		highestFetchCycle int
 	)
 
@@ -154,8 +154,8 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 func (s *Storage) GetRecentEndorsement() (int, string, error) {
 
 	var (
-		recentEndorsementLevel int = 0
-		recentEndorsementHash string = ""
+		recentEndorsementLevel int    = 0
+		recentEndorsementHash  string = ""
 	)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -182,8 +182,8 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 func (s *Storage) GetRecentBake() (int, string, error) {
 
 	var (
-		recentBakeLevel int = 0
-		recentBakeHash string = ""
+		recentBakeLevel int    = 0
+		recentBakeHash  string = ""
 	)
 
 	err := s.db.View(func(tx *bolt.Tx) error {

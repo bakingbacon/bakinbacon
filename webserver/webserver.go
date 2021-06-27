@@ -64,8 +64,9 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
 
-	apiRouter.HandleFunc("/endpoints/add", addEndpoint)
+	apiRouter.HandleFunc("/endpoints/add", addEndpoint).Methods("POST")
 	apiRouter.HandleFunc("/endpoints/list", listEndpoints)
+	apiRouter.HandleFunc("/endpoints/delete", deleteEndpoint).Methods("POST")
 
 	apiRouter.HandleFunc("/status", getStatus)
 	apiRouter.HandleFunc("/delegate", getDelegate).Methods("GET")
@@ -120,6 +121,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 
 	// Wait for shutdown signal on channel
 	go func() {
+		defer wg.Done()
 		<-shutdownChannel
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -128,7 +130,5 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 		if err := httpSvr.Shutdown(ctx); err != nil {
 			log.WithError(err).Errorf("Httpserver: Shutdown()")
 		}
-
-		wg.Done()
 	}()
 }

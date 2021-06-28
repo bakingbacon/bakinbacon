@@ -79,6 +79,8 @@ div.row {
 
 .navbar {
   margin-bottom: 5px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
 }
 
 .toasters-container {
@@ -109,5 +111,5 @@ div.row {
 }
 
 .alert-secondary {
-  background-color: #eeeeee;
+  background-color: #f8f9fa;
 }

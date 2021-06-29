@@ -2,7 +2,6 @@ import React, { useState, useEffect, useContext } from 'react';
 import ReactDOM from 'react-dom';
 
 import Alert from 'react-bootstrap/Alert'
-import Card from 'react-bootstrap/Card';
 import Col from 'react-bootstrap/Col';
 import Container from 'react-bootstrap/Container';
 import Navbar from 'react-bootstrap/Navbar'
@@ -12,7 +11,7 @@ import Tab from 'react-bootstrap/Tab';
 
 import BakinDashboard from './dashboard.js'
 import Settings from './settings.js'
-import SetupWizard from './setupwizard.js'
+import SetupWizard from './wizards'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
 

@@ -178,7 +178,7 @@ func (s *BaconSigner) ImportSecretKey(iEdsk string) (string, string, error) {
 	key, err := gtks.FromBase58(iEdsk, gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to import key")
-		return "", "", errors.Wrap(err, "failed to import key")
+		return "", "", err
 	}
 
 	s.bakerSk = iEdsk

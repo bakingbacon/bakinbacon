@@ -32,7 +32,7 @@ export function apiRequest(url, options) {
 					return resolve(response.json);
 				}
 				// Extract custom error message
-				return reject(response.message);
+				return reject(response.json.err);
 			})
 			.catch((error) => reject(error.message));	// Network errors
 	});

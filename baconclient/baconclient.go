@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	MIN_BAKE_BALANCE = 8001
+	MIN_BAKE_BALANCE            = 8001
+	DEFAULT_TIME_BETWEEN_BLOCKS = 60
 )
 
 type BaconSlice struct {
@@ -129,7 +130,12 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 	lostTicks := 0
 
 	// Get network constant time_between_blocks and set sleep-ticker to 25%
-	timeBetweenBlocks := client.CurrentConstants().TimeBetweenBlocks[0]
+	timeBetweenBlocks := DEFAULT_TIME_BETWEEN_BLOCKS
+	if client.isActive {
+		// If an active RPC, get TBB from network constants
+		// TODO: Update TBB once constants are loaded from inactive RPC
+		timeBetweenBlocks = client.CurrentConstants().TimeBetweenBlocks[0]
+	}
 	sleepTime := time.Duration(timeBetweenBlocks / 4)
 	ticker := time.NewTicker(sleepTime * time.Second)
 

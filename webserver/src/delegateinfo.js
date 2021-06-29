@@ -2,7 +2,6 @@ import React, { useEffect, useState, useContext } from 'react';
 
 import NumberFormat from 'react-number-format';
 
-import Alert from 'react-bootstrap/Alert'
 import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -10,6 +9,7 @@ import Loader from "react-loader-spinner";
 
 import DelegateRegister from './delegateregister.js'
 import ToasterContext from './toaster.js';
+import { apiRequest } from './util.js';
 
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
@@ -59,23 +59,18 @@ const DelegateInfo = (props) => {
 		if (dState === NOT_REGISTERED) {
 
 			const balanceUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + delegate
-			fetch(balanceUrl)
-			.then(response => {
-				if (!response.ok) {
-					throw new Error("Error fetching balance");
-				}
-				return response.json();
-			}).then(data => {
+			apiRequest(balanceUrl)
+			.then((data) => {
 				setBalanceInfo((balanceInfo) => ({
 					...balanceInfo, spendable: (parseInt(data.balance, 10) / 1e6).toFixed(1)
 				}));
 			})
-			.catch(e => {
-				console.log(e)
+			.catch((errMsg) => {
+				console.log(errMsg)
 				setConnOk(false);
 				addToast({
 					title: "Loading Delegate Error",
-					msg: e.message,
+					msg: errMsg,
 					type: "danger",
 				});
 			})
@@ -88,13 +83,8 @@ const DelegateInfo = (props) => {
 
 		// Fetch delegator info which is only necessary when looking at the UI
 		const apiUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + delegate
-		fetch(apiUrl)
-		.then(response => {
-			if (!response.ok) {
-				throw new Error("Error fetching delegate info");
-			}
-			return response.json();
-		}).then(data => {
+		apiRequest(apiUrl)
+		.then(data => {
 
 			const balance = parseInt(data.balance, 10);
 			const frozenBalance = parseInt(data.frozen_balance, 10);
@@ -108,13 +98,14 @@ const DelegateInfo = (props) => {
 				delegatedBalance: (parseInt(data.delegated_balance, 10) / 1e6).toFixed(2),
 				nbDelegators: data.delegated_contracts.length,
 			});
+
 		})
-		.catch(e => {
-			console.log(e)
+		.catch((errMsg) => {
+			console.log(errMsg)
 			setConnOk(false);
 			addToast({
 				title: "Loading Delegate Error",
-				msg: e.message,
+				msg: errMsg,
 				type: "danger",
 			});
 		})
@@ -130,9 +121,6 @@ const DelegateInfo = (props) => {
 			<Col md={8} className="text-center padded-top-30">
 				<Loader type="Circles" color="#EFC700" height={50} width={50} /><br/>Loading Baker Info...
 			</Col>
-			{ status.err &&
-				<Col md={8} className="text-center"><Alert variant="danger">{status.err}</Alert></Col>
-			}
 			</>
 		)
 	}

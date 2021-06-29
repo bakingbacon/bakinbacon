@@ -14,6 +14,7 @@ import Settings from './settings.js'
 import SetupWizard from './wizards'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
+import { apiRequest } from './util.js';
 
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
@@ -54,13 +55,11 @@ const Bakinbacon = () => {
 	}
 
 	const fetchStatus = () => {
+
 		const delegateApiUrl = BASE_URL + "/api/delegate";
 		const statusApiUrl = BASE_URL + "/api/status";
 
-		Promise.all([fetch(delegateApiUrl), fetch(statusApiUrl)])
-		.then(([delegateResp, statusResp]) => {
-			return Promise.all([delegateResp.json(), statusResp.json()])
-		})
+		Promise.all([apiRequest(delegateApiUrl), apiRequest(statusApiUrl)])
 		.then(([delegateRes, statusRes]) => {
 			setDelegate(delegateRes.pkh);
 			setStatus(statusRes);
@@ -68,12 +67,12 @@ const Bakinbacon = () => {
 			setConnOk(true);
 			setIsLoading(false);
 		})
-		.catch((e) => {
-			console.log(e)
+		.catch((errMsg) => {
+			console.log(errMsg)
 			setConnOk(false);
 			addToast({
-				title: "Fetch Status Error",
-				msg: "Unable to fetch status from BakinBacon ("+e.message+"). Is the server running?",
+				title: "Fetch Dashboard Error",
+				msg: "Unable to fetch status from BakinBacon ("+errMsg+"). Is the server running?",
 				type: "danger",
 				autohide: 10000,
 			});

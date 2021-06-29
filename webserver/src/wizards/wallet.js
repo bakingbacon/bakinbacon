@@ -7,6 +7,8 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row';
 
+import { apiRequest } from '../util.js';
+
 //const BASE_URL = ""
 const BASE_URL = "http://10.10.10.203:8082"
 
@@ -22,41 +24,29 @@ const WizardWallet = (props) => {
 	
 	const generateNewKey = () => {
 		const generateKeyApiUrl = BASE_URL + "/api/wizard/generateNewKey";
-		fetch(generateKeyApiUrl)
-		.then(response => {
-			if (!response.ok) {
-				throw Error(response.statusText);
-			}
-			return response.json();
-		})
-		.then(data => {
+		apiRequest(generateKeyApiUrl)
+		.then((data) => {
 			setEdsk(data.edsk);
 			setPkh(data.pkh);
 			setStep(2);
 		})
-		.catch(e => {
-			console.log(e)
-			setError(e.message)
+		.catch((errMsg) => {
+			console.log(errMsg)
+			setError(errMsg)
 		});
 	};
 	
 	const exitWizardWallet = () => {
 		const finishWizardApiUrl = BASE_URL + "/api/wizard/finish";
-		fetch(finishWizardApiUrl)
-		.then(response => {
-			if (!response.ok) {
-				throw Error(response.statusText);
-			}
-			return response;
-		})
-		.then(data => {
+		apiRequest(finishWizardApiUrl)
+		.then(() => {
 			// Ignore response body; just need 200 OK
 			// Call parent finish wizard to exit this sub-wizard
 			onFinishWizard();
 		})
-		.catch(e => {
-			console.log(e);
-			setError(e.message)
+		.catch((errMsg) => {
+			console.log(errMsg);
+			setError(errMsg)
 		});
 	}
 	
@@ -81,33 +71,27 @@ const WizardWallet = (props) => {
 
 		// Call API to import key
 		const importKeyApiUrl = BASE_URL + "/api/wizard/importKey";
-		const requestMetadata = {
+		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ edsk: importEdsk })
 		};
 
-		fetch(importKeyApiUrl, requestMetadata)
-		.then(response => {
-			if (!response.ok) {
-				throw Error(response.statusText);
-			}
-			return response.json();
-		})
-		.then(data => {
+		apiRequest(importKeyApiUrl, requestOptions)
+		.then((data) => {
 			setEdsk(data.edsk);
 			setPkh(data.pkh);
 			setStep(3);
 		})
-		.catch(e => {
-			console.log(e);
-			setError(e.message)
+		.catch((errMsg) => {
+			console.log(errMsg);
+			setError(errMsg)
 		});
 	}
 	
 	// Returns
 
-	// Step 99 is a dummy step that happens last
+	// Step 99 is a dummy step that should not ever get rendered
 	if (step === 99) { return (<>Foo</>); }
 
 	// This renders inside parent <Card.Body>

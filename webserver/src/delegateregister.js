@@ -7,6 +7,7 @@ import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
+import { apiRequest } from './util.js';
 
 //const BASE_URL = ""
 const BASE_URL = "http://10.10.10.203:8082"
@@ -21,34 +22,29 @@ const DelegateRegister = (props) => {
 	
 	const registerBaker = () => {
 		const registerBakerApiUrl = BASE_URL + "/api/wizard/registerbaker";
-		const requestMetadata = {
+		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 		};
 
 		setIsLoading(true);
 
-		fetch(registerBakerApiUrl, requestMetadata)
-		.then(response => {
-			if (!response.ok) {
-				throw Error(response.statusText);
-			}
-			return response.json();
-		}).then(data => {
+		apiRequest(registerBakerApiUrl, requestOptions)
+		.then((data) => {
 			console.log("Register OpHash: " + data.ophash);
 			setIsLoading(false);
 			setStep(99);
 		})
-		.catch(e => {
-			console.log(e)
+		.catch((errMsg) => {
+			console.log(errMsg)
 			setIsLoading(false);
 			addToast({
 				title: "Register Baker Error",
-				msg: e.message,
+				msg: errMsg,
 				type: "danger",
 			});
 		});
-	}
+	};
 
 	// Returns
 	if (step === 99) {

@@ -16,7 +16,6 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
-	//"bakinbacon/storage"
 	"bakinbacon/baconclient"
 )
 

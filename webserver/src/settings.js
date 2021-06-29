@@ -8,6 +8,7 @@ import ListGroup from 'react-bootstrap/ListGroup';
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
+import { apiRequest } from './util.js';
 
 //const BASE_URL = "";
 const BASE_URL = "http://10.10.10.203:8082";
@@ -33,24 +34,18 @@ const Settings = (props) => {
 
 	const loadSettings = () => {
 		const apiUrl = BASE_URL + "/api/endpoints/list";
-		fetch(apiUrl)
-		.then(response => {
-			if (!response.ok) {
-				throw new Error("Error fetching settings");
-			}
-			return response.json();
-		})
-		.then(data => {
+		apiRequest(apiUrl)
+		.then((data) => {
 			setRpcEndpoints(data.endpoints || {});
 			setIsLoading(false);
 		})
-		.catch(e => {
-			console.log(e);
+		.catch((errMsg) => {
+			console.log(errMsg);
 			setIsLoading(false);
 			
 			addToast({
 				title: "Loading Settings Error",
-				msg: e.message,
+				msg: errMsg,
 				type: "danger",
 			});
 		});
@@ -58,6 +53,7 @@ const Settings = (props) => {
 
 	const addRpc = () => {
 
+		// Cheezy sanity check
 		const rpcToAdd = stripSlash(newRpc);
 		if (rpcToAdd.length < 10) {
 			addToast({
@@ -73,14 +69,8 @@ const Settings = (props) => {
 
 		// Sanity check the endpoint first by fetching the current head and checking the protocol.
 		// This has the added effect of forcing upgrades for new protocols.
-		fetch(rpcToAdd + "/chains/main/blocks/head/header")
-		.then(response => {
-			if (!response.ok) {
-				throw new Error("Cannot fetch head block from RPC");
-			}
-			return response.json();
-		})
-		.then(data => {
+		apiRequest(rpcToAdd + "/chains/main/blocks/head/header")
+		.then((data) => {
 			const chainId = data.chain_id;
 			if (chainId !== CHAINID_FLORENCENET) {
 				throw new Error("RPC chain ("+chainId+") does not match "+CHAINID_FLORENCENET+". Please use a correct RPC server.");
@@ -97,11 +87,11 @@ const Settings = (props) => {
 				});
 			});
 		})
-		.catch(e => {
-			console.log(e);
+		.catch((errMsg) => {
+			console.log(errMsg);
 			addToast({
 				title: "Add RPC Error",
-				msg: "There was an error in validating the RPC URL: " + e.message,
+				msg: "There was an error in validating the RPC URL: " + errMsg,
 				type: "danger",
 			});
 		})
@@ -130,32 +120,23 @@ const Settings = (props) => {
 	// On 200 OK, refresh settings
 	const handlePostAPI = (url, data) => {
 
-		const requestMetadata = {
+		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({rpc: data})
 		};
 
-		return fetch(url, requestMetadata)
-			.then(response => {
-				if (!response.ok) {
-					throw Error(response.statusText);
-				}
-				return response.json();
-			})
+		return apiRequest(url, requestOptions)
 			.then(() => {
 				loadSettings();
 			})
-			.catch(e => {
-				console.log(e);
+			.catch((errMsg) => {
+				console.log(errMsg);
 				addToast({
 					title: "Settings Error",
-					msg: e.message,
+					msg: errMsg,
 					type: "danger",
 				});
-			})
-			.finally(() => {
-				setNewRpc("");
 			});
 	}
 

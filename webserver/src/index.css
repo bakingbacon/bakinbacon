@@ -110,6 +110,25 @@ div.row {
   background-color: #5cb85c;
 }
 
+.toaster-primary, .toaster-primary .toast-header {
+  color: #004085;
+  background-color: #cce5ff;
+}
+
+.toaster-info, .toaster-info .toast-header {
+  color: #0c5460;
+  background-color: #bee5eb;
+}
+
 .alert-secondary {
   background-color: #f8f9fa;
+}
+
+svg.ledgerAlert {
+	margin-bottom: 4px;
+	margin-right: 5px;
+}
+
+.row-bottom-border {
+	border-bottom: 1px solid black;
 }

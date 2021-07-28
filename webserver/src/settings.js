@@ -8,13 +8,8 @@ import ListGroup from 'react-bootstrap/ListGroup';
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
-import { apiRequest } from './util.js';
+import { BASE_URL, CHAINID_FLORENCENET, apiRequest } from './util.js';
 
-//const BASE_URL = "";
-const BASE_URL = "http://10.10.10.203:8082";
-
-//const CHAINID_MAINNET = "NetXdQprcVkpaWU";
-const CHAINID_FLORENCENET = "NetXxkAx4woPLyu";
 
 const Settings = (props) => {
 
@@ -33,22 +28,22 @@ const Settings = (props) => {
 	}
 
 	const loadSettings = () => {
-		const apiUrl = BASE_URL + "/api/endpoints/list";
+		const apiUrl = BASE_URL + "/api/settings/listendpoints";
 		apiRequest(apiUrl)
 		.then((data) => {
 			setRpcEndpoints(data.endpoints || {});
-			setIsLoading(false);
 		})
 		.catch((errMsg) => {
 			console.log(errMsg);
-			setIsLoading(false);
-			
 			addToast({
 				title: "Loading Settings Error",
 				msg: errMsg,
 				type: "danger",
 			});
-		});
+		})
+		.finally(() => {
+			setIsLoading(false);
+		})
 	}
 
 	const addRpc = () => {
@@ -77,7 +72,7 @@ const Settings = (props) => {
 			}
 
 			// RPC is good! Add it via API.
-			const apiUrl = BASE_URL + "/api/endpoints/add"
+			const apiUrl = BASE_URL + "/api/settings/addendpoint"
 			handlePostAPI(apiUrl, rpcToAdd).then(() => {
 				addToast({
 					title: "RPC Success",
@@ -102,7 +97,7 @@ const Settings = (props) => {
 
 	const delRpc = (rpc) => {
 		console.log("Deleting RPC endpoint: " + rpc)
-		const apiUrl = BASE_URL + "/api/endpoints/delete"
+		const apiUrl = BASE_URL + "/api/settings/deleteendpoint"
 		handlePostAPI(apiUrl, Number(rpc)).then(() => {
 			addToast({
 				title: "RPC Success",

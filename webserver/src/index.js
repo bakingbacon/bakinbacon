@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import ReactDOM from 'react-dom';
 
 import Alert from 'react-bootstrap/Alert'
@@ -10,19 +10,19 @@ import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/Tab';
 
 import BakinDashboard from './dashboard.js'
+import DelegateRegister from './delegateregister.js'
 import Settings from './settings.js'
 import SetupWizard from './wizards'
+import Voting from './voting.js'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
-import { apiRequest } from './util.js';
+import { BASE_URL, NO_SIGNER, NOT_REGISTERED, apiRequest } from './util.js';
 
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 
 import logo from './logo512.png';
 
-//const BASE_URL = ""
-const BASE_URL = "http://10.10.10.203:8082"
 
 const Bakinbacon = () => {
 
@@ -35,33 +35,42 @@ const Bakinbacon = () => {
 
 	const addToast = useContext(ToasterContext);
 
+	// Hold a reference so we can cancel it externally
+	const fetchStatusTimer = useRef();
+
+	// On component load
 	useEffect(() => {
 		setIsLoading(true);
 		fetchStatus();
 
 		// Update every 10 seconds
-		let fetchStatusTimer = setInterval(() => fetchStatus(), 10000);
+		const idTimer = setInterval(() => fetchStatus(), 10000);
+		fetchStatusTimer.current = idTimer;
 		return () => {
 			// componentWillUnmount()
-			clearInterval(fetchStatusTimer);
-			fetchStatusTimer = null;
+			clearInterval(fetchStatusTimer.current);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [fetchStatusTimer]);
 	
 	// Update the state of being in the wizard from within the wizard
 	const didEnterWizard = (wizType) => {
 		setInWizard(wizType);
+		clearInterval(fetchStatusTimer);
+	}
+
+	const didEnterRegistration = () => {
+		// If we need to register as baker, stop fetching /api/status until that completes
+		clearInterval(fetchStatusTimer);
 	}
 
 	const fetchStatus = () => {
 
-		const delegateApiUrl = BASE_URL + "/api/delegate";
 		const statusApiUrl = BASE_URL + "/api/status";
 
-		Promise.all([apiRequest(delegateApiUrl), apiRequest(statusApiUrl)])
-		.then(([delegateRes, statusRes]) => {
-			setDelegate(delegateRes.pkh);
+		apiRequest(statusApiUrl)
+		.then((statusRes) => {
+			setDelegate(statusRes.pkh);
 			setStatus(statusRes);
 			setLastUpdate(new Date(statusRes.ts * 1000).toLocaleTimeString());
 			setConnOk(true);
@@ -80,16 +89,23 @@ const Bakinbacon = () => {
 	}
 
 	// Returns
-	if (!isLoading && (!delegate || inWizard)) {
+	if (!isLoading && ((!delegate && status.state === NO_SIGNER) || inWizard)) {
 		// Need to run setup wizard
 		return (
+			<>
 			<Container>
-				<Navbar bg="light">
-					<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
-				</Navbar>
-				<br />
-				<SetupWizard didEnterWizard={didEnterWizard} />
+				<Row>
+				  <Col>
+					<Navbar bg="light">
+						<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
+					</Navbar>
+				  </Col>
+				</Row>
+				<Row>
+					<SetupWizard didEnterWizard={didEnterWizard} />
+				</Row>
 			</Container>
+			</>
 		);
 	}
 
@@ -112,10 +128,17 @@ const Bakinbacon = () => {
 			  <Col>
 				<Tabs defaultActiveKey="dashboard" id="bakinbacon-tabs" mountOnEnter={true} unmountOnExit={true}>
 					<Tab eventKey="dashboard" title="Dashboard">
+						{ status.state === NOT_REGISTERED ?
+						<DelegateRegister delegate={delegate} didEnterRegistration={didEnterRegistration} />
+						:
 						<BakinDashboard delegate={delegate} status={status} />
+						}
 					</Tab>
 					<Tab eventKey="settings" title="Settings">
-						<Settings status={status} />
+						<Settings />
+					</Tab>
+					<Tab eventKey="voting" title="Voting">
+						<Voting delegate={delegate} />
 					</Tab>
 				</Tabs>
 			  </Col>

@@ -7,22 +7,17 @@ import Card from 'react-bootstrap/Card';
 import ListGroup from 'react-bootstrap/ListGroup';
 import Loader from "react-loader-spinner";
 
-import DelegateRegister from './delegateregister.js'
 import ToasterContext from './toaster.js';
-import { apiRequest } from './util.js';
+import { NO_SIGNER, NOT_REGISTERED, CAN_BAKE, apiRequest } from './util.js';
 
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
-// baconclient/baconstatus.go
-const CAN_BAKE = "canbake"
-//const LOW_BALANCE = "lowbal"
-const NOT_REGISTERED = "noreg"
-//const NO_SIGNER = "nosign"
 
 const DelegateInfo = (props) => {
 
-	const delegate = props.delegate;
+	const { delegate, status } = props;
 
+	let nbDelegators = 0;
 	const [ balanceInfo, setBalanceInfo ] = useState({
 		frozen: 0,
 		spendable: 0,
@@ -31,13 +26,16 @@ const DelegateInfo = (props) => {
 		delegatedBalance: 0,
 		nbDelegators: 0,
 	});
-
-	const status = props.status
 	const [ isLoading, setIsLoading ] = useState(false);
 	const [ connOk, setConnOk ] = useState(true);
 	const addToast = useContext(ToasterContext);
 
 	useEffect(() => {
+
+		if (status.state === NOT_REGISTERED || status.state === NO_SIGNER) {
+			return null;
+		}
+
 		setIsLoading(true);
 		fetchDelegateInfo();
 
@@ -53,34 +51,6 @@ const DelegateInfo = (props) => {
 
 	const fetchDelegateInfo = () => {
 
-		const dState = status.state
-
-		// If baker is not yet revealed/registered, we just need to monitor basic balance so we can display the button
-		if (dState === NOT_REGISTERED) {
-
-			const balanceUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + delegate
-			apiRequest(balanceUrl)
-			.then((data) => {
-				setBalanceInfo((balanceInfo) => ({
-					...balanceInfo, spendable: (parseInt(data.balance, 10) / 1e6).toFixed(1)
-				}));
-			})
-			.catch((errMsg) => {
-				console.log(errMsg)
-				setConnOk(false);
-				addToast({
-					title: "Loading Delegate Error",
-					msg: errMsg,
-					type: "danger",
-				});
-			})
-			.finally(() => {
-				setIsLoading(false);
-			})
-			
-			return;
-		}
-
 		// Fetch delegator info which is only necessary when looking at the UI
 		const apiUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + delegate
 		apiRequest(apiUrl)
@@ -90,13 +60,36 @@ const DelegateInfo = (props) => {
 			const frozenBalance = parseInt(data.frozen_balance, 10);
 			const spendable = balance - frozenBalance;
 
+			// If we loose a delegator, show message
+			const newNbDelegators = (data.delegated_contracts.length - 1);  // Don't count ourselves
+
+			if (nbDelegators > 0 && newNbDelegators > nbDelegators) {
+				// Gained
+				addToast({
+					title: "New Delegator!",
+					msg: "You gained a delegator!",
+					type: "primary",
+				});
+			} else if (nbDelegators > 0 && newNbDelegators < nbDelegators) {
+				// Lost
+				addToast({
+					title: "Lost Delegator",
+					msg: "You lost a delegator! No big deal; it happens to everyone.",
+					type: "info",
+				});
+			}
+
+			// Update variable
+			nbDelegators = newNbDelegators;
+
+			// Update object for redraw
 			setBalanceInfo({
 				total: (balance / 1e6).toFixed(2),
 				frozen: (frozenBalance / 1e6).toFixed(2),
 				spendable: (spendable / 1e6).toFixed(2),
 				stakingBalance: (parseInt(data.staking_balance, 10) / 1e6).toFixed(2),
 				delegatedBalance: (parseInt(data.delegated_balance, 10) / 1e6).toFixed(2),
-				nbDelegators: data.delegated_contracts.length,
+				nbDelegators: newNbDelegators,
 			});
 
 		})
@@ -133,13 +126,13 @@ const DelegateInfo = (props) => {
 			</>
 		)
 	}
-	
-	if (status.state === NOT_REGISTERED) {
-		return (<DelegateRegister pkh={delegate} spendable={balanceInfo.spendable} />)
+
+	if (status.state === NOT_REGISTERED || status.state === NO_SIGNER) {
+		return null;
 	}
-	
+
 	// Fallback
-	return (<Col>Unable to fetch delegate info.</Col>);
+	return (<Col>Delegate info currently unavailable.</Col>);
 }
 
 const DelegateBalances = (props) => {

@@ -7,10 +7,8 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row';
 
-import { apiRequest } from '../util.js';
+import { BASE_URL, apiRequest } from '../util.js';
 
-//const BASE_URL = ""
-const BASE_URL = "http://10.10.10.203:8082"
 
 const WizardWallet = (props) => {
 
@@ -37,7 +35,7 @@ const WizardWallet = (props) => {
 	};
 	
 	const exitWizardWallet = () => {
-		const finishWizardApiUrl = BASE_URL + "/api/wizard/finish";
+		const finishWizardApiUrl = BASE_URL + "/api/wizard/finishWallet";
 		apiRequest(finishWizardApiUrl)
 		.then(() => {
 			// Ignore response body; just need 200 OK

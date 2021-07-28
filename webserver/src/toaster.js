@@ -8,17 +8,23 @@ export const ToasterContextProvider = ({children}) => {
 
 	const [toasts, setToasts] = useState([]);
 
-	const addToast = useCallback(
-		function(toast) {
-			toast.id = Math.floor((Math.random() * 1001) + 1);
+	const addToast = useCallback((toast) => {
+			toast.id = Math.floor((Math.random() * 10001) + 1);
 			toast.autohide = toast.autohide || 0;
-			setToasts((toasts) => [...toasts, toast]);
+
+			// Don't display more than 10 messages
+			setToasts((t) => {
+				if (t.length > 9) {
+					t.shift();
+				}
+				return [...t, toast];
+			});
 		},
-		[setToasts]
+		[]
 	);
 
 	const deleteToast = (id) => {
-		setToasts(toasts => toasts.filter(e => e.id !== id));
+		setToasts((t) => t.filter(e => e.id !== id));
 	};
 
 	return (

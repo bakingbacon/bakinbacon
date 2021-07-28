@@ -15,7 +15,7 @@ import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
 const DelegateRegister = (props) => {
 
-	const { delegate, didEnterRegister } = props;
+	const { delegate, didEnterRegistration } = props;
 
 	const [ step, setStep ] = useState(0);
 	const [ alert, setAlert ] = useState({})
@@ -25,7 +25,7 @@ const DelegateRegister = (props) => {
 
 	useEffect(() => {
 
-		didEnterRegister();  // Tell parent we are in here
+		didEnterRegistration();  // Tell parent we are in here
 
 		// If not registered, fetch balance every 5min
 		fetchBalanceInfo();

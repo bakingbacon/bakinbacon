@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	MIN_BAKE_BALANCE            = 8001
+	MIN_BAKE_BALANCE = 8001
 )
 
 type BaconSlice struct {
@@ -42,10 +42,9 @@ type BaconClient struct {
 // Set from main at startup
 var (
 	timeBetweenBlocks int
-	globalShutdown chan interface{}
-	waitGroup *sync.WaitGroup
+	globalShutdown    chan interface{}
+	waitGroup         *sync.WaitGroup
 )
-
 
 func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
 
@@ -501,9 +500,9 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 	pkh := b.Signer.BakerPkh
 
 	proposalVote := rpc.Content{
-		Kind: rpc.PROPOSALS,
-		Source: pkh,
-		Period: period,
+		Kind:      rpc.PROPOSALS,
+		Source:    pkh,
+		Period:    period,
 		Proposals: []string{proposal},
 	}
 
@@ -532,4 +531,3 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 	// Success
 	return ophash, nil
 }
-

@@ -126,14 +126,14 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		Kind:  rpc.ENDORSEMENT,
 		Level: endorsingLevel,
 	}
-	
+
 	// Inner endorsement bytes
 	endorsementBytes, err := forge.Encode(block.Hash, endoContent)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Inner Endorsement")
 		return
 	}
-	
+
 	log.WithField("Bytes", endorsementBytes).Debug("Forged Inlined Endorsement")
 
 	// sign inner endorsement
@@ -142,7 +142,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		log.WithError(err).Error("Signer endorsement failure")
 		return
 	}
-	
+
 	// Outer endorsement
 	endoWithSlot := rpc.Content{
 		Kind: rpc.ENDORSEMENT_WITH_SLOT,
@@ -156,7 +156,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		},
 		Slot: allSlots[0],
 	}
-	
+
 	// Outer bytes
 	endoWithSlotBytes, err := forge.Encode(block.Hash, endoWithSlot)
 	if err != nil {
@@ -169,7 +169,6 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	//log.WithField("DecodedSig", signedInnerEndorsement.Signature).Debug("DECODED SIG")
 	//log.WithField("Signature", signedInnerEndorsement.EDSig).Debug("EDSIG")
 
-	// 
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():

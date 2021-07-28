@@ -50,7 +50,7 @@ func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
 		log.WithError(err).Error("Unable to open ledger")
 		return ledgerInfo, errors.Wrap(err, "Unable to open ledger")
 	}
-	defer ledger.Close()  // Cleanup USB comms
+	defer ledger.Close() // Cleanup USB comms
 
 	version, err := s.IsBakingApp(ledger)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
 	log.WithField("Version", ledgerInfo.Version).Info("Ledger Version")
 
 	// Check if ledger is already configured for baking
-	ledgerInfo.BipPath = DEFAULT_BIP_PATH;
+	ledgerInfo.BipPath = DEFAULT_BIP_PATH
 
 	bipPath, err := ledger.GetAuthorizedKeyPath()
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
 	// Check returned path from device
 	if bipPath != "" {
 		// Ledger is already setup for baking
-		ledgerInfo.PrevAuth = true;
+		ledgerInfo.PrevAuth = true
 		ledgerInfo.BipPath = bipPath
 	}
 
@@ -95,7 +95,7 @@ func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
 
 //
 // Ask ledger to display request for public key. User must press button to confirm.
-func (s *BaconSigner) ConfirmBakingPkh(pkh, bipPath string) (error) {
+func (s *BaconSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 
 	ledger, err := tezosLedger.Get()
 	if err != nil {

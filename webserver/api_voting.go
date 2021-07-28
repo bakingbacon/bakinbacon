@@ -27,7 +27,7 @@ func handleUpvote(w http.ResponseWriter, r *http.Request) {
 		apiError(errors.Wrap(err, "Cannot decode body for voting parameters"), w)
 		return
 	}
-	
+
 	proposal := k["p"].(string)
 	period := int(k["i"].(float64))
 

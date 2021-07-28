@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	SIGNER_WALLET    = 1
-	SIGNER_LEDGER    = 2
+	SIGNER_WALLET = 1
+	SIGNER_LEDGER = 2
 )
 
 type BaconSigner struct {
@@ -178,7 +178,7 @@ func (s *BaconSigner) LoadSigner(silent bool) error {
 		s.LedgerBipPath = authBipPath
 
 		if !silent {
-			log.WithFields(log.Fields{ "KeyPath": authBipPath, "PKH": pkh }).Debug("Ledger Baking Config")
+			log.WithFields(log.Fields{"KeyPath": authBipPath, "PKH": pkh}).Debug("Ledger Baking Config")
 		}
 	}
 
@@ -280,7 +280,7 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 
 	// Convert op bytes back to hex; anyone need this?
 	finalOpHex := hex.EncodeToString(opBytes)
-//	fmt.Println("ToSignBytes: ", opBytes)
+	//fmt.Println("ToSignBytes: ", opBytes)
 	fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig := ""

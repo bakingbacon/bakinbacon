@@ -26,7 +26,6 @@ const (
 	POW_LENGTH        int = 4
 )
 
-
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit

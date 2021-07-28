@@ -121,7 +121,6 @@ func (s *Storage) GetLedgerConfig() (string, string, error) {
 	return pkh, bipPath, err
 }
 
-
 // RPC
 func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 	var rpcId int = 0

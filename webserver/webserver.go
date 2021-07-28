@@ -39,7 +39,7 @@ func apiError(err error, w http.ResponseWriter) {
 }
 
 func apiReturnOk(w http.ResponseWriter) {
-	if err := json.NewEncoder(w).Encode(map[string]string{ "ok": "ok" }); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]string{"ok": "ok"}); err != nil {
 		log.WithError(err).Error("UI Return Encode Failure")
 	}
 }

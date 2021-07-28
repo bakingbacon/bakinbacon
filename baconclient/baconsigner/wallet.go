@@ -1,7 +1,6 @@
 package baconsigner
 
 import (
-
 	"github.com/pkg/errors"
 
 	gtks "github.com/bakingbacon/go-tezos/v4/keys"

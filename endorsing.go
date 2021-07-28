@@ -86,8 +86,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Continue since we have at least 1 endorsing right
-	networkConstants := bc.Current.CurrentConstants()
-	requiredBond := networkConstants.EndorsementSecurityDeposit
+	requiredBond := networkConstants[network].EndorsementSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")

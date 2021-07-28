@@ -129,9 +129,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	priority := bakingRight.Priority
-	networkConstants := bc.Current.CurrentConstants()
-	timeBetweenBlocks := int(networkConstants.TimeBetweenBlocks[0])
-	blocksPerCommitment := networkConstants.BlocksPerCommitment
+	timeBetweenBlocks := networkConstants[network].TimeBetweenBlocks
+	blocksPerCommitment := networkConstants[network].BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -146,7 +145,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Check if we have enough bond to cover the bake
-	requiredBond := networkConstants.BlockSecurityDeposit
+	requiredBond := networkConstants[network].BlockSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -497,7 +496,7 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
 	// log.WithField("PO", protocolOffset).Debug("OFFSET")
 
-	powThreshold := bc.Current.CurrentConstants().ProofOfWorkThreshold
+	powThreshold := networkConstants[network].ProofOfWorkThreshold
 
 	var attempts int
 	for attempts = 0; attempts < 1e7; attempts++ {

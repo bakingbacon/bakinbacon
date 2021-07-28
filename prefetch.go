@@ -188,5 +188,5 @@ func fetchBakingRights(nextCycle int) {
 }
 
 func getCycleFromLevel(l int) int {
-	return int(l / bc.Current.CurrentConstants().BlocksPerCycle)
+	return int(l / networkConstants[network].BlocksPerCycle)
 }

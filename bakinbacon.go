@@ -19,6 +19,7 @@ var (
 	bc *baconclient.BaconClient
 
 	// Flags
+	network           string
 	logDebug          *bool
 	logTrace          *bool
 	dryRunEndorsement *bool
@@ -44,8 +45,16 @@ func main() {
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
 
+	// Network constants
+	log.WithFields(log.Fields{ //nolint:wsl
+		"PreservedCycles":       networkConstants[network].PreservedCycles,
+		"BlocksPerCycle":        networkConstants[network].BlocksPerCycle,
+		"BlocksPerRollSnapshot": networkConstants[network].BlocksPerRollSnapshot,
+		"BlocksPerCommitment":   networkConstants[network].BlocksPerCommitment,
+	}).Debug("Loaded Network Constants")
+
 	// Set up RPC polling-monitoring
-	bc, err = baconclient.New(shutdownChannel, &wg)
+	bc, err = baconclient.New(networkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Could not connect create BaconClient")
 	}
@@ -53,15 +62,6 @@ func main() {
 	// Web UI
 	wg.Add(1)
 	webserver.Start(bc, *webUiAddr, *webUiPort, shutdownChannel, &wg)
-
-	// Network constants
-	networkConstants := bc.Current.CurrentConstants()
-	log.WithFields(log.Fields{ //nolint:wsl
-		"PreservedCycles":       networkConstants.PreservedCycles,
-		"BlocksPerCycle":        networkConstants.BlocksPerCycle,
-		"BlocksPerRollSnapshot": networkConstants.BlocksPerRollSnapshot,
-		"BlocksPerCommitment":   networkConstants.BlocksPerCommitment,
-	}).Debug("Loaded Network Constants")
 
 	_, ctxCancel := context.WithCancel(context.Background())
 
@@ -146,6 +146,8 @@ func setupCloseChannel() chan interface{} {
 func parseArgs() {
 
 	// Args
+	network = *flag.String("network", "granadanet", "Which network to use: mainnet, granadanet")
+
 	logDebug = flag.Bool("debug", false, "Enable debug-level logging")
 	logTrace = flag.Bool("trace", false, "Enable trace-level logging")
 
@@ -156,6 +158,12 @@ func parseArgs() {
 	webUiPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
 
 	flag.Parse()
+
+	// Sanity
+	if network != NETWORK_MAINNET && network != NETWORK_GRANADANET {
+		flag.Usage()
+		os.Exit(1)
+	}
 }
 
 // tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs

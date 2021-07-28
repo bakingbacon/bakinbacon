@@ -18,7 +18,6 @@ import (
 
 const (
 	MIN_BAKE_BALANCE            = 8001
-	DEFAULT_TIME_BETWEEN_BLOCKS = 60
 )
 
 type BaconSlice struct {
@@ -38,20 +37,28 @@ type BaconClient struct {
 	Signer *baconsigner.BaconSigner
 
 	lock sync.Mutex
-
-	shutdown  chan interface{}
-	waitGroup *sync.WaitGroup
 }
 
-func New(globalShutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+// Set from main at startup
+var (
+	timeBetweenBlocks int
+	globalShutdown chan interface{}
+	waitGroup *sync.WaitGroup
+)
 
+
+func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+
+	timeBetweenBlocks = tbb
+	globalShutdown = shutdown
+	waitGroup = wg
+
+	// Make new client manager
 	newBaconClient := &BaconClient{
 		NewBlockNotifier: make(chan *rpc.Block, 1),
 		rpcClients:       make([]*BaconSlice, 0),
 		Status:           &BaconStatus{},
 		Signer:           baconsigner.New(),
-		shutdown:         globalShutdown,
-		waitGroup:        wg,
 	}
 
 	// Pull endpoints from storage
@@ -100,8 +107,8 @@ func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
 	b.rpcClients = append(b.rpcClients, newBaconSlice)
 
 	// Launch client
-	b.waitGroup.Add(1)
-	go b.blockWatch(newBaconSlice, b.shutdown, b.waitGroup)
+	waitGroup.Add(1)
+	go b.blockWatch(newBaconSlice)
 }
 
 func (b *BaconClient) ShutdownRpc(rpcId int) error {
@@ -109,33 +116,28 @@ func (b *BaconClient) ShutdownRpc(rpcId int) error {
 	newClients := make([]*BaconSlice, 0)
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
-	for _, r := range b.rpcClients {
-		if r.clientId == rpcId {
-			close(r.shutdown)
+	for _, bslice := range b.rpcClients {
+		if bslice.clientId == rpcId {
+			close(bslice.shutdown)
 		} else {
-			newClients = append(newClients, r) // save those that did not match
+			newClients = append(newClients, bslice) // save those that did not match
 		}
 	}
 
 	// new list with match removed
+	// TODO: Is this a memory leak?
 	b.rpcClients = newClients
 
 	return nil
 }
 
-func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interface{}, wg *sync.WaitGroup) {
+func (b *BaconClient) blockWatch(client *BaconSlice) {
 
-	defer wg.Done()
+	defer waitGroup.Done()
 
 	lostTicks := 0
 
 	// Get network constant time_between_blocks and set sleep-ticker to 25%
-	timeBetweenBlocks := DEFAULT_TIME_BETWEEN_BLOCKS
-	if client.isActive {
-		// If an active RPC, get TBB from network constants
-		// TODO: Update TBB once constants are loaded from inactive RPC
-		timeBetweenBlocks = client.CurrentConstants().TimeBetweenBlocks[0]
-	}
 	sleepTime := time.Duration(timeBetweenBlocks / 4)
 	ticker := time.NewTicker(sleepTime * time.Second)
 
@@ -172,16 +174,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 				block.Hash != b.Status.Hash {
 
 				lostTicks = 0
-
-				// If this client was previously inactive, update network constants.
-				// If unable to update network constants, client cannot become active
-				if !client.isActive {
-					if err := client.UpdateNetworkConstants(); err != nil {
-						log.WithField("Endpoint", client.Host).WithError(err).Error("Unable to update network constants")
-					} else {
-						client.isActive = true
-					}
-				}
+				client.isActive = true
 
 				if client.isActive {
 

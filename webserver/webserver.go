@@ -30,12 +30,18 @@ var (
 var staticUi embed.FS
 
 type ApiError struct {
-	Error string `json:"err"`
+	Error string `json:"error"`
 }
 
 func apiError(err error, w http.ResponseWriter) {
 	e, _ := json.Marshal(ApiError{err.Error()})
 	http.Error(w, string(e), http.StatusBadRequest)
+}
+
+func apiReturnOk(w http.ResponseWriter) {
+	if err := json.NewEncoder(w).Encode(map[string]string{ "ok": "ok" }); err != nil {
+		log.WithError(err).Error("UI Return Encode Failure")
+	}
 }
 
 func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
@@ -62,32 +68,33 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	})
 
 	apiRouter := router.PathPrefix("/api").Subrouter()
-
-	apiRouter.HandleFunc("/endpoints/add", addEndpoint).Methods("POST")
-	apiRouter.HandleFunc("/endpoints/list", listEndpoints)
-	apiRouter.HandleFunc("/endpoints/delete", deleteEndpoint).Methods("POST")
-
-	apiRouter.HandleFunc("/status", getStatus)
-	apiRouter.HandleFunc("/delegate", getDelegate).Methods("GET")
+	apiRouter.HandleFunc("/status", getStatus).Methods("GET")
 	apiRouter.HandleFunc("/delegate", setDelegate).Methods("POST")
+	apiRouter.HandleFunc("/health", getHealth).Methods("GET")
 
-	apiRouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewEncoder(w).Encode(map[string]bool{
-			"ok": true,
-		}); err != nil {
-			log.WithError(err).Error("Heath Check Failure")
-		}
-	})
+	// Settings tab
+	settingsRouter := apiRouter.PathPrefix("/settings").Subrouter()
+	settingsRouter.HandleFunc("/addendpoint", addEndpoint).Methods("POST")
+	settingsRouter.HandleFunc("/listendpoints", listEndpoints).Methods("GET")
+	settingsRouter.HandleFunc("/deleteendpoint", deleteEndpoint).Methods("POST")
 
-	// APIs dealing with the setup wizards
+	// Voting tab
+	votingRouter := apiRouter.PathPrefix("/voting").Subrouter()
+	votingRouter.HandleFunc("/upvote", handleUpvote).Methods("POST", "OPTIONS")
+
+	// Setup wizards
 	wizardRouter := apiRouter.PathPrefix("/wizard").Subrouter()
+	wizardRouter.HandleFunc("/testLedger", testLedger)
+	wizardRouter.HandleFunc("/confirmBakingPkh", confirmBakingPkh)
 	wizardRouter.HandleFunc("/generateNewKey", generateNewKey)
 	wizardRouter.HandleFunc("/importKey", importSecretKey).Methods("POST", "OPTIONS")
-	wizardRouter.HandleFunc("/registerbaker", registerBaker).Methods("POST", "OPTIONS")
-	wizardRouter.HandleFunc("/finish", finishWizard)
+	wizardRouter.HandleFunc("/registerBaker", registerBaker).Methods("POST", "OPTIONS")
+	wizardRouter.HandleFunc("/finishwallet", finishWalletWizard)
 
+	// For static content (js, images)
 	router.PathPrefix("/static/").Handler(http.FileServer(http.FS(contentStatic)))
 
+	// Make the http server
 	httpAddr := fmt.Sprintf("%s:%d", bindAddr, bindPort)
 	httpSvr = &http.Server{
 		Handler: handlers.CORS(

@@ -15,134 +15,37 @@ import (
 )
 
 //
-// Generate new key
-// Save generated key to database, and set signer type to wallet
-// ------------------------------------------------------------------------------------
-func generateNewKey(w http.ResponseWriter, r *http.Request) {
+// Dummy health check
+func getHealth(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - generateNewKey")
+	log.Debug("API - health")
 
-	// Generate new key temporarily
-	newEdsk, newPkh, err := baconClient.Signer.GenerateNewKey()
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot generate new key"), w)
-		return
-	}
-
-	log.WithField("PKH", newPkh).Info("Generated new key-pair")
-
-	// Return back to UI
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"edsk": newEdsk,
-		"pkh":  newPkh,
+	if err := json.NewEncoder(w).Encode(map[string]bool{
+		"ok": true,
 	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-//
-// Import a secret key
-// Save imported key to database, and set signer type to wallet
-// ------------------------------------------------------------------------------------
-
-func importSecretKey(w http.ResponseWriter, r *http.Request) {
-
-	log.Debug("API - importSecretKey")
-
-	// CORS crap; Handle OPTION preflight check
-	if r.Method == http.MethodOptions {
-		return
-	}
-
-	var k map[string]string
-
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot decode body for secret key import"), w)
-		return
-	}
-
-	// Imports key temporarily
-	edsk, pkh, err := baconClient.Signer.ImportSecretKey(k["edsk"])
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot import secret key"), w)
-		return
-	}
-
-	log.WithField("PKH", pkh).Info("Imported secret key-pair")
-
-	// Return back to UI
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"edsk": edsk,
-		"pkh":  pkh,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-//
-// Call baconClient.RegisterBaker() to construct and inject registration operation.
-// This will also check if reveal is needed.
-// ------------------------------------------------------------------------------------
-func registerBaker(w http.ResponseWriter, r *http.Request) {
-
-	log.Debug("API - registerbaker")
-
-	// CORS crap; Handle OPTION preflight check
-	if r.Method == http.MethodOptions {
-		return
-	}
-
-	opHash, err := baconClient.RegisterBaker()
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot register baker"), w)
-		return
-	}
-
-	log.WithFields(log.Fields{
-		"OpHash": opHash,
-	}).Info("Injected registration operation")
-
-	// Return to UI
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"ophash": opHash,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-//
-// Finish wizard
-// This API saves the generated, or imported, secret key to the DB and saves the signer method
-func finishWizard(w http.ResponseWriter, r *http.Request) {
-
-	log.Debug("API - FinishWizard")
-
-	if err := baconClient.Signer.SaveKeyWalletTypeToDB(); err != nil {
-		apiError(errors.Wrap(err, "Cannot save key/wallet to db"), w)
-		return
-	}
-
-	// Return to UI
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"ok": "ok",
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
+		log.WithError(err).Error("Heath Check Failure")
 	}
 }
 
 //
 // Get current status
-// ------------------------------------------------------------------------------------
 func getStatus(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - GetStatus")
 
+	_, pkh, err := storage.DB.GetDelegate()
+	if err != nil {
+		apiError(errors.Wrap(err, "Cannot get delegate"), w)
+		return
+	}
+
 	s := struct {
 		*baconclient.BaconStatus
-		Ts int64 `json:"ts"`
+		Delegate string `json:"pkh"`
+		Ts       int64  `json:"ts"`
 	}{
 		baconClient.Status,
+		pkh,
 		time.Now().Unix(),
 	}
 
@@ -152,28 +55,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 //
-// Get the address of the delegate
-// ------------------------------------------------------------------------------------
-func getDelegate(w http.ResponseWriter, r *http.Request) {
-
-	_, pkh, err := storage.DB.GetDelegate()
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot get delegate"), w)
-		return
-	}
-
-	log.WithField("Delegate", pkh).Debug("API - GetDelegate")
-
-	if err := json.NewEncoder(w).Encode(map[string]string{
-		"pkh": pkh,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-//
 // Set delegate (from UI config)
-// ------------------------------------------------------------------------------------
 func setDelegate(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -192,102 +74,5 @@ func setDelegate(w http.ResponseWriter, r *http.Request) {
 
 	log.WithField("PKH", pkh).Debug("API - SetDelegate")
 
-	if err := json.NewEncoder(w).Encode(map[string]bool{
-		"ok": true,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-//
-// Adding, Listing, Deleting endpoints
-// ------------------------------------------------------------------------------------
-
-func addEndpoint(w http.ResponseWriter, r *http.Request) {
-
-	log.Trace("API - addEndpoint")
-
-	var k map[string]string
-
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot decode body for rpc add"), w)
-		return
-	}
-
-	// Save new RPC to db to get id
-	id, err := storage.DB.AddRPCEndpoint(k["rpc"])
-	if err != nil {
-		log.WithError(err).WithField("Endpoint", k).Error("API AddEndpoint")
-		apiError(errors.Wrap(err, "Cannot add endpoint to DB"), w)
-
-		return
-	}
-
-	// Init new bacon watcher for this RPC
-	baconClient.AddRpc(id, k["rpc"])
-
-	log.WithField("Endpoint", k["rpc"]).Debug("API Added Endpoint")
-
-	if err := json.NewEncoder(w).Encode(map[string]bool{
-		"ok": true,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-func listEndpoints(w http.ResponseWriter, r *http.Request) {
-
-	log.Trace("API - listEndpoints")
-
-	endpoints, err := storage.DB.GetRPCEndpoints()
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
-		return
-	}
-
-	log.WithField("Endpoints", endpoints).Debug("API List Endpoints")
-
-	if err := json.NewEncoder(w).Encode(map[string]map[int]string{
-		"endpoints": endpoints,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-func deleteEndpoint(w http.ResponseWriter, r *http.Request) {
-
-	log.Trace("API - deleteEndpoint")
-
-	var k map[string]int
-
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
-		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
-		return
-	}
-
-	// Need to shutdown the RPC client first
-	if e := baconClient.ShutdownRpc(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
-		apiError(errors.Wrap(err, "Cannot shutdown RPC client for deletion"), w)
-
-		return
-	}
-
-	// Then delete from storage
-	if e := storage.DB.DeleteRPCEndpoint(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
-		apiError(errors.Wrap(err, "Cannot delete endpoint from DB"), w)
-
-		return
-	}
-
-	log.WithField("Endpoint", k["rpc"]).Debug("API Deleted Endpoint")
-
-	if err := json.NewEncoder(w).Encode(map[string]bool{
-		"ok": true,
-	}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
+	apiReturnOk(w)
 }

@@ -71,7 +71,7 @@ const DelegateRegister = (props) => {
 
 		setIsLoading(true);
 
-		const balanceUrl = "http://florencenet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + delegate
+		const balanceUrl = "http://granadanet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/contracts/" + delegate
 		apiRequest(balanceUrl)
 		.then((data) => {
 			setBalance((parseInt(data.balance, 10) / 1e6).toFixed(1));

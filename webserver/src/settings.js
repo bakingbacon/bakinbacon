@@ -8,7 +8,7 @@ import ListGroup from 'react-bootstrap/ListGroup';
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
-import { BASE_URL, CHAINID_FLORENCENET, apiRequest } from './util.js';
+import { BASE_URL, CHAINID_GRANADANET, apiRequest } from './util.js';
 
 
 const Settings = (props) => {
@@ -67,8 +67,8 @@ const Settings = (props) => {
 		apiRequest(rpcToAdd + "/chains/main/blocks/head/header")
 		.then((data) => {
 			const chainId = data.chain_id;
-			if (chainId !== CHAINID_FLORENCENET) {
-				throw new Error("RPC chain ("+chainId+") does not match "+CHAINID_FLORENCENET+". Please use a correct RPC server.");
+			if (chainId !== CHAINID_GRANADANET) {
+				throw new Error("RPC chain ("+chainId+") does not match "+CHAINID_GRANADANET+". Please use a correct RPC server.");
 			}
 
 			// RPC is good! Add it via API.

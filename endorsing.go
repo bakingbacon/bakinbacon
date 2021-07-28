@@ -119,7 +119,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
 
-	// Florence requires the lowest slot be submitted
+	// 009 requires the lowest slot be submitted
 	sort.Ints(allSlots)
 
 	// Inner endorsement; forge and sign

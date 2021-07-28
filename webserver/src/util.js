@@ -13,8 +13,9 @@ export const NOT_REGISTERED = "noreg"
 
 export const BASE_URL = "http://10.10.10.203:8082"
 
-export const CHAINID_MAINNET = "NetXdQprcVkpaWU";
+export const CHAINID_MAINNET     = "NetXdQprcVkpaWU";
 export const CHAINID_FLORENCENET = "NetXxkAx4woPLyu";
+export const CHAINID_GRANADANET  = "NetXz969SFaFn8k";
 
 
 // Copied from https://github.com/github/fetch/issues/203#issuecomment-266034180

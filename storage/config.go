@@ -10,6 +10,7 @@ import (
 
 const (
 	PUBLIC_KEY_HASH = "pkh"
+	BIP_PATH        = "bippath"
 	SIGNER_TYPE     = "signertype"
 	SIGNER_SK       = "signersk"
 )
@@ -81,6 +82,47 @@ func (s *Storage) SetSignerSk(sk string) error {
 	})
 }
 
+// Ledger
+func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+
+		b := tx.Bucket([]byte(CONFIG_BUCKET))
+
+		// Save signer type as ledger
+		if err := b.Put([]byte(SIGNER_TYPE), itob(ledgerType)); err != nil {
+			return err
+		}
+
+		// Save PKH
+		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
+			return err
+		}
+
+		// Save BipPath
+		if err := b.Put([]byte(BIP_PATH), []byte(bipPath)); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (s *Storage) GetLedgerConfig() (string, string, error) {
+
+	var pkh, bipPath string
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(CONFIG_BUCKET))
+		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
+		bipPath = string(b.Get([]byte(BIP_PATH)))
+		return nil
+	})
+
+	return pkh, bipPath, err
+}
+
+
+// RPC
 func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 	var rpcId int = 0
 

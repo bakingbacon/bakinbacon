@@ -112,7 +112,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Any unrevealed nonces?
 	if len(unrevealedNonces) == 0 {
-		log.Trace("No nonces to reveal")
+		log.WithField("Cycle", previousCycle).Info("No nonces to reveal")
 		return
 	}
 
@@ -142,23 +142,17 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
-		// Sign using http(s) signer
-		signedNonceReveal, err := bc.Signer.SignNonce(nonceRevelationBytes, block.ChainID)
-		if err != nil {
-			log.WithError(err).Error("Signer nonce failure")
+//		// Sign using http(s) signer
+//		signedNonceReveal, err := bc.Signer.SignNonce(nonceRevelationBytes, "NetXdQprcVkpaWU")
+//		if err != nil {
+//			log.WithError(err).Error("Signer nonce failure")
+//
+//			continue
+//		}
+//
+//		log.WithField("Signature", signedNonceReveal.EDSig).Debug("Signed Nonce Reveal")
 
-			continue
-		}
-
-		log.WithField("Signature", signedNonceReveal.EDSig).Debug("Signed Nonce Reveal")
-
-		// Go-Tezos Wallet
-		// signedNonceReveal, err := wallet.SignEndorsementOperation(forgedNonceRevealBytes, block.ChainID)
-		// if err != nil {
-		// 	log.WithError(err).Error("Could not sign nonce reveal bytes")
-		// 	continue
-		// }
-
+		// Build preapply
 		preapplyNonceRevealOp := rpc.PreapplyOperationsInput{
 			BlockID: &hashBlockID,
 			Operations: []rpc.Operations{
@@ -168,7 +162,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 						nonceRevelation,
 					},
 					Protocol:  block.Protocol,
-					Signature: signedNonceReveal.EDSig,
+//					Signature: signedNonceReveal.EDSig,
 				},
 			},
 		}
@@ -196,7 +190,8 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// Inject nonce reveal op
 		injectionInput := rpc.InjectionOperationInput{
-			Operation: signedNonceReveal.SignedOperation,
+//			Operation: signedNonceReveal.SignedOperation,
+			Operation: nonceRevelationBytes,
 		}
 
 		resp, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)

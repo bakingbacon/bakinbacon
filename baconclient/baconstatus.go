@@ -31,7 +31,7 @@ type BaconStatus struct {
 	PreviousBakeHash  string `json:"pbh"`
 
 	State    string `json:"state"`
-	ErrorMsg string `json:"err"`
+	ErrorMsg string `json:"error"`
 }
 
 func (b *BaconStatus) SetNextEndorsement(level, cycle int) {

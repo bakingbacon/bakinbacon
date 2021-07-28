@@ -148,7 +148,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 
 		if lostTicks > 4 {
 			log.WithField("Endpoint", client.Host).Warn("Lost Sync, Marking inactive")
-			// TODO: inactive status
+			client.isActive = false
 		}
 
 		// watch for new head block
@@ -165,6 +165,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 			// If just fetched block is current with others, then this client
 			// is in sync with other clients.
 			if b.Status.Level == block.Metadata.Level.Level {
+
 				lostTicks = 0
 
 			} else if block.Metadata.Level.Level > b.Status.Level &&
@@ -172,28 +173,41 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 
 				lostTicks = 0
 
-				// notify new block
-				b.NewBlockNotifier <- block
-
-				b.lock.Lock()
-				b.Status.Hash = block.Hash
-				b.Status.Level = block.Metadata.Level.Level
-				b.Status.Cycle = block.Metadata.Level.Cycle
-				b.Status.CyclePosition = block.Metadata.Level.CyclePosition
-
-				if b.Current != client {
-					log.WithField("Endpoint", client.Host).Warn("Switched active RPC")
-					b.Current = client
+				// If this client was previously inactive, update network constants.
+				// If unable to update network constants, client cannot become active
+				if !client.isActive {
+					if err := client.UpdateNetworkConstants(); err != nil {
+						log.WithField("Endpoint", client.Host).WithError(err).Error("Unable to update network constants")
+					} else {
+						client.isActive = true
+					}
 				}
 
-				b.lock.Unlock()
+				if client.isActive {
 
-				log.WithFields(log.Fields{
-					"Cycle":   block.Metadata.Level.Cycle,
-					"Level":   block.Metadata.Level.Level,
-					"Hash":    block.Hash,
-					"ChainID": block.ChainID,
-				}).Info("New Block")
+					// notify new block
+					b.NewBlockNotifier <- block
+
+					b.lock.Lock()
+					b.Status.Hash = block.Hash
+					b.Status.Level = block.Metadata.Level.Level
+					b.Status.Cycle = block.Metadata.Level.Cycle
+					b.Status.CyclePosition = block.Metadata.Level.CyclePosition
+
+					if b.Current != client {
+						log.WithField("Endpoint", client.Host).Warn("Switched active RPC")
+						b.Current = client
+					}
+
+					b.lock.Unlock()
+
+					log.WithFields(log.Fields{
+						"Cycle":   block.Metadata.Level.Cycle,
+						"Level":   block.Metadata.Level.Level,
+						"Hash":    block.Hash,
+						"ChainID": block.ChainID,
+					}).Info("New Block")
+				}
 
 			} else {
 				log.WithFields(log.Fields{
@@ -217,21 +231,20 @@ func (b *BaconClient) blockWatch(client *BaconSlice, globalShutdown chan interfa
 	}
 }
 
-func (b *BaconClient) CanBake() bool {
+func (b *BaconClient) CanBake(silentChecks bool) bool {
 
-	// Passed these checks before? No need to check every new block.
-	if b.Status.State == CAN_BAKE {
-		return true
-	}
-
-	// Seems we cannot bake; Run through list of checks.
-
-	// Check that signer configuration is good
-	if err := b.Signer.SignerStatus(); err != nil {
+	// Always check status of signer, especially important for Ledger
+	if err := b.Signer.SignerStatus(silentChecks); err != nil {
 		b.Status.SetState(NO_SIGNER)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking signer status")
 		return false
+	}
+
+	// The remaining checks of being registered with Tezos network, and having
+	// an appropriate balance happen on startup and can be cached
+	if b.Status.State == CAN_BAKE {
+		return true
 	}
 
 	// Registered as baker?
@@ -453,7 +466,7 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 	registrationOp := rpc.Content{
 		Kind:         rpc.DELEGATION,
 		Source:       pkh,
-		Fee:          "358",
+		Fee:          "359",
 		Counter:      strconv.Itoa(counter),
 		GasLimit:     "1100",
 		StorageLimit: "0",
@@ -489,3 +502,41 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 	// Success
 	return ophash, nil
 }
+
+func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error) {
+
+	pkh := b.Signer.BakerPkh
+
+	proposalVote := rpc.Content{
+		Kind: rpc.PROPOSALS,
+		Source: pkh,
+		Period: period,
+		Proposals: []string{proposal},
+	}
+
+	log.WithField("RPC", proposalVote).Debug("RPC-PROPOSAL")
+
+	encodedOperation, err := forge.Encode(b.Status.Hash, proposalVote)
+	if err != nil {
+		return "", err
+	}
+
+	// Sign the operation
+	signerResult, err := b.Signer.SignProposalVote(encodedOperation)
+	if err != nil {
+		return "", errors.Wrap(err, "Unable to sign upvote")
+	}
+
+	//
+	// Inject operation
+	_, ophash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
+		Operation: signerResult.SignedOperation,
+	})
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to inject proposal upvote")
+	}
+
+	// Success
+	return ophash, nil
+}
+

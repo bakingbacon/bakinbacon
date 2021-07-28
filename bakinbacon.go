@@ -65,6 +65,9 @@ func main() {
 
 	_, ctxCancel := context.WithCancel(context.Background())
 
+	// Run checks against our address; silent mode = false
+	_ = bc.CanBake(false)
+
 	// Update bacon-status with most recent bake/endorse info
 	updateRecentBaconStatus()
 
@@ -83,7 +86,8 @@ func main() {
 			ctx, ctxCancel = context.WithCancel(context.Background())
 
 			// If we can't bake, no need to do try and do anything else
-			if !bc.CanBake() {
+			// This check is silent = true on success
+			if !bc.CanBake(true) {
 				continue
 			}
 

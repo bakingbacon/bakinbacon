@@ -33,10 +33,10 @@ func (s *Storage) GetNoncesForCycle(cycle int) ([]nonce.Nonce, error) {
 	// Get back all nonces for cycle
 	var nonces []nonce.Nonce
 
-	err := s.db.View(func(tx *bolt.Tx) error {
-		cb := tx.Bucket([]byte(NONCE_BUCKET)).Bucket(itob(cycle))
-		if cb == nil {
-			return errors.New("No cycle bucket found")
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		cb, err := tx.Bucket([]byte(NONCE_BUCKET)).CreateBucketIfNotExists(itob(cycle))
+		if err != nil {
+			return errors.Wrap(err, "Unable to create nonce-cycle bucket")
 		}
 		c := cb.Cursor()
 

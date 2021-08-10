@@ -279,9 +279,9 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	opBytes = append(opBytes, incOpBytes...)
 
 	// Convert op bytes back to hex; anyone need this?
-	finalOpHex := hex.EncodeToString(opBytes)
+	//finalOpHex := hex.EncodeToString(opBytes)
 	//fmt.Println("ToSignBytes: ", opBytes)
-	fmt.Println("ToSignByHex: ", finalOpHex)
+	//fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig := ""
 

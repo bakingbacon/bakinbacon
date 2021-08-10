@@ -10,6 +10,7 @@ const (
 )
 
 type BaconStatus struct {
+	Network       string `json:"net"`
 	Hash          string `json:"hash"`
 	Level         int    `json:"level"`
 	Cycle         int    `json:"cycle"`

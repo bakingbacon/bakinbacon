@@ -74,6 +74,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 
 	// Settings tab
 	settingsRouter := apiRouter.PathPrefix("/settings").Subrouter()
+	settingsRouter.HandleFunc("/", getSettings).Methods("GET")
 	settingsRouter.HandleFunc("/addendpoint", addEndpoint).Methods("POST")
 	settingsRouter.HandleFunc("/listendpoints", listEndpoints).Methods("GET")
 	settingsRouter.HandleFunc("/deleteendpoint", deleteEndpoint).Methods("POST")

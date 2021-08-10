@@ -1,20 +1,15 @@
 package util
 
 import (
-	"encoding/hex"
+	_ "encoding/hex"
 	"strings"
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/blake2b"
 )
 
-func CryptoGenericHash(buffer string, watermark []byte) ([]byte, error) {
-
-	// Convert hex buffer to bytes
-	bufferBytes, err := hex.DecodeString(buffer)
-	if err != nil {
-		return []byte{0}, errors.Wrap(err, "Unable to hex decode buffer bytes")
-	}
+//func CryptoGenericHash(buffer string, watermark []byte) ([]byte, error) {
+func CryptoGenericHash(bufferBytes []byte, watermark []byte) ([]byte, error) {
 
 	if len(watermark) > 0 {
 		bufferBytes = append(watermark, bufferBytes...)

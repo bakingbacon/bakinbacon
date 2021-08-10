@@ -12,12 +12,13 @@ import (
 const (
 	DATABASE_FILE = "bakinbacon.db"
 
-	BAKING_BUCKET    = "bakes"
-	ENDORSING_BUCKET = "endorses"
-	NONCE_BUCKET     = "nonces"
-	CONFIG_BUCKET    = "config"
-	RIGHTS_BUCKET    = "rights"
-	ENDPOINTS_BUCKET = "endpoints"
+	BAKING_BUCKET        = "bakes"
+	ENDORSING_BUCKET     = "endorses"
+	NONCE_BUCKET         = "nonces"
+	CONFIG_BUCKET        = "config"
+	RIGHTS_BUCKET        = "rights"
+	ENDPOINTS_BUCKET     = "endpoints"
+	NOTIFICATIONS_BUCKET = "notifs"
 )
 
 type Storage struct {
@@ -47,6 +48,12 @@ func init() {
 			return fmt.Errorf("Cannot create endpoints bucket: %s", err)
 		}
 
+		// Nested bucket inside config
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NOTIFICATIONS_BUCKET)); err != nil {
+			return fmt.Errorf("Cannot create notifications bucket: %s", err)
+		}
+
+		//
 		// Root buckets
 		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
 			return fmt.Errorf("Cannot create endorsing bucket: %s", err)

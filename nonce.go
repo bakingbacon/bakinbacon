@@ -40,7 +40,7 @@ func generateNonce() (nonce.Nonce, error) {
 
 	seed := hex.EncodeToString(randBytes)[:64]
 
-	seedHash, err := util.CryptoGenericHash(seed, []byte{})
+	seedHash, err := util.CryptoGenericHash(randBytes, []byte{})
 	if err != nil {
 		log.WithError(err).Error("Unable to hash seed for nonce")
 		return nonce.Nonce{}, err

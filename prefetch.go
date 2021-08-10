@@ -188,5 +188,16 @@ func fetchBakingRights(nextCycle int) {
 }
 
 func getCycleFromLevel(l int) int {
-	return int(l / networkConstants[network].BlocksPerCycle)
+
+	gal := networkConstants[network].GranadaActivationLevel
+	gac := networkConstants[network].GranadaActivationCycle
+
+	// If level is before Granada activation, calculation is simple
+	if l <= gal {
+		return int(l / networkConstants[network].BlocksPerCycle)
+	}
+
+	// If level is after Granada activation, must take in to account the
+	// change in number of blocks per cycle
+	return int(((l - gal) / networkConstants[network].BlocksPerCycle) + gac)
 }

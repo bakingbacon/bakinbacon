@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	MAX_BAKE_PRIORITY int = 4
+	PROTOCOL_BB10       string = "42423130"
+	MAX_BAKE_PRIORITY   int    = 4
 
-	PRIORITY_LENGTH   int = 2
-	POW_HEADER_LENGTH int = 4
-	POW_LENGTH        int = 4
+	PRIORITY_LENGTH     int    = 2
+	POW_HEADER_LENGTH   int    = 4
+	POW_LENGTH          int    = 4
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -210,6 +211,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// so we will keep fetching from the mempool until we get at least 24, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
+	minEndorsingPower := networkConstants[network].MinEndorsingPower
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -219,7 +221,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		BranchDelayed: true,
 	}
 
-	for time.Now().UTC().Before(endMempool) && endorsingPower < 24 {
+	for time.Now().UTC().Before(endMempool) && endorsingPower < minEndorsingPower {
 
 		// Sleep 5s to let mempool accumulate
 		log.Infof("Sleeping 5s for more endorsements and ops")
@@ -272,13 +274,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
-	_, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
+	resp, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
 		BlockID:        &hashBlockID,
 		Priority:       priority,
 		EndorsingPower: endorsingPower,
 	})
 	if err != nil {
-		log.WithError(err).Error("Unable to get minimal valid timestamp")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Error("Unable to get minimal valid timestamp")
 		return
 	}
 
@@ -304,11 +308,12 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	dummyProtocolData := rpc.PreapplyBlockProtocolData{
-		Protocol:         block.Protocol,
-		Priority:         priority,
-		ProofOfWorkNonce: "0000000000000000",
-		SeedNonceHash:    n.NonceHash,
-		Signature:        "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
+		Protocol:            block.Protocol,
+		Priority:            priority,
+		ProofOfWorkNonce:    "0000000000000000",
+		SeedNonceHash:       n.NonceHash,
+		LiquidityEscapeVote: false,
+		Signature:           "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 	}
 
 	preapplyBlockheader := rpc.PreapplyBlockInput{
@@ -326,9 +331,12 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	_, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
+	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
-		log.WithError(err).WithField("Resp", preapplyBlockResp).Error("Unable to preapply block")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Error("Unable to preapply block")
+
 		return
 	}
 
@@ -341,23 +349,23 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Start constructing the actual block with info that comes back from the preapply
 	shellHeader := preapplyBlockResp.ShellHeader
 
-	// Actual protocol data will be added during the POW loop
-	protocolData := createProtocolData(priority, "", "", "")
-	log.WithField("ProtocolData", protocolData).Trace("Preapply Shell")
+	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
+	protocolData := createProtocolData(priority, n.SeedHashHex)
+	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header
 	_, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
 		BlockID: &hashBlockID,
 		BlockHeader: rpc.ForgeBlockHeaderBody{
-			Level:          shellHeader.Level,
-			Proto:          shellHeader.Proto,
-			Predecessor:    shellHeader.Predecessor,
-			Timestamp:      shellHeader.Timestamp,
-			ValidationPass: shellHeader.ValidationPass,
-			OperationsHash: shellHeader.OperationsHash,
-			Fitness:        shellHeader.Fitness,
-			Context:        shellHeader.Context,
-			ProtocolData:   protocolData,
+			Level:               shellHeader.Level,
+			Proto:               shellHeader.Proto,
+			Predecessor:         shellHeader.Predecessor,
+			Timestamp:           shellHeader.Timestamp,
+			ValidationPass:      shellHeader.ValidationPass,
+			OperationsHash:      shellHeader.OperationsHash,
+			Fitness:             shellHeader.Fitness,
+			Context:             shellHeader.Context,
+			ProtocolData:        protocolData,
 		},
 	})
 	if err != nil {
@@ -367,27 +375,27 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header")
 
-	// Get just the forged block header
-	// TODO: Why subtract 22 positions?
+	// forged block header includes protocol_data and proof-of-work placeholder bytes
+	// protocol_data can sometimes contain seed_nonce_hash, so send the offset to powLoop
 	forgedBlock := forgedBlockHeader.Block
-	forgedBlock = forgedBlock[:len(forgedBlock)-22]
+	protocolDataLength := len(protocolData)
 
 	// Perform a lame proof-of-work computation
-	blockBytes, attempts, err := powLoop(forgedBlock, priority, n.SeedHashHex)
+	blockBytes, attempts, err := powLoop(forgedBlock, protocolDataLength)
 	if err != nil {
 		log.WithError(err).Error("Unable to POW!")
 		return
 	}
 
 	// POW done
-	log.WithField("Attempts", attempts).Debug("Proof-of-Work Complete")
-	log.WithField("Bytes", blockBytes).Trace("Proof-of-Work")
+	log.WithFields(log.Fields{
+		"Bytes": blockBytes, "Attempts": attempts,
+	}).Trace("Proof-of-Work Complete")
 
-	// Take blockbytes and sign it with signer
-	// TODO Attempt this more than once
+	// TODO Attempt to sign twice, short sleep in-between
 	signedBlock, err := bc.Signer.SignBlock(blockBytes, block.ChainID)
 	if err != nil {
-		log.WithError(err).Error("Signer block failure")
+		log.WithField("Attempt", attempts).WithError(err).Error("Failed to sign block")
 		return
 	}
 
@@ -474,19 +482,12 @@ func stampcheck(buf []byte) uint64 {
 	return value
 }
 
-func powLoop(forgedBlock string, priority int, seed string) (string, int, error) {
+func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
-	// Normally,
-	//  powHeader = 00                 bc0303
-	//              Protocol Revision  Git Hash
-	// But we are special,
-	//  42 42 31 30 = BB10 (BakinBacon v1.0)
-	newProtocolData := createProtocolData(priority, "42423130", "00000000", seed)
-
-	blockBytes := forgedBlock + newProtocolData
-	hashBuffer, _ := hex.DecodeString(blockBytes + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-
-	protocolOffset := (len(forgedBlock) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
+	hashBuffer, _ := hex.DecodeString(forgedBlock + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+	//protocolLength := PRIORITY_LENGTH + POW_HEADER_LENGTH + POW_LENGTH + 1 + 1
+	//protocolOffset := (len(forgedBlock)-12 / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
+	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
 
 	// log.WithField("PDD", newProtocolData).Debug("PDD")
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
@@ -510,7 +511,7 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 		}
 
 		// check the hash after manipulating
-		rr, err := util.CryptoGenericHash(hex.EncodeToString(hashBuffer), []byte{})
+		rr, err := util.CryptoGenericHash(hashBuffer, []byte{})
 		if err != nil {
 			return "", 0, errors.Wrap(err, "POW Unable to check hash")
 		}
@@ -528,7 +529,9 @@ func powLoop(forgedBlock string, priority int, seed string) (string, int, error)
 	return "", attempts, errors.New("POW exceeded safety limits")
 }
 
-func createProtocolData(priority int, powHeader, pow, seed string) string {
+// Create the `protocol_data` component of the block header (shell)
+// https://tezos.gitlab.io/shell/p2p_api.html#block-header-alpha-specific
+func createProtocolData(priority int, seed string) string {
 
 	// if (typeof seed == "undefined") seed = "";
 	// if (typeof pow == "undefined") pow = "";
@@ -548,11 +551,13 @@ func createProtocolData(priority int, powHeader, pow, seed string) string {
 		newSeed = "ff" + padEnd(seed, 64)
 	}
 
-	return fmt.Sprintf("%04x%s%s%s",
-		priority,
-		padEnd(powHeader, 8),
-		padEnd(pow, 8),
-		newSeed)
+	// Last byte is 'false' for liquidity_baking_escape_vote
+	return fmt.Sprintf("%04x%s%s%s%s",
+		priority,                 // 2-byte priority
+		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
+		padEnd("0", 8),           // 4-byte proof of work
+		newSeed,                  // seed presence flag + seed
+		"00")                     // LB escape vote
 }
 
 func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
@@ -668,6 +673,9 @@ func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc
 	//  }
 	// <<<<149: 200 OK
 	// 2
+
+	// TODO: Endorsing power is just the number of endorsing slots.
+	//       Fetch endorsing rights for this level, validate entry, increment power
 
 	var endorsingPower int
 

@@ -39,7 +39,7 @@ const BaconDashboard = (props) => {
 						<Card.Title>Level: {status.level}</Card.Title>
 						<Card.Subtitle className="mb-2 text-muted">Cycle: {status.cycle}</Card.Subtitle>
 						<Card.Subtitle className="mb-2 text-muted">Hash: {substr(status.hash)}</Card.Subtitle>
-						<ProgressBar now={(status.cycleposition / 2048) * 100} />
+						<ProgressBar now={(status.cycleposition / 4096) * 100} />
 					</Card.Body>
 				</Card>
 			</Col>

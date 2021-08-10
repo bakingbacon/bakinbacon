@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/baconclient"
+	"bakinbacon/notifications"
 	"bakinbacon/storage"
 	"bakinbacon/webserver"
 )
@@ -28,13 +29,15 @@ var (
 	webUiPort         *int
 )
 
+// TODO: Translations (https://www.transifex.com/bakinbacon/bakinbacon-core/content/)
+
 func main() {
 
 	// Used throughout main
 	var (
-		err error
-		wg  sync.WaitGroup
-		ctx context.Context
+		err   error
+		wg    sync.WaitGroup
+		ctx   context.Context
 	)
 
 	parseArgs()
@@ -44,6 +47,11 @@ func main() {
 
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
+
+	// Global Notifications handler
+	if err := notifications.New(); err != nil {
+		log.WithError(err).Error("Unable to load notifiers")
+	}
 
 	// Network constants
 	log.WithFields(log.Fields{ //nolint:wsl

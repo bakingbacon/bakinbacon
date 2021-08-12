@@ -11,8 +11,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const SEED string = "3c51b0c9f14eb473bd9affdd01b5429679a6e73c553cae76561ce08046510b09"
-
 func TestMain(m *testing.M) {
 
 	// Connect to node for tests
@@ -41,7 +39,7 @@ func TestPow(t *testing.T) {
 
 	forgedBytes := "000b28bc020aa7c9617eec24986aeabc2ee633a415e3353b83e10ca53d78896960890e9b0b000000005f63ab820466f3ae293bf159d678bea8eefffde4d12a2a6128d74d555f2356a71a485cf0620000001100000001010000000800000000000b28bb3ce664f245ce743c12a4f945a29db2e6363c50019ff3e0539e7c26849e245b83"
 
-	powBytes, attempts, err := powLoop(forgedBytes, 1, SEED)
+	powBytes, attempts, err := powLoop(forgedBytes, 1)
 	if err != nil {
 		t.Errorf("PowLoop Failed: %s", err)
 	}

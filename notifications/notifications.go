@@ -90,11 +90,9 @@ func (N *Notification) Send(notifier string, message string) error {
 		return N.Notifiers["telegram"].Send(message)
 	case "email":
 		return N.Notifiers["email"].Send(message)
-	default:
-		return errors.New("Unknown notification type")
 	}
 
-	return nil
+	return errors.New("Unknown notification type")
 }
 
 func (N *Notification) GetConfig() (json.RawMessage, error) {

@@ -9,11 +9,11 @@ import (
 )
 
 type NotifyEmail struct {
-	username  string `json:"username"`
-	password  string `json:"password"`
-	smtp_host string `json:"smtphost"`
-	smtp_port int    `json:"smtpport"`
-	enabled   bool   `json:"enabled"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	Smtp_host string `json:"smtphost"`
+	Smtp_port int    `json:"smtpport"`
+	Enabled   bool   `json:"enabled"`
 }
 
 func NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {

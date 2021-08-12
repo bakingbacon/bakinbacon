@@ -31,8 +31,6 @@ func (s *Storage) SaveNotifiersConfig(notifier string, config []byte) error {
 			return errors.New("Unable to locate notifications bucket")
 		}
 
-		b.Put([]byte(notifier), config)
-
-		return nil
+		return b.Put([]byte(notifier), config)
 	})
 }

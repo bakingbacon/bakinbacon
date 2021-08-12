@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -12,37 +13,38 @@ import (
 	"bakinbacon/storage"
 )
 
-//func saveNotification(w http.ResponseWriter, r *http.Request) {
-//
-//	log.Trace("API - saveNotification")
-//
-//	// {"type": "telegram", "chatId", "botApiKey"}
-//	// {"type": "email", "server:port", "username", "password"}
-//	var k map[string]string
-//
-//	err := json.NewDecoder(r.Body).Decode(&k)
-//	if err != nil {
-//		apiError(errors.Wrap(err, "Cannot decode body for notif test"), w)
-//		return
-//	}
-//
-//	if err := notifications.N.Configure(k); err != nil {
-//		log.WithError(err).Error("API TestNotification")
-//		apiError(errors.Wrap(err, "Failed to configure notifications"), w)
-//
-//		return
-//
-//	}
-//
-//	if err := notifications.N.Send("Test message from BakinBacon"); err != nil {
-//		log.WithError(err).Error("API TestNotification")
-//		apiError(errors.Wrap(err, "Failed to execute notifictation test"), w)
-//
-//		return
-//	}
-//
-//	apiReturnOk(w)
-//}
+func saveTelegram(w http.ResponseWriter, r *http.Request) {
+
+	log.Trace("API - saveTelegram")
+
+	// Read the POST body as a string
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.WithError(err).Error("API saveTelegram")
+		apiError(errors.Wrap(err, "Failed to parse body"), w)
+		return
+	}
+
+	// Send string to configure for JSON unmarshaling; make sure to save config to db
+	if err := notifications.N.Configure("telegram", body, true); err != nil {
+		log.WithError(err).Error("API saveTelegram")
+		apiError(errors.Wrap(err, "Failed to configure telegram"), w)
+		return
+	}
+
+	if err := notifications.N.Send("telegram", "Test message from BakinBacon"); err != nil {
+		log.WithError(err).Error("API saveTelegram")
+		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
+
+		return
+	}
+
+	apiReturnOk(w)
+}
+
+func saveEmail(w http.ResponseWriter, r *http.Request) {
+	apiReturnOk(w)
+}
 
 func getSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -62,10 +64,10 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
 		return
 	}
-	log.WithField("Notifications", notifications).Debug("API Settings Notifications")
+	log.WithField("Notifications", string(notifications)).Debug("API Settings Notifications")
 
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"endpoints": endpoints,
+		"endpoints":     endpoints,
 		"notifications": notifications,
 	}); err != nil {
 		log.WithError(err).Error("UI Return Encode Failure")

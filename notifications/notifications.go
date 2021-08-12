@@ -2,11 +2,10 @@ package notifications
 
 import (
 	"encoding/json"
-	"strconv"
 
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
+	//log "github.com/sirupsen/logrus"
 
 	"bakinbacon/storage"
 )
@@ -35,21 +34,15 @@ func New() error {
 
 func (N *Notification) LoadNotifiers() error {
 
-	nt := NotifTelegram{}
-	ne := NotifEmail{}
-
 	// Get telegram notifications config from DB, as []byte string
 	tConfig, err := storage.DB.GetNotifiersConfig("telegram")
 	if err != nil {
 		return errors.Wrap(err, "Unable to load telegram config")
 	}
 
-	// Unmarshal the byte-string to object
-	if tConfig != nil {
-		if err := json.Unmarshal(tConfig, &nt); err != nil {
-			return errors.Wrap(err, "Unable to unmarshal telegram config")
-		}
-		log.WithField("Config", nt).Info("Loaded telegram notifier")
+	// Configure telegram; Don't save what we just loaded
+	if err := N.Configure("telegram", tConfig, false); err != nil {
+		return errors.Wrap(err, "Unable to init telegram")
 	}
 
 	// Get email notifications config from DB
@@ -58,17 +51,48 @@ func (N *Notification) LoadNotifiers() error {
 		return errors.Wrap(err, "Unable to load email config")
 	}
 
-	// Unmarshal the byte-string to object
-	if eConfig != nil {
-		if err := json.Unmarshal(eConfig, &ne); err != nil {
-			return errors.Wrap(err, "Unable to unmarshal email config")
-		}
-		log.WithField("Config", ne).Info("Loaded email notifier")
+	// Configure email; Don't save what we just loaded
+	if err := N.Configure("email", eConfig, false); err != nil {
+		return errors.Wrap(err, "Unable to init email")
 	}
 
-	// Assign notifiers
-	N.Notifiers["telegram"] = nt
-	N.Notifiers["email"] = ne
+	return nil
+}
+
+func (N *Notification) Configure(notifier string, config []byte, saveconfig bool) error {
+
+	switch notifier {
+	case "telegram":
+		nt, err := NewTelegram(config, saveconfig)
+		if err != nil {
+			return err
+		}
+		N.Notifiers["telegram"] = nt
+
+	case "email":
+		ne, err := NewEmail(config, saveconfig)
+		if err != nil {
+			return err
+		}
+		N.Notifiers["email"] = ne
+
+	default:
+		return errors.New("Unknown notification type")
+	}
+
+	return nil
+}
+
+func (N *Notification) Send(notifier string, message string) error {
+
+	switch notifier {
+	case "telegram":
+		return N.Notifiers["telegram"].Send(message)
+	case "email":
+		return N.Notifiers["email"].Send(message)
+	default:
+		return errors.New("Unknown notification type")
+	}
 
 	return nil
 }
@@ -79,37 +103,4 @@ func (N *Notification) GetConfig() (json.RawMessage, error) {
 	// Return RawMessage so as not to double Marshal
 	bts, err := json.Marshal(N.Notifiers)
 	return json.RawMessage(bts), err
-}
-
-func (N *Notification) Configure(config map[string]string) error {
-
-	switch(config["type"]) {
-	case "telegram":
-
-		chatIds, ok := config["chatids"]
-		if !ok {
-			return errors.New("Missing chatids")
-		}
-
-		botKey, ok := config["botkey"]
-		if !ok {
-			return errors.New("Missing bot API key")
-		}
-
-		enabled, err := strconv.ParseBool(config["enabled"])
-		if err != nil {
-			return errors.New("Unable to parse enabled")
-		}
-
-		_, err = NewTelegram(chatIds, botKey, enabled)
-		if err != nil {
-			return err
-		}
-
-	case "email":
-	default:
-		return errors.New("Unknown notification type")
-	}
-
-	return nil
 }

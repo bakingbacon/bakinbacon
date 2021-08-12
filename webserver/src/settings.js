@@ -15,7 +15,7 @@ const Settings = (props) => {
 
 	const [newRpc, setNewRpc] = useState("");
 	const [rpcEndpoints, setRpcEndpoints] = useState({});
-	const [telegramConfig, setTelegramConfig] = useState({});
+	const [telegramConfig, setTelegramConfig] = useState({apikey:"", chatids:""})
 	const [emailConfig, setEmailConfig] = useState({});
 	const [isLoading, setIsLoading] = useState(true);
 	const addToast = useContext(ToasterContext);
@@ -33,8 +33,17 @@ const Settings = (props) => {
 		const apiUrl = BASE_URL + "/api/settings/";
 		apiRequest(apiUrl)
 		.then((data) => {
+
+			const tConfig = data.notifications.telegram;
+			if (tConfig.chatids == null) {
+				tConfig.chatids = []
+			}
+			tConfig.chatids = tConfig.chatids.join() // explode array into a string
+			if (Object.keys(tConfig).length !== 0) {
+				setTelegramConfig(tConfig)
+			}
+
 			setRpcEndpoints(data.endpoints || {});
-			setTelegramConfig(data.notifications.telegram || {})
 			setEmailConfig(data.notifications.email || {})
 		})
 		.catch((errMsg) => {
@@ -47,6 +56,59 @@ const Settings = (props) => {
 		})
 		.finally(() => {
 			setIsLoading(false);
+		})
+	}
+
+	const handleTelegramChange = (e) => {
+		const { name, value } = e.target;
+		setTelegramConfig((prev) => ({
+			...prev,
+			[name]: value
+		}));
+	}
+
+	const saveTelegram = (e) => {
+
+		// Validation first
+		const chatIds = telegramConfig.chatids.split(/[ ,]/);
+		for (let i = 0; i < chatIds.length; i++) {
+			chatIds[i] = Number(chatIds[i])  // Convert strings to int
+			if (isNaN(chatIds[i])) {
+				addToast({
+					title: "Invalid ChatId",
+					msg: "Telegram chatId must be a positive or negative number.",
+					type: "danger",
+					autohide: 6000,
+				});
+				return;
+			}
+		}
+
+		const botapikey = telegramConfig.apikey;
+		const regex = new RegExp(/\d{9}:[0-9A-Za-z_-]{35}/);
+		if (!regex.test(botapikey)) {
+			addToast({
+				title: "Invalid Bot API Key",
+				msg: "Provided API key does not match known pattern.",
+				type: "danger",
+				autohide: 6000,
+			});
+			return;
+		}
+
+		// Validations complete
+		const apiUrl = BASE_URL + "/api/settings/savetelegram"
+		const postData = {
+			chatids: chatIds,
+			apikey: botapikey,
+		};
+		handlePostAPI(apiUrl, postData).then(() => {
+			addToast({
+				title: "Save Telegram Success",
+				msg: "Saved Telegram config. You should receive a test message soon. If not, check your config values and save again.",
+				type: "success",
+				autohide: 3000,
+			});
 		})
 	}
 
@@ -77,7 +139,8 @@ const Settings = (props) => {
 
 			// RPC is good! Add it via API.
 			const apiUrl = BASE_URL + "/api/settings/addendpoint"
-			handlePostAPI(apiUrl, rpcToAdd).then(() => {
+			const postData = {rpc: rpcToAdd}
+			handlePostAPI(apiUrl, postData).then(() => {
 				addToast({
 					title: "RPC Success",
 					msg: "Added RPC Server",
@@ -115,14 +178,14 @@ const Settings = (props) => {
 		});
 	}
 
-	// Add, Delete RPC both use POST and only care if failure.
+	// Add/Delete RPC, and Save Telegram/Email RPCs use POST and only care if failure.
 	// On 200 OK, refresh settings
 	const handlePostAPI = (url, data) => {
 
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({rpc: data})
+			body: JSON.stringify(data)
 		};
 
 		return apiRequest(url, requestOptions)
@@ -187,14 +250,19 @@ const Settings = (props) => {
 		                <Form.Row>
 		                  <Form.Group as={Col}>
 		                    <Form.Text as="span">Chat Ids</Form.Text>
-                            <Form.Control type="text" value={telegramConfig.chatids}  />
+                            <Form.Control type="text" name="chatids" value={telegramConfig.chatids} onChange={handleTelegramChange} />
                             <Form.Text className="text-muted">Separate multiple chatIds with ','</Form.Text>
                           </Form.Group>
                         </Form.Row>
                         <Form.Row>
 		                  <Form.Group as={Col}>
 		                    <Form.Text as="span">Bot API Key</Form.Text>
-                            <Form.Control type="text" value={telegramConfig.apikey}  />
+                            <Form.Control type="text" name="apikey" value={telegramConfig.apikey} onChange={handleTelegramChange} />
+                          </Form.Group>
+                        </Form.Row>
+                        <Form.Row>
+                          <Form.Group as={Col}>
+                            <Button variant="primary" onClick={saveTelegram} type="button" size="sm">Save</Button>
                           </Form.Group>
                         </Form.Row>
 		              </Card.Body>
@@ -206,7 +274,6 @@ const Settings = (props) => {
 		            </Card>
 		          </Col>
 		        </Row>
-		      
 		      </Card.Body>
 		    </Card>
 		  </Col>

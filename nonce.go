@@ -157,20 +157,22 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			BlockID: &hashBlockID,
 			Operations: []rpc.Operations{
 				{
+					Protocol:  block.Protocol,
 					Branch: block.Hash,
 					Contents: rpc.Contents{
 						nonceRevelation,
 					},
-					Protocol:  block.Protocol,
-//					Signature: signedNonceReveal.EDSig,
+					Signature: "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 				},
 			},
 		}
 
 		// Validate the operation against the node for any errors
-		_, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
+		resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
-			log.WithError(err).Error("Could not preapply nonce reveal operation")
+			log.WithError(err).WithFields(log.Fields{
+				"Request": resp.Request.URL, "Response": string(resp.Body()),
+			}).Error("Could not preapply nonce reveal operation")
 
 			continue
 		}

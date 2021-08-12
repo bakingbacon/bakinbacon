@@ -350,7 +350,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
-	protocolData := createProtocolData(priority, n.SeedHashHex)
+	protocolData := createProtocolData(priority, n.NonceHash)
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header
@@ -484,22 +484,24 @@ func stampcheck(buf []byte) uint64 {
 
 func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
-	hashBuffer, _ := hex.DecodeString(forgedBlock + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-	//protocolLength := PRIORITY_LENGTH + POW_HEADER_LENGTH + POW_LENGTH + 1 + 1
-	//protocolOffset := (len(forgedBlock)-12 / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
-	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
+	// The hash buffer is the byte-decoded forged block, including shell and protocol data.
+	// Protocol data should include a 64 byte signature but at this point, we have not
+	// signed anything because we need to sign the proof-of-work result which is generated below.
+	//
+	// Since we can't sign something that we have not created, we append a dummy signature of
+	// all 0's so that the checksum of the entire block with PoW can be correctly compared
+	// against the network constant's proof of work threshold
 
-	// log.WithField("PDD", newProtocolData).Debug("PDD")
+	hashBuffer, _ := hex.DecodeString(forgedBlock + strings.Repeat("0", 128))
+	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
+	powThreshold := networkConstants[network].ProofOfWorkThreshold
+
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
-	// log.WithField("SH", seed).Debug("SEEDHEX")
-	// log.WithField("BB", blockBytes).Debug("BLOCKBYTES")
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
 	// log.WithField("PO", protocolOffset).Debug("OFFSET")
 
-	powThreshold := networkConstants[network].ProofOfWorkThreshold
-
-	var attempts int
-	for attempts = 0; attempts < 1e7; attempts++ {
+	attempts := 0
+	for ; attempts < 1e7; attempts++ {
 
 		for i := POW_LENGTH - 1; i >= 0; i-- {
 			if hashBuffer[protocolOffset+i] == 255 {
@@ -533,31 +535,24 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 // https://tezos.gitlab.io/shell/p2p_api.html#block-header-alpha-specific
 func createProtocolData(priority int, seed string) string {
 
-	// if (typeof seed == "undefined") seed = "";
-	// if (typeof pow == "undefined") pow = "";
-	// if (typeof powHeader == "undefined") powHeader = "";
-	// return priority.toString(16).padStart(4,"0") +
-	// powHeader.padEnd(8, "0") +
-	// pow.padEnd(8, "0") +
-	// (seed ? "ff" + seed.padEnd(64, "0") : "00") +
-	// '';
-
+	// Helper function for padding 0s
 	padEnd := func(s string, llen int) string {
 		return s + strings.Repeat("0", llen-len(s))
 	}
 
+	// If no seed_nonce_hash, set 00 (false)
+	// Otherwise, set ff (true) and append nonce hash
 	newSeed := "00"
 	if seed != "" {
 		newSeed = "ff" + padEnd(seed, 64)
 	}
 
-	// Last byte is 'false' for liquidity_baking_escape_vote
 	return fmt.Sprintf("%04x%s%s%s%s",
 		priority,                 // 2-byte priority
 		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
 		padEnd("0", 8),           // 4-byte proof of work
 		newSeed,                  // seed presence flag + seed
-		"00")                     // LB escape vote
+		"00")                     // 1-byte LB escape vote
 }
 
 func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {

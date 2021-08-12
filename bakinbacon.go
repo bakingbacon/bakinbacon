@@ -48,7 +48,7 @@ func main() {
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
 
-	// Global Notifications handler
+	// Global Notifications handler singleton
 	if err := notifications.New(); err != nil {
 		log.WithError(err).Error("Unable to load notifiers")
 	}

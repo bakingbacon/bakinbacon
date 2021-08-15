@@ -127,7 +127,7 @@ func fetchEndorsingRights(nextCycle int) {
 	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": resp.Body(),
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
 		}).Error("Unable to fetch next cycle endorsing rights")
 
 		return
@@ -159,7 +159,7 @@ func fetchBakingRights(nextCycle int) {
 	resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": resp.Body(),
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
 		}).Error("Unable to fetch next cycle baking rights")
 
 		return

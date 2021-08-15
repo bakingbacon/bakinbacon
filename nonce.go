@@ -37,23 +37,21 @@ func generateNonce() (nonce.Nonce, error) {
 		log.WithError(err).Error("Unable to read random bytes")
 		return nonce.Nonce{}, err
 	}
-
 	seed := hex.EncodeToString(randBytes)[:64]
 
-	seedHash, err := util.CryptoGenericHash(randBytes, []byte{})
+	nonceHash, err := util.CryptoGenericHash(randBytes, []byte{})
 	if err != nil {
 		log.WithError(err).Error("Unable to hash seed for nonce")
 		return nonce.Nonce{}, err
 	}
 
 	// B58 encode seed hash with nonce prefix
-	nonceHash := crypto.B58cencode(seedHash, nonce.Prefix_nonce)
-	seedHashHex := hex.EncodeToString(seedHash)
+	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
 
 	n := nonce.Nonce{
-		Seed:        seed,
-		NonceHash:   nonceHash,
-		SeedHashHex: seedHashHex,
+		Seed:         seed,
+		Nonce:        nonceHash,
+		EncodedNonce: encodedNonce,
 	}
 
 	return n, nil
@@ -76,15 +74,6 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if cyclePosition == 0 || cyclePosition > 256 {
 		return
 	}
-
-	// Debug nonce
-	// n := nonce.Nonce{
-	// 	Level: 817184,
-	// 	Seed: "27beb3170dceeff2b95e561f069cac55fa3d208a4b77711e58c5c1b807b01b43",
-	// 	NonceHash: "nceUeGTSCZsR2Hm3So9MEyVC89pikEoB3Bi85QC1qVo1L95cr7qEt",
-	// 	SeedHashHex: "37376a745e04d66d01a6552602fb6b7f87a51657f50edc8507a7490a72aee46d",
-	// }
-	// storage.DB.SaveNonce(399, n)
 
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
@@ -124,7 +113,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	for _, nonce := range unrevealedNonces {
 
 		log.WithFields(log.Fields{
-			"Level": nonce.Level, "Hash": nonce.NonceHash, "Seed": nonce.Seed,
+			"Level": nonce.Level, "Nonce": nonce.EncodedNonce, "Seed": nonce.Seed,
 		}).Info("Revealing nonce")
 
 		nonceRevelation := rpc.Content{

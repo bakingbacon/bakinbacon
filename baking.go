@@ -10,10 +10,12 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/bakingbacon/go-tezos/v4/forge"
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/nonce"
+	"bakinbacon/notifications"
 	"bakinbacon/storage"
 	"bakinbacon/util"
 )
@@ -200,7 +202,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 
 		log.WithFields(log.Fields{
-			"Nonce": n.NonceHash, "Seed": n.Seed,
+			"Nonce": n.EncodedNonce, "Seed": n.Seed,
 		}).Info("Nonce required at this level")
 
 		n.Level = nextLevelToBake
@@ -311,7 +313,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		Protocol:            block.Protocol,
 		Priority:            priority,
 		ProofOfWorkNonce:    "0000000000000000",
-		SeedNonceHash:       n.NonceHash,
+		SeedNonceHash:       n.EncodedNonce,
 		LiquidityEscapeVote: false,
 		Signature:           "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 	}
@@ -350,11 +352,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
-	protocolData := createProtocolData(priority, n.NonceHash)
+	protocolData := createProtocolData(priority, n.Nonce)
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
-	// Forge the block header
-	_, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
+	// Forge the block header using RPC
+	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
 		BlockID: &hashBlockID,
 		BlockHeader: rpc.ForgeBlockHeaderBody{
 			Level:               shellHeader.Level,
@@ -369,11 +371,31 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		},
 	})
 	if err != nil {
-		log.WithError(err).Error("Unable to forge block header")
+		log.WithError(err).WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Error("Unable to forge block header")
 		return
 	}
 
-	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header")
+	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
+
+	//
+	// Forge block header locally
+	newForgedBlock, err := forge.ForgeBlockShell(rpc.ForgeBlockHeaderBody{
+		Level:               shellHeader.Level,
+		Proto:               shellHeader.Proto,
+		Predecessor:         shellHeader.Predecessor,
+		Timestamp:           shellHeader.Timestamp,
+		ValidationPass:      shellHeader.ValidationPass,
+		OperationsHash:      shellHeader.OperationsHash,
+		Fitness:             shellHeader.Fitness,
+		Context:             shellHeader.Context,
+		ProtocolData:        protocolData,
+	})
+	if err != nil {
+		log.WithError(err).Error("Unable to locally forge block header")
+	}
+	log.WithField("Local", hex.EncodeToString(newForgedBlock)).Info("Locally Forged Block")
 
 	// forged block header includes protocol_data and proof-of-work placeholder bytes
 	// protocol_data can sometimes contain seed_nonce_hash, so send the offset to powLoop
@@ -441,7 +463,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Save nonce to DB for reveal in next cycle
-	if n.SeedHashHex != "" {
+	if n.EncodedNonce != "" {
 		if err := storage.DB.SaveNonce(block.Metadata.Level.Cycle, n); err != nil {
 			log.WithError(err).Error("Unable to save nonce for reveal")
 		}
@@ -449,6 +471,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Update status for UI
 	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
+
+	// Send notification
+	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d!", nextLevelToBake))
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {
@@ -533,7 +558,7 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
 // Create the `protocol_data` component of the block header (shell)
 // https://tezos.gitlab.io/shell/p2p_api.html#block-header-alpha-specific
-func createProtocolData(priority int, seed string) string {
+func createProtocolData(priority int, nonce []byte) string {
 
 	// Helper function for padding 0s
 	padEnd := func(s string, llen int) string {
@@ -542,16 +567,16 @@ func createProtocolData(priority int, seed string) string {
 
 	// If no seed_nonce_hash, set 00 (false)
 	// Otherwise, set ff (true) and append nonce hash
-	newSeed := "00"
-	if seed != "" {
-		newSeed = "ff" + padEnd(seed, 64)
+	newNonce := "00"
+	if len(nonce) > 0 {
+		newNonce = "ff" + padEnd(string(nonce), 64)
 	}
 
 	return fmt.Sprintf("%04x%s%s%s%s",
 		priority,                 // 2-byte priority
 		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
 		padEnd("0", 8),           // 4-byte proof of work
-		newSeed,                  // seed presence flag + seed
+		newNonce,                  // nonce presence flag + nonce
 		"00")                     // 1-byte LB escape vote
 }
 

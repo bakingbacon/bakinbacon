@@ -1,11 +1,14 @@
 package main
 
 import (
-	//	"encoding/hex"
+	"encoding/hex"
 	"os"
 	"testing"
 
-	//	"github.com/bakingbacon/go-tezos/v4/crypto"
+	"bakinbacon/util"
+	"bakinbacon/nonce"
+
+	"github.com/bakingbacon/go-tezos/v4/crypto"
 	"github.com/bakingbacon/go-tezos/v4/keys"
 
 	log "github.com/sirupsen/logrus"
@@ -21,6 +24,13 @@ func TestMain(m *testing.M) {
 
 	log.SetLevel(log.DebugLevel)
 
+	network = "granadanet"
+
+	os.Exit(m.Run())
+}
+
+func TestLoadingKey(t *testing.T) {
+
 	// tz1MTZEJE7YH3wzo8YYiAGd8sgiCTxNRHczR
 	// pk := "edpkvEbxZAv15SAZAacMAwZxjXToBka4E49b3J1VNrM1qqy5iQfLUx"
 	sk := "edsk3yXukqCQXjCnS4KRKEiotS7wRZPoKuimSJmWnfH2m3a2krJVdf"
@@ -31,47 +41,40 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	log.Infof("Baker PKH: %s\n", wallet.PubKey.GetAddress())
-	os.Exit(m.Run())
+	t.Logf("Baker PKH: %s\n", wallet.PubKey.GetAddress())
 }
 
-func TestPow(t *testing.T) {
+func TestProofOfWork(t *testing.T) {
 
-	forgedBytes := "000b28bc020aa7c9617eec24986aeabc2ee633a415e3353b83e10ca53d78896960890e9b0b000000005f63ab820466f3ae293bf159d678bea8eefffde4d12a2a6128d74d555f2356a71a485cf0620000001100000001010000000800000000000b28bb3ce664f245ce743c12a4f945a29db2e6363c50019ff3e0539e7c26849e245b83"
+	forgedBytes := "00050e7f027173c6c8eda1628b74beba1a4825379d90a818e6c0ea0dba4b8c4dc9f52012c10000000061195ce604e627eb811ac7ec2098304273fea05915c8b02cd9c079e02398204732312bab90000000110000000101000000080000000000050e7e4775bb79657508f01a4efd3e9dd8570a1a6a6b39c45a487cdb56a5c049c18694000142423130000000000000"
 
-	powBytes, attempts, err := powLoop(forgedBytes, 1)
+	powBytes, _, err := powLoop(forgedBytes, len("000142423130000000000000"))
 	if err != nil {
 		t.Errorf("PowLoop Failed: %s", err)
 	}
 
-	if powBytes != forgedBytes+"000100bc03030003dd18ff3c51b0c9f14eb473bd9affdd01b5429679a6e73c553cae76561ce08046510b09" {
+	if powBytes[len(forgedBytes)-12:] != "0001e4ee0000" {
 		t.Errorf("Incorrect POW")
 	}
-
-	t.Logf("POW Attempts: %d\n", attempts)
 }
 
-//func TestGenericHash(t *testing.T) {
-//
-//	t.Logf("Seed: %s\n", SEED)
-//
-//	seedHash, err := cryptoGenericHash(SEED)
-//	if err != nil {
-//		t.Errorf("Unable to hash seed for nonce")
-//	}
-//	t.Logf("Seed Hash: %v\n", seedHash)
-//
-//	// B58 encode seed hash with nonce prefix
-//	nonceHash := crypto.B58cencode(seedHash, Prefix_nonce)
-//	seedHashHex := hex.EncodeToString(seedHash)
-//
-//	t.Logf("Nonce Hash: %s\n", nonceHash)
-//	if nonceHash != "nceVuHM4VHi6c1JsgbEwHXDdLFJKoTxuM4jz1eWCGxv6pLRhv1Kdp" {
-//		t.Errorf("Incorrect hash")
-//	}
-//
-//	t.Logf("Seed Hex: %s\n", seedHashHex)
-//	if seedHashHex != "dd01ba02e9826494b92cf433c7266560f669aa2a7f5d9a65a6bdaf2172bdffdc" {
-//		t.Errorf("Incorrect seed hash")
-//	}
-//}
+func TestGenericHash(t *testing.T) {
+
+	seed := "e6d84e1e98a65b2f4551be3cf320f2cb2da38ab7925edb2452e90dd5d2eeeead"
+	randBytes, _ := hex.DecodeString(seed)
+
+	nonceHash, err := util.CryptoGenericHash(randBytes, []byte{})
+	if err != nil {
+		t.Errorf("Unable to hash rand bytes for nonce")
+	}
+
+	// B58 encode seed hash with nonce prefix
+	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
+
+	t.Logf("Seed: %s\n", seed)
+	t.Logf("Nonce: %s\n", encodedNonce)
+
+	if encodedNonce != "nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm" {
+		t.Errorf("Incorrect nonce from seed")
+	}
+}

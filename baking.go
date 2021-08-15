@@ -21,12 +21,12 @@ import (
 )
 
 const (
-	PROTOCOL_BB10       string = "42423130"
-	MAX_BAKE_PRIORITY   int    = 4
+	PROTOCOL_BB10     string = "42423130"
+	MAX_BAKE_PRIORITY int    = 4
 
-	PRIORITY_LENGTH     int    = 2
-	POW_HEADER_LENGTH   int    = 4
-	POW_LENGTH          int    = 4
+	PRIORITY_LENGTH   int    = 2
+	POW_HEADER_LENGTH int    = 4
+	POW_LENGTH        int    = 4
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -359,15 +359,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
 		BlockID: &hashBlockID,
 		BlockHeader: rpc.ForgeBlockHeaderBody{
-			Level:               shellHeader.Level,
-			Proto:               shellHeader.Proto,
-			Predecessor:         shellHeader.Predecessor,
-			Timestamp:           shellHeader.Timestamp,
-			ValidationPass:      shellHeader.ValidationPass,
-			OperationsHash:      shellHeader.OperationsHash,
-			Fitness:             shellHeader.Fitness,
-			Context:             shellHeader.Context,
-			ProtocolData:        protocolData,
+			Level:          shellHeader.Level,
+			Proto:          shellHeader.Proto,
+			Predecessor:    shellHeader.Predecessor,
+			Timestamp:      shellHeader.Timestamp,
+			ValidationPass: shellHeader.ValidationPass,
+			OperationsHash: shellHeader.OperationsHash,
+			Fitness:        shellHeader.Fitness,
+			Context:        shellHeader.Context,
+			ProtocolData:   protocolData,
 		},
 	})
 	if err != nil {
@@ -382,15 +382,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	//
 	// Forge block header locally
 	newForgedBlock, err := forge.ForgeBlockShell(rpc.ForgeBlockHeaderBody{
-		Level:               shellHeader.Level,
-		Proto:               shellHeader.Proto,
-		Predecessor:         shellHeader.Predecessor,
-		Timestamp:           shellHeader.Timestamp,
-		ValidationPass:      shellHeader.ValidationPass,
-		OperationsHash:      shellHeader.OperationsHash,
-		Fitness:             shellHeader.Fitness,
-		Context:             shellHeader.Context,
-		ProtocolData:        protocolData,
+		Level:          shellHeader.Level,
+		Proto:          shellHeader.Proto,
+		Predecessor:    shellHeader.Predecessor,
+		Timestamp:      shellHeader.Timestamp,
+		ValidationPass: shellHeader.ValidationPass,
+		OperationsHash: shellHeader.OperationsHash,
+		Fitness:        shellHeader.Fitness,
+		Context:        shellHeader.Context,
+		ProtocolData:   protocolData,
 	})
 	if err != nil {
 		log.WithError(err).Error("Unable to locally forge block header")
@@ -576,7 +576,7 @@ func createProtocolData(priority int, nonce []byte) string {
 		priority,                 // 2-byte priority
 		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
 		padEnd("0", 8),           // 4-byte proof of work
-		newNonce,                  // nonce presence flag + nonce
+		newNonce,                 // nonce presence flag + nonce
 		"00")                     // 1-byte LB escape vote
 }
 

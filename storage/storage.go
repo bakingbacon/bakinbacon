@@ -2,8 +2,9 @@ package storage
 
 import (
 	"encoding/binary"
-	"fmt"
 	"time"
+
+	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 	bolt "go.etcd.io/bbolt"
@@ -27,11 +28,11 @@ type Storage struct {
 
 var DB Storage
 
-func init() {
+func InitStorage(network string) error {
 
 	db, err := bolt.Open(DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		log.Fatal("Failed to init db:", err)
+		return errors.Wrap(err, "Failed to init db")
 	}
 
 	// Ensure some buckets exist, and migrations
@@ -40,41 +41,41 @@ func init() {
 		// Config bucket
 		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET))
 		if err != nil {
-			return fmt.Errorf("Cannot create config bucket: %s", err)
+			return errors.Wrap(err, "Cannot create config bucket")
 		}
 
 		// Nested bucket inside config
 		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create endpoints bucket: %s", err)
+			return errors.Wrap(err, "Cannot create endpoints bucket")
 		}
 
 		// Nested bucket inside config
 		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NOTIFICATIONS_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create notifications bucket: %s", err)
+			return errors.Wrap(err, "Cannot create notifications bucket")
 		}
 
 		//
 		// Root buckets
 		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create endorsing bucket: %s", err)
+			return errors.Wrap(err, "Cannot create endorsing bucket")
 		}
 
 		if _, err := tx.CreateBucketIfNotExists([]byte(BAKING_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create baking bucket: %s", err)
+			return errors.Wrap(err, "Cannot create baking bucket")
 		}
 
 		if _, err := tx.CreateBucketIfNotExists([]byte(NONCE_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create nonce bucket: %s", err)
+			return errors.Wrap(err, "Cannot create nonce bucket")
 		}
 
 		if _, err := tx.CreateBucketIfNotExists([]byte(RIGHTS_BUCKET)); err != nil {
-			return fmt.Errorf("Cannot create rights bucket: %s", err)
+			return errors.Wrap(err, "Cannot create rights bucket")
 		}
 
 		return nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// set variable so main program can access
@@ -83,8 +84,20 @@ func init() {
 	}
 
 	// Statically add BakinBacon's RPC endpoints
-	_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
-	_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
+	switch network {
+	case "mainnet":
+		_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
+		_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
+
+	case "granadanet":
+		_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
+		_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
+
+	default:
+		return errors.New("Unknown network for storage")
+	}
+
+	return nil
 }
 
 func (s *Storage) Close() {

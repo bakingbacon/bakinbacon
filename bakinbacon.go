@@ -35,9 +35,9 @@ func main() {
 
 	// Used throughout main
 	var (
-		err   error
-		wg    sync.WaitGroup
-		ctx   context.Context
+		err error
+		wg  sync.WaitGroup
+		ctx context.Context
 	)
 
 	parseArgs()
@@ -47,6 +47,11 @@ func main() {
 
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
+
+	// Open/Init database
+	if err := storage.InitStorage(network); err != nil {
+		log.WithError(err).Fatal("Could not open storage")
+	}
 
 	// Global Notifications handler singleton
 	if err := notifications.New(); err != nil {
@@ -173,20 +178,3 @@ func parseArgs() {
 		os.Exit(1)
 	}
 }
-
-// tz1RMmSzPSWPSSaKU193Voh4PosWSZx1C7Hs
-// pk := "edpkti2A2ZtvYEfkYaqQ7ESbCrPEYPBacRCBq6Pmxa4E1jTBYqpKG5"
-// sk := "edsk3HwPpiN2w34JSoevZ135L9jWpupiqKcYp38SHR5N21XJyK8Ukv"
-//
-// // Gotezos wallet
-// walletInput := keys.NewKeyInput{
-// 	EncodedString: sk,
-// 	Kind:          keys.Ed25519,
-// }
-// wallet, err = keys.NewKey(walletInput)
-// if err != nil {
-// 	log.WithError(err).Fatal("Failed to load wallet")
-// }
-// log.WithFields(log.Fields{
-// 	"Baker": wallet.PubKey.GetPublicKeyHash(), "PublicKey": wallet.PubKey.GetPublicKey(),
-// }).Info("Loaded Wallet")

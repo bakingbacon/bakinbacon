@@ -29,8 +29,7 @@ func (n *NotifyEmail) IsEnabled() bool {
 }
 
 func (n *NotifyEmail) Send(msg string) {
-
-	return
+	// TODO Not implemented yet
 }
 
 func (n *NotifyEmail) SaveConfig() error {

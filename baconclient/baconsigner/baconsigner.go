@@ -260,9 +260,9 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	if chainID != "" {
 		// Strip off the network watermark (prefix), and then base58 decode the chain id string (ie: NetXUdfLh6Gm88t)
 		chainIdBytes := b58cdecode(chainID, networkprefix)
-//		fmt.Println("ChainID:    ", chainID)
-//		fmt.Println("ChainIDByt: ", chainIdBytes)
-//		fmt.Println("ChainIDHex: ", hex.EncodeToString(chainIdBytes))
+		// fmt.Println("ChainID:    ", chainID)
+		// fmt.Println("ChainIDByt: ", chainIdBytes)
+		// fmt.Println("ChainIDHex: ", hex.EncodeToString(chainIdBytes))
 
 		opBytes = append(opBytes, chainIdBytes...)
 	}

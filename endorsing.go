@@ -180,31 +180,31 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// TODO Fix Preapply
 
-//	// Prepare to pre-apply the operation
-//	preapplyEndoOp := rpc.PreapplyOperationsInput{
-//		BlockID: &hashBlockID,
-//		Operations: []rpc.Operations{
-//			{
-//				Branch: block.Hash,
-//				Contents: rpc.Contents{
-//					endoWithSlot,
-//				},
-//				Protocol:  block.Protocol,
-//				Signature: signedInnerEndorsement.EDSig,
-//			},
-//		},
-//	}
+// 	// Prepare to pre-apply the operation
+// 	preapplyEndoOp := rpc.PreapplyOperationsInput{
+// 		BlockID: &hashBlockID,
+// 		Operations: []rpc.Operations{
+// 			{
+// 				Branch: block.Hash,
+// 				Contents: rpc.Contents{
+// 					endoWithSlot,
+// 				},
+// 				Protocol:  block.Protocol,
+// 				Signature: signedInnerEndorsement.EDSig,
+// 			},
+// 		},
+// 	}
 //
-//	// Validate the operation against the node for any errors
-//	resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
-//	if err != nil {
-//		log.WithError(err).WithFields(log.Fields{
-//			"Request": resp.Request.URL, "Response": string(resp.Body()),
-//		}).Error("Could not preapply operations")
-//		//return
-//	}
+// 	// Validate the operation against the node for any errors
+// 	resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
+// 	if err != nil {
+// 		log.WithError(err).WithFields(log.Fields{
+// 			"Request": resp.Request.URL, "Response": string(resp.Body()),
+// 		}).Error("Could not preapply operations")
+// 		//return
+// 	}
 //
-//	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
+// 	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{

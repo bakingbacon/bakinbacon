@@ -24,9 +24,9 @@ const (
 	PROTOCOL_BB10     string = "42423130"
 	MAX_BAKE_PRIORITY int    = 4
 
-	PRIORITY_LENGTH   int    = 2
-	POW_HEADER_LENGTH int    = 4
-	POW_LENGTH        int    = 4
+	PRIORITY_LENGTH   int = 2
+	POW_HEADER_LENGTH int = 4
+	POW_LENGTH        int = 4
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {

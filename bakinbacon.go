@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	bc *baconclient.BaconClient
+	bc         *baconclient.BaconClient
+	commitHash string
 
 	// Flags
 	network           string
@@ -52,6 +53,10 @@ func main() {
 	if err := storage.InitStorage(network); err != nil {
 		log.WithError(err).Fatal("Could not open storage")
 	}
+
+	// Start
+	log.Infof("=== BakinBacon v1.0 (%s) ===", commitHash)
+	log.Infof("=== Network: %s ===", network)
 
 	// Global Notifications handler singleton
 	if err := notifications.New(); err != nil {

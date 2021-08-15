@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"bakinbacon/util"
 	"bakinbacon/nonce"
+	"bakinbacon/util"
 
 	"github.com/bakingbacon/go-tezos/v4/crypto"
 	"github.com/bakingbacon/go-tezos/v4/keys"

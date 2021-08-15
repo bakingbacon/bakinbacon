@@ -1,5 +1,9 @@
 package baconclient
 
+import (
+	"bakinbacon/notifications"
+)
+
 const (
 
 	// Various states for the UI to take action
@@ -60,6 +64,7 @@ func (b *BaconStatus) SetRecentBake(level, cycle int, hash string) {
 
 func (b *BaconStatus) SetError(e error) {
 	b.ErrorMsg = e.Error()
+	notifications.N.Send(e.Error())
 }
 
 func (b *BaconStatus) ClearError() {

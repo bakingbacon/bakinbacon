@@ -5,13 +5,14 @@ import (
 
 	"github.com/pkg/errors"
 
-	//log "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/storage"
 )
 
 type Notifier interface {
-	Send(string) error
+	Send(string)
+	IsEnabled() bool
 }
 
 type Notification struct {
@@ -83,16 +84,28 @@ func (N *Notification) Configure(notifier string, config []byte, saveconfig bool
 	return nil
 }
 
-func (N *Notification) Send(notifier string, message string) error {
+func (N *Notification) Send(message string) {
+	for k, n := range N.Notifiers {
+		if n.IsEnabled() {
+			n.Send(message)
+		} else {
+			log.Infof("Notifications for '%s' are disabled", k)
+		}
+	}
+}
+
+func (N *Notification) TestSend(notifier string, message string) error {
 
 	switch notifier {
 	case "telegram":
-		return N.Notifiers["telegram"].Send(message)
+		N.Notifiers["telegram"].Send(message)
 	case "email":
-		return N.Notifiers["email"].Send(message)
+		N.Notifiers["email"].Send(message)
+	default:
+		return errors.New("Unknown notification type")
 	}
 
-	return errors.New("Unknown notification type")
+	return nil
 }
 
 func (N *Notification) GetConfig() (json.RawMessage, error) {

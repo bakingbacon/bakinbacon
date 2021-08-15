@@ -31,6 +31,7 @@ type NotifyTelegram struct {
 func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 
 	n := &NotifyTelegram{}
+	n.Enabled = true
 
 	// empty config from db?
 	if config != nil {
@@ -49,7 +50,11 @@ func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 	return n, nil
 }
 
-func (n *NotifyTelegram) Send(msg string) error {
+func (n *NotifyTelegram) IsEnabled() bool {
+	return n.Enabled
+}
+
+func (n *NotifyTelegram) Send(msg string) {
 
 	// curl -G \
 	//  --data-urlencode "chat_id=111112233" \
@@ -58,7 +63,8 @@ func (n *NotifyTelegram) Send(msg string) error {
 
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.ApiKey), nil)
 	if err != nil {
-		return errors.Wrap(err, "Unable to make new http request")
+		log.WithError(err).Error("Unable to make telegram request")
+		return
 	}
 
 	req.Header.Add("Content-type", "application/x-www-form-urlencoded")
@@ -87,14 +93,14 @@ func (n *NotifyTelegram) Send(msg string) error {
 				"ChatId": id,
 			}).WithError(err).Error("Unable to send telegram message")
 		}
+
 		defer resp.Body.Close()
 		resp_body, _ := ioutil.ReadAll(resp.Body)
+
 		log.WithField("Resp", string(resp_body)).Debug("Telegram Reply")
 	}
 
-	log.WithField("MSG", msg).Debug("Sent Telegram Message")
-
-	return nil
+	log.WithField("MSG", msg).Info("Sent Telegram Message")
 }
 
 func (n *NotifyTelegram) SaveConfig() error {

@@ -19,16 +19,21 @@ type NotifyEmail struct {
 func NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
 
 	ne := &NotifyEmail{}
+	ne.Enabled = true
 
 	return ne, nil
 }
 
-func (n NotifyEmail) Send(msg string) error {
-
-	return nil
+func (n *NotifyEmail) IsEnabled() bool {
+	return n.Enabled
 }
 
-func (n NotifyEmail) SaveConfig() error {
+func (n *NotifyEmail) Send(msg string) {
+
+	return
+}
+
+func (n *NotifyEmail) SaveConfig() error {
 
 	// Marshal ourselves to []byte and send to storage manager
 	config, err := json.Marshal(n)

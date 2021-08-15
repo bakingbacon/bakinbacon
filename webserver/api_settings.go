@@ -32,7 +32,7 @@ func saveTelegram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := notifications.N.Send("telegram", "Test message from BakinBacon"); err != nil {
+	if err := notifications.N.TestSend("telegram", "Test message from BakinBacon"); err != nil {
 		log.WithError(err).Error("API saveTelegram")
 		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
 

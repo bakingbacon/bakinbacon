@@ -11,7 +11,7 @@ import Tab from 'react-bootstrap/Tab';
 
 import BakinDashboard from './dashboard.js'
 import DelegateRegister from './delegateregister.js'
-import Settings from './settings.js'
+import Settings from './settings'
 import SetupWizard from './wizards'
 import Voting from './voting.js'
 

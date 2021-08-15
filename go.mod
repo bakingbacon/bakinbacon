@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/Messer4/base58check v0.0.0-20180328134002-7531a92ae9ba
-	github.com/bakingbacon/go-tezos/v4 v4.1.4
+	github.com/bakingbacon/go-tezos/v4 v4.1.5
 	github.com/bakingbacon/goledger v1.1.0 // indirect
 	github.com/bakingbacon/goledger/ledger-apps/tezos v0.0.0-20210318214534-90bad189f425
 	github.com/btcsuite/btcutil v1.0.2

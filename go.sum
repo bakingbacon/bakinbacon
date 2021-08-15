@@ -26,6 +26,8 @@ github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847/go.mod h1:
 github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/bakingbacon/go-tezos/v4 v4.1.4 h1:DVWeJmwMCdZq1pG/qruQ2pSN/uH8EKXDzO2MuyRujpo=
 github.com/bakingbacon/go-tezos/v4 v4.1.4/go.mod h1:QgIrNJwTtqJCFbuVd/ZNap3z0X7R6dPrWHQRxKeP7nI=
+github.com/bakingbacon/go-tezos/v4 v4.1.5 h1:XBCEkm8mUs7K/TKaVkIq3KJQqkF2PGzIQPilrMamqM4=
+github.com/bakingbacon/go-tezos/v4 v4.1.5/go.mod h1:QgIrNJwTtqJCFbuVd/ZNap3z0X7R6dPrWHQRxKeP7nI=
 github.com/bakingbacon/goledger v1.1.0 h1:ixfebkqDiVmZbms87cJ8QorwzgtpUYKxAtIQoesSHZM=
 github.com/bakingbacon/goledger v1.1.0/go.mod h1:SxIlACADqAa8m1NXe2kOp5WMcLZvM0L1TO7TFLLFWZU=
 github.com/bakingbacon/goledger/ledger-apps/tezos v0.0.0-20210318214534-90bad189f425 h1:CmLPQTm0TdQwf5RdRzJrMVeWGj6XU9E45p+4o7SPUZs=

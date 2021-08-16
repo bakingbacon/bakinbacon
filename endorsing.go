@@ -72,7 +72,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
 
 	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()),
+		"Level": endorsingLevel, "Request": resp.Request.URL, "Response": string(resp.Body()),
 	}).Trace("Fetching endorsing rights")
 
 	if err != nil {
@@ -83,6 +83,15 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	if len(endorsingRights) == 0 {
 		log.WithField("Level", endorsingLevel).Info("No endorsing rights for this level")
 		return
+	}
+
+	// Check for new block
+	select {
+	case <-ctx.Done():
+		log.Warn("New block arrived; Canceling endorsement")
+		return
+	default:
+		break
 	}
 
 	// Continue since we have at least 1 endorsing right
@@ -114,12 +123,15 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	var allSlots []int
 	for _, e := range endorsingRights {
 		allSlots = append(allSlots, e.Slots...)
-		log.WithField("Slots",
-			strings.Trim(strings.Join(strings.Fields(fmt.Sprint(e.Slots)), ","), "[]")).Info("Endorsing rights found")
 	}
 
 	// 009 requires the lowest slot be submitted
 	sort.Ints(allSlots)
+
+	slotString := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(allSlots)), ","), "[]")
+	log.WithFields(log.Fields{
+		"Level": endorsingLevel, "Slots": slotString,
+	}).Info("Endorsing rights found")
 
 	// Inner endorsement; forge and sign
 	endoContent := rpc.Content{

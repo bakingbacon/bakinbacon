@@ -63,6 +63,9 @@ func main() {
 		log.WithError(err).Error("Unable to load notifiers")
 	}
 
+	// Version checking
+	go RunVersionCheck()
+
 	// Network constants
 	log.WithFields(log.Fields{ //nolint:wsl
 		"PreservedCycles":       networkConstants[network].PreservedCycles,

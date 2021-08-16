@@ -55,7 +55,7 @@ const Settings = (props) => {
 		</Row>
 		<Row>
 		  <Col>
-		    <Notifications settings={settings} />
+		    <Notifications settings={settings} loadSettings={loadSettings} />
 		  </Col>
 		</Row>
 		</>

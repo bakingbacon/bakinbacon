@@ -14,15 +14,18 @@ const Notifications = (props) => {
 
 	const { settings, loadSettings } = props;
 
-	const [telegramConfig, setTelegramConfig] = useState({apikey:"", chatids:"", enabled:false})
-	const [emailConfig, setEmailConfig] = useState({smtphost:""});
+	const [telegramConfig, setTelegramConfig] = useState(settings.notifications.telegram)
+	const [emailConfig, setEmailConfig] = useState(settings.notifications.email);
 	const addToast = useContext(ToasterContext);
 
 	useEffect(() => {
 		const config = settings.notifications;
 		const tConfig = config.telegram;
+		if (Array.isArray(tConfig.chatids)) {
+			tConfig.chatids = tConfig.chatids.join(',')
+		}
 		if (tConfig.chatids == null) {
-			tConfig.chatids = []
+			tConfig.chatids = ""
 		}
 
 		if (Object.keys(tConfig).length !== 0) {
@@ -35,10 +38,8 @@ const Notifications = (props) => {
 
 	const handleTelegramChange = (e) => {
 		let { name, value } = e.target;
-		if (name === "tenabled") {
-			console.log(e.target.checked)
-			name = "enabled"
-			value = (e.target.checked ? false : true);
+		if (name === "enabled") {
+			value = !telegramConfig.enabled
 		}
 		setTelegramConfig((prev) => ({
 			...prev,
@@ -88,6 +89,7 @@ const Notifications = (props) => {
 		const postData = {
 			chatids: chatIds,
 			apikey: botapikey,
+			enabled: telegramConfig.enabled,
 		};
 		handlePostAPI(apiUrl, postData).then(() => {
 			addToast({
@@ -149,7 +151,7 @@ const Notifications = (props) => {
                     </Form.Row>
                     <Form.Row>
                       <Form.Group as={Col}>
-                        <Form.Check type="checkbox" name="tenabled" checked={telegramConfig.enabled} onChange={handleTelegramChange} label="Enabled" />
+                        <Form.Check type="checkbox" name="enabled" defaultChecked={telegramConfig.enabled} onChange={handleTelegramChange} label="Enabled" />
                       </Form.Group>
                     </Form.Row>
                     <Form.Row>
@@ -166,8 +168,7 @@ const Notifications = (props) => {
                   <Card.Body>
                     <Form.Row>
                       <Form.Group as={Col}>
-                        <Form.Text as="span">SMTP Server</Form.Text>
-                        <Form.Control type="text" name="smtphost" value={emailConfig.smtphost} onChange={handleEmailChange} />
+                        <Form.Text as="span">COMING SOON!</Form.Text>
                       </Form.Group>
                     </Form.Row>
                   </Card.Body>

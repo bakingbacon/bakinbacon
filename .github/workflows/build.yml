@@ -3,9 +3,13 @@ on:
   push:
     branches:
     - master
+    - actions
   pull_request:
     branches:
     - master
+
+env:
+  WEBSERVER_PATH: ${{ github.workspace }}/webserver
 
 jobs:
   build:
@@ -28,21 +32,26 @@ jobs:
     - name: Cache node_modules
       uses: actions/cache@v2
       with:
-        key: bakinbacon-npm-${{ hashFiles('/home/runner/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
-        path: /home/runner/work/bakinbacon/bakinbacon/webserver/node_modules
+        key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
+        path: "${{ env.WEBSERVER_PATH }}/node_modules"
 
     - name: Install node_modules
-      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      working-directory: ${{ env.WEBSERVER_PATH }}
       run: npm install
 
     - name: Build web ui
-      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      working-directory: ${{ env.WEBSERVER_PATH }}
       env:
         CI: "false"
       run: npm run build
 
+    - name: Bellybutton lint
+      uses: golangci/golangci-lint-action@v2
+      with:
+        version: latest
+        skip-go-installation: true
+
     - name: Fry some bacon
-      working-directory: /home/runner/work/bakinbacon/bakinbacon
       run: go build .
 
     - name: Release

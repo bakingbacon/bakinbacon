@@ -8,11 +8,15 @@ on:
     - master
 
 jobs:
-  env:
-    CHECKOUT_PATH: ${{ env.GITHUB_WORKSPACE }}
   build:
     runs-on: ubuntu-latest
     steps:
+
+    - name: Test
+      run: echo ${{ env.GITHUB_WORKSPACE }}
+
+    - name: Dump
+      run: echo ${{ env }}
 
     - name: Checkout code
       uses: actions/checkout@v2

@@ -29,14 +29,14 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
-        path: ${{ env.GITHUB_WORKSPACE }}/webserver/node_modules
+        path: $GITHUB_WORKSPACE/webserver/node_modules
 
     - name: Install node_modules
-      working-directory: ${{ env.GITHUB_WORKSPACE }}/webserver
+      working-directory: $GITHUB_WORKSPACE/webserver
       run: npm install
 
     - name: Build web ui
-      working-directory: ${{ env.GITHUB_WORKSPACE }}/webserver
+      working-directory: $GITHUB_WORKSPACE/webserver
       env:
         CI: "false"
       run: npm run build

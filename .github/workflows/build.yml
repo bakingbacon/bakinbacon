@@ -8,7 +8,7 @@ on:
     - master
 
 env:
-  CHECKOUT_PATH: ${GITHUB_WORKSPACE}
+  WEBSERVER_PATH: "${GITHUB_WORKSPACE}/webserver"
 
 jobs:
   build:
@@ -35,14 +35,14 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
-        path: "${{ env.CHECKOUT_PATH }}/webserver/node_modules"
+        path: "${{ env.WEBSERVER_PATH }}/node_modules"
 
     - name: Install node_modules
-      working-directory: "${{ env.CHECKOUT_PATH }}/webserver"
+      working-directory: ${{ env.WEBSERVER_PATH }}
       run: npm install
 
     - name: Build web ui
-      working-directory: ${{ env.CHECKOUT_PATH }}/webserver
+      working-directory: ${{ env.WEBSERVER_PATH }}
       env:
         CI: "false"
       run: npm run build

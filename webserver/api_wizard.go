@@ -28,7 +28,7 @@ func testLedger(w http.ResponseWriter, r *http.Request) {
 }
 
 //
-// Confirm the current bipPath and associated key
+// Ledger: confirm the current bipPath and associated key
 func confirmBakingPkh(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - confirmBakingPkh")
@@ -157,7 +157,7 @@ func finishWalletWizard(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - FinishWalletWizard")
 
-	if err := baconClient.Signer.SaveKeyWalletTypeToDB(); err != nil {
+	if err := baconClient.Signer.SaveSigner(); err != nil {
 		apiError(errors.Wrap(err, "Cannot save key/wallet to db"), w)
 		return
 	}

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/pkg/errors"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,24 +38,32 @@ func RunVersionCheck() {
 			Timeout: time.Second * 10,
 		}
 
-		resp, err := client.Get(VERSION_URL)
-		if err != nil {
-			log.WithError(err).Error("Unable to get version update")
-		}
-		defer resp.Body.Close()
-		json.NewDecoder(resp.Body).Decode(&versions)
+		// Anon func to get defer ability
+		err := func() error {
+			resp, err := client.Get(VERSION_URL)
+			if err != nil {
+				return errors.Wrap(err, "Unable to get version update")
+			}
+			defer resp.Body.Close()
 
-		// Just log for now
-		for _, v := range versions {
-			log.WithFields(log.Fields{
-				"Date": v.Date, "Version": v.Version, "Notes": v.Notes,
-			}).Info("Version Update")
+			if err := json.NewDecoder(resp.Body).Decode(&versions); err != nil {
+				return errors.Wrap(err, "Unable to decode version check")
+			}
+			return nil
+		}()
+		if err != nil {
+			log.WithError(err).Error("Error checking version")
+		} else {
+
+			// Just log for now
+			for _, v := range versions {
+				log.WithFields(log.Fields{
+					"Date": v.Date, "Version": v.Version, "Notes": v.Notes,
+				}).Info("Version Update")
+			}
 		}
 
 		// wait here for next iteration
-		select {
-		case <-ticker.C:
-			break
-		}
+		<-ticker.C
 	}
 }

@@ -7,8 +7,6 @@ import (
 	"github.com/Messer4/base58check"
 	"github.com/pkg/errors"
 
-	gtks "github.com/bakingbacon/go-tezos/v4/keys"
-	ledger "github.com/bakingbacon/goledger/ledger-apps/tezos"
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/storage"
@@ -19,14 +17,13 @@ const (
 	SIGNER_LEDGER = 2
 )
 
+var (
+	NO_SIGNER_TYPE = errors.New("No signer type defined")
+)
+
 type BaconSigner struct {
 	BakerPkh      string
-	bakerSk       string // temp for UI wizard
-	LedgerBipPath string
 	SignerType    int
-
-	gt_wallet *gtks.Key
-	lg_wallet *ledger.TezosLedger
 }
 
 // SignOperationOutput contains an operation with the signature appended, and the signature
@@ -37,15 +34,31 @@ type SignOperationOutput struct {
 }
 
 // New
-func New() *BaconSigner {
+func New() (*BaconSigner, error) {
 
-	bs := BaconSigner{}
+	bs := &BaconSigner{}
 
-	if err := bs.SignerStatus(false); err != nil {
-		log.WithError(err).Error("Signer Status")
+	// Get which signing method (wallet or ledger), so we can perform sanity checks
+	signerType, err := storage.DB.GetSignerType()
+	if err != nil {
+		return bs, errors.Wrap(err, "Unable to get signer type from DB")
+	}
+	bs.SignerType = signerType
+
+	switch bs.SignerType {
+	case SIGNER_WALLET:
+		if err := InitWalletSigner(); err != nil {
+			return bs, errors.Wrap(err, "Cannot init wallet signer")
+		}
+	case SIGNER_LEDGER:
+		if err := InitLedgerSigner(); err != nil {
+			return bs, errors.Wrap(err, "Cannot init ledger signer")
+		}
+	default:
+		return bs, NO_SIGNER_TYPE
 	}
 
-	return &bs
+	return bs, nil
 }
 
 // Returns error if baking is not configured. Delegate secret key must be configured in DB,
@@ -55,11 +68,6 @@ func (s *BaconSigner) SignerStatus(silent bool) error {
 	// Try to load the bakers SK
 	if err := s.LoadDelegate(silent); err != nil {
 		return errors.Wrap(err, "Loading Delegate")
-	}
-
-	// Try to load signer type
-	if err := s.LoadSigner(silent); err != nil {
-		return errors.Wrap(err, "Loading Signer")
 	}
 
 	return nil
@@ -86,135 +94,53 @@ func (s *BaconSigner) LoadDelegate(silent bool) error {
 	return nil
 }
 
-func (s *BaconSigner) LoadSigner(silent bool) error {
-
-	var err error
-
-	// Get which signing method (wallet or ledger), so we can perform sanity checks
-	s.SignerType, err = storage.DB.GetSignerType()
-	if err != nil {
-		return errors.Wrap(err, "Unable to get signer type from DB")
-	}
-
-	switch s.SignerType {
-	case 0:
-		return errors.New("No signer type defined. Cannot bake.")
-
-	case SIGNER_WALLET:
-
-		walletSk, err := storage.DB.GetSignerSk()
-		if err != nil {
-			return errors.Wrap(err, "Unable to get signer sk from DB")
-		}
-
-		if walletSk == "" {
-			return errors.New("No wallet secret key found. Cannot bake.")
-		} else {
-
-			s.gt_wallet, err = gtks.FromBase58(walletSk, gtks.Ed25519)
-			if err != nil {
-				return errors.Wrap(err, "Failed to load wallet from secret key")
-			}
-
-			if !silent {
-				log.WithFields(log.Fields{
-					"Baker": s.gt_wallet.PubKey.GetAddress(), "PublicKey": s.gt_wallet.PubKey.GetPublicKey(),
-				}).Info("Loaded software wallet")
-			}
-		}
-
-	case SIGNER_LEDGER:
-
-		// Get device
-		s.lg_wallet, err = ledger.Get()
-		if err != nil {
-			return errors.Wrap(err, "Cannot get ledger device")
-		}
-		defer s.lg_wallet.Close()
-
-		// Get bipPath and PKH from DB
-		pkh, dbBipPath, err := storage.DB.GetLedgerConfig()
-		if err != nil {
-			return errors.Wrap(err, "Cannot load ledger config from DB")
-		}
-
-		// Sanity
-		if dbBipPath == "" {
-			return errors.New("No BIP path found in DB. Cannot configure ledger.")
-		}
-
-		// Sanity check if wallet app is open instead of baking app
-		if _, err := s.IsBakingApp(s.lg_wallet); err != nil {
-			return err
-		}
-
-		// Get the bipPath that is authorized to bake
-		authBipPath, err := s.lg_wallet.GetAuthorizedKeyPath()
-		if err != nil {
-			return errors.Wrap(err, "Cannot get auth BIP path from ledger")
-		}
-
-		// Compare to DB config for sanity
-		if dbBipPath != authBipPath {
-			return errors.New(fmt.Sprintf("Authorized BipPath, %s, does not match DB Config, %s", authBipPath, dbBipPath))
-		}
-
-		// Set dbBipPath from DB config
-		if err := s.lg_wallet.SetBipPath(dbBipPath); err != nil {
-			return errors.Wrap(err, "Cannot set BIP path on ledger device")
-		}
-
-		// Get the pkh from dbBipPath from DB config
-		_, compPkh, err := s.lg_wallet.GetPublicKey()
-		if err != nil {
-			return errors.Wrap(err, "Cannot fetch pkh from ledger")
-		}
-
-		if pkh != compPkh {
-			return errors.New(fmt.Sprintf("Authorized PKH, %s, does not match DB Config, %s", pkh, compPkh))
-		}
-
-		s.BakerPkh = pkh
-		s.LedgerBipPath = authBipPath
-
-		if !silent {
-			log.WithFields(log.Fields{"KeyPath": authBipPath, "PKH": pkh}).Debug("Ledger Baking Config")
-		}
-	}
-
-	// All good
-	return nil
+// Confirm action on ledger; Not applicable to signer
+func (s *BaconSigner) ConfirmBakingPkh(pkh, bip string) error {
+	return L.ConfirmBakingPkh(pkh, bip)
 }
 
-// Gets the public key, depending on signer type
+// Gets the public key, and public key hash, depending on signer type
 func (s *BaconSigner) GetPublicKey() (string, error) {
-
 	switch s.SignerType {
 	case SIGNER_WALLET:
-		return s.gt_wallet.PubKey.GetPublicKey(), nil
-
+		return W.GetPublicKey()
 	case SIGNER_LEDGER:
+		return L.GetPublicKey()
+	}
+	return "", NO_SIGNER_TYPE
+}
 
-		// Get device
-		ledgerDev, err := ledger.Get()
-		if err != nil {
-			return "", errors.Wrap(err, "Cannot get ledger device")
-		}
-		defer ledgerDev.Close()
+// Generates new key; Not applicable to Ledger
+func (s *BaconSigner) GenerateNewKey() (string, string, error) {
+	return W.GenerateNewKey()
+}
 
-		if err := ledgerDev.SetBipPath(s.LedgerBipPath); err != nil {
-			return "", errors.Wrap(err, "Cannot set BIP path on ledger device")
-		}
+// Imports a secret key; Not applicable to ledger
+func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
+	return W.ImportSecretKey(k)
+}
 
-		pk, _, err := ledgerDev.GetPublicKey()
-		if err != nil {
-			return "", err
-		}
+// Not applicable to wallet
+func (s *BaconSigner) TestLedger() (interface{}, error) {
+	return L.TestLedger()
+}
 
-		return pk, nil
+// Save signer config to DB
+func (s *BaconSigner) SaveSigner() error {
+	switch s.SignerType {
+	case SIGNER_WALLET:
+		return W.SaveSigner()
+	case SIGNER_LEDGER:
+		return L.SaveSigner()
+	}
+	return NO_SIGNER_TYPE
+}
 
-	default:
-		return "", errors.New("No signer type defined.")
+// Close ledger or wallet
+func (s *BaconSigner) Close() {
+	switch s.SignerType {
+	case SIGNER_LEDGER:
+		L.Close()
 	}
 }
 
@@ -283,34 +209,18 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	//fmt.Println("ToSignBytes: ", opBytes)
 	//fmt.Println("ToSignByHex: ", finalOpHex)
 
-	edSig := ""
-
-	switch s.SignerType {
-	case SIGNER_WALLET:
-		sig, err := s.gt_wallet.SignRawBytes(opBytes) // Returns 'Signature' object
-		if err != nil {
-			return SignOperationOutput{}, errors.Wrap(err, "Failed wallet signer")
+	edSig, err := func(b []byte) (string, error) {
+		switch s.SignerType {
+		case SIGNER_WALLET:
+			return W.SignBytes(b)
+		case SIGNER_LEDGER:
+			return L.SignBytes(b)
 		}
+		return "", NO_SIGNER_TYPE
+	}(opBytes)
 
-		edSig = sig.ToBase58()
-
-	case SIGNER_LEDGER:
-
-		// Get device
-		ledgerDev, err := ledger.Get()
-		if err != nil {
-			return SignOperationOutput{}, errors.Wrap(err, "Cannot get ledger device")
-		}
-		defer ledgerDev.Close()
-
-		if err := ledgerDev.SetBipPath(s.LedgerBipPath); err != nil {
-			return SignOperationOutput{}, errors.Wrap(err, "Cannot set BIP path on ledger device")
-		}
-
-		edSig, err = ledgerDev.SignBytes(opBytes) // Returns b58 encoded signature
-		if err != nil {
-			return SignOperationOutput{}, errors.Wrap(err, "Failed ledger signer")
-		}
+	if err != nil {
+		return SignOperationOutput{}, errors.Wrap(err, "Failed sign bytes")
 	}
 
 	// Decode out the signature from the operation

@@ -352,7 +352,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
-	protocolData := createProtocolData(priority, n.Nonce)
+	protocolData := createProtocolData(priority, n.NoPrefixNonce)
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header using RPC
@@ -558,7 +558,10 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
 // Create the `protocol_data` component of the block header (shell)
 // https://tezos.gitlab.io/shell/p2p_api.html#block-header-alpha-specific
-func createProtocolData(priority int, nonce []byte) string {
+func createProtocolData(priority int, nonceHex string) string {
+
+	// nonceHex is the hex-encoded, prefix-stripped representation of the
+	// crypto-hashed random seed bytes
 
 	// Helper function for padding 0s
 	padEnd := func(s string, llen int) string {
@@ -568,8 +571,8 @@ func createProtocolData(priority int, nonce []byte) string {
 	// If no seed_nonce_hash, set 00 (false)
 	// Otherwise, set ff (true) and append nonce hash
 	newNonce := "00"
-	if len(nonce) > 0 {
-		newNonce = "ff" + padEnd(string(nonce), 64)
+	if len(nonceHex) > 0 {
+		newNonce = "ff" + padEnd(nonceHex, 64)
 	}
 
 	return fmt.Sprintf("%04x%s%s%s%s",

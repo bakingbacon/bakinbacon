@@ -38,7 +38,6 @@ func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 		if err := json.Unmarshal(config, n); err != nil {
 			return n, errors.Wrap(err, "Unable to unmarshal telegram config")
 		}
-		log.WithField("Config", n).Info("Configured telegram notifier")
 	}
 
 	if saveConfig {

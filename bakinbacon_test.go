@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "bytes"
 	"encoding/hex"
 	"os"
 	"testing"
@@ -73,6 +74,7 @@ func TestGenericHash(t *testing.T) {
 
 	t.Logf("Seed: %s\n", seed)
 	t.Logf("Nonce: %s\n", encodedNonce)
+	t.Logf("Non-Encoded: %s\n", hex.EncodeToString(nonceHash))
 
 	if encodedNonce != "nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm" {
 		t.Errorf("Incorrect nonce from seed")

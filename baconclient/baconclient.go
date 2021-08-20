@@ -12,7 +12,7 @@ import (
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 	log "github.com/sirupsen/logrus"
 
-	"bakinbacon/baconclient/baconsigner"
+	"bakinbacon/baconsigner"
 	"bakinbacon/storage"
 )
 
@@ -57,8 +57,14 @@ func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, 
 		NewBlockNotifier: make(chan *rpc.Block, 1),
 		rpcClients:       make([]*BaconSlice, 0),
 		Status:           &BaconStatus{},
-		Signer:           baconsigner.New(),
 	}
+
+	// Init bacon signer
+	signer, err := baconsigner.New()
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot init bacon signer")
+	}
+	newBaconClient.Signer = signer
 
 	// Pull endpoints from storage
 	endpoints, err := storage.DB.GetRPCEndpoints()
@@ -108,6 +114,10 @@ func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
 	// Launch client
 	waitGroup.Add(1)
 	go b.blockWatch(newBaconSlice)
+}
+
+func (b *BaconClient) Shutdown() {
+	b.Signer.Close()
 }
 
 func (b *BaconClient) ShutdownRpc(rpcId int) error {

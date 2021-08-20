@@ -52,6 +52,7 @@ func generateNonce() (nonce.Nonce, error) {
 		Seed:         seed,
 		Nonce:        nonceHash,
 		EncodedNonce: encodedNonce,
+		NoPrefixNonce: hex.EncodeToString(nonceHash),
 	}
 
 	return n, nil

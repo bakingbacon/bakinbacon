@@ -19,6 +19,7 @@ import (
 var (
 	bc         *baconclient.BaconClient
 	commitHash string
+	version    string
 
 	// Flags
 	network           string
@@ -134,6 +135,7 @@ func main() {
 		case <-shutdownChannel:
 			log.Warn("Shutting things down...")
 			ctxCancel()
+			bc.Shutdown()
 			break Main
 		}
 	}

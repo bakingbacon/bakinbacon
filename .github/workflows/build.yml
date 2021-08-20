@@ -7,11 +7,12 @@ on:
     branches:
     - master
 
+env:
+  CHECKOUT_PATH: ${GITHUB_WORKSPACE}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      CHECKOUT_PATH: ${{ env.GITHUB_WORKSPACE }}
     steps:
 
     - name: Checkout code

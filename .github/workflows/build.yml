@@ -40,7 +40,7 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
-        path: $GITHUB_WORKSPACE/node_modules
+        path: "${GITHUB_WORKSPACE}/node_modules"
 
     - name: Install node_modules
       working-directory: ${{ env.WEBSERVER_PATH }}

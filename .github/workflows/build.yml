@@ -13,10 +13,10 @@ jobs:
     steps:
 
     - name: Test
-      run: echo ${{ env.GITHUB_WORKSPACE }}
+      run: echo ${{ toJSON(env) }}
 
     - name: Dump
-      run: echo ${{ env }}
+      run: echo ${{ env.* }}
 
     - name: Checkout code
       uses: actions/checkout@v2

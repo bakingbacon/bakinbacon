@@ -8,7 +8,7 @@ on:
     - master
 
 env:
-  WEBSERVER_PATH: "${GITHUB_WORKSPACE}/webserver"
+  WEBSERVER_PATH: ${GITHUB_WORKSPACE}/webserver
 
 jobs:
   build:
@@ -28,8 +28,8 @@ jobs:
         echo ${{ env.WEBSERVER_PATH }}
         echo $WEBSERVER_PATH
         echo $GITHUB_WORKSPACE
-        echo ${ env.WEBSERVER_PATH }
         echo "${{ env.WEBSERVER_PATH }}"
+        echo ${{ env.GITHUB_WORKSPACE }}
 
     - name: Setup Node/NPM
       uses: actions/setup-node@v1

@@ -1,13 +1,5 @@
 name: bacon-builder
-on:
-  push:
-    branches:
-    - master
-    - actions
-  pull_request:
-    branches:
-    - master
-
+on: push
 env:
   WEBSERVER_PATH: ${{ github.workspace }}/webserver
 

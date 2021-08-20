@@ -23,14 +23,6 @@ jobs:
       with:
         go-version: '1.16'
 
-    - name: Dump
-      run: |
-        echo ${{ env.WEBSERVER_PATH }}
-        echo $WEBSERVER_PATH
-        echo $GITHUB_WORKSPACE
-        echo "${{ env.WEBSERVER_PATH }}"
-        echo ${{ env.GITHUB_WORKSPACE }}
-
     - name: Setup Node/NPM
       uses: actions/setup-node@v1
       with:
@@ -40,7 +32,7 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
-        path: "${{ GITHUB_WORKSPACE }}/node_modules"
+        path: "${{ env.GITHUB_WORKSPACE }}/node_modules"
 
     - name: Install node_modules
       working-directory: ${{ env.WEBSERVER_PATH }}

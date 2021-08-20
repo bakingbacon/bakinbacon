@@ -28,21 +28,26 @@ jobs:
     - name: Cache node_modules
       uses: actions/cache@v2
       with:
-        key: bakinbacon-npm-${{ hashFiles('/home/runner/work/bakinbacon/bakinbacon/webserver/package-lock.json') }}
-        path: /home/runner/work/bakinbacon/bakinbacon/webserver/node_modules
+        key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
+        path: ${{ env.GITHUB_WORKSPACE }}/webserver/node_modules
 
     - name: Install node_modules
-      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      working-directory: ${{ env.GITHUB_WORKSPACE }}/webserver
       run: npm install
 
     - name: Build web ui
-      working-directory: /home/runner/work/bakinbacon/bakinbacon/webserver
+      working-directory: ${{ env.GITHUB_WORKSPACE }}/webserver
       env:
         CI: "false"
       run: npm run build
 
+    - name: Bellybutton lint
+      uses: golangci/golangci-lint-action@v2
+      with:
+        version: latest
+        skip-go-installation: true
+
     - name: Fry some bacon
-      working-directory: /home/runner/work/bakinbacon/bakinbacon
       run: go build .
 
     - name: Release

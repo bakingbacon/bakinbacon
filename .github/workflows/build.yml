@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CHECKOUT_PATH: ${{ env.GITHUB_WORKSPACE }}
     steps:
 
     - name: Checkout code
@@ -29,14 +31,14 @@ jobs:
       uses: actions/cache@v2
       with:
         key: bakinbacon-npm-${{ hashFiles('**/package-lock.json') }}
-        path: "${{ env.GITHUB_WORKSPACE }}/webserver/node_modules"
+        path: "${{ env.CHECKOUT_PATH }}/webserver/node_modules"
 
     - name: Install node_modules
-      working-directory: "${{ env.GITHUB_WORKSPACE }}/webserver"
+      working-directory: "${{ env.CHECKOUT_PATH }}/webserver"
       run: npm install
 
     - name: Build web ui
-      working-directory: ${{ env.GITHUB_WORKSPACE }}/webserver
+      working-directory: ${{ env.CHECKOUT_PATH }}/webserver
       env:
         CI: "false"
       run: npm run build

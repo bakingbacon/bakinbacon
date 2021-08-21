@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/baconsigner"
+	"bakinbacon/notifications"
 	"bakinbacon/storage"
 )
 
@@ -239,6 +240,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	if err := b.Signer.SignerStatus(silentChecks); err != nil {
 		b.Status.SetState(NO_SIGNER)
 		b.Status.SetError(err)
+		notifications.N.Send(err.Error(), notifications.SIGNER)
 		log.WithError(err).Error("Checking signer status")
 		return false
 	}

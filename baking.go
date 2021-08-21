@@ -160,12 +160,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		// If not enough bond, exit early
 		if requiredBond > spendableBalance {
 
-			msg := "Spendable balance too low for baking bond"
+			msg := "Bond balance too low for baking"
 			log.WithFields(log.Fields{
 				"Spendable": spendableBalance, "ReqBond": requiredBond,
 			}).Error(msg)
 
 			bc.Status.SetError(errors.New(msg))
+			notifications.N.Send(msg, notifications.BALANCE)
 
 			return
 		}
@@ -473,7 +474,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 
 	// Send notification
-	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d!", nextLevelToBake))
+	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d!", nextLevelToBake), notifications.BAKING_OK)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {

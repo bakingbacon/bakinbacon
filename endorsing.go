@@ -14,6 +14,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"bakinbacon/notifications"
 	"bakinbacon/storage"
 )
 
@@ -108,12 +109,13 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		// If not enough bond, exit early
 		if requiredBond > spendableBalance {
 
-			msg := "Spendable balance too low to cover bond"
+			msg := "Bond balance too low for endorsing"
 			log.WithFields(log.Fields{
 				"Spendable": spendableBalance, "ReqBond": requiredBond,
 			}).Error(msg)
 
 			bc.Status.SetError(errors.New(msg))
+			notifications.N.Send(msg, notifications.BALANCE)
 
 			return
 		}

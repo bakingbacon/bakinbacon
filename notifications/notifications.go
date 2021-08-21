@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -10,13 +11,25 @@ import (
 	"bakinbacon/storage"
 )
 
+type Category int
+
+const (
+	BALANCE Category = iota + 1
+	SIGNER
+	BAKING_OK
+	BAKING_FAIL
+	ENDORSE_FAIL
+	VERSION
+)
+
 type Notifier interface {
 	Send(string)
 	IsEnabled() bool
 }
 
 type Notification struct {
-	Notifiers map[string]Notifier
+	Notifiers        map[string]Notifier
+	lastSentCategory map[Category]time.Time
 }
 
 var N *Notification
@@ -24,7 +37,8 @@ var N *Notification
 func New() error {
 
 	N = &Notification{}
-	N.Notifiers = make(map[string]Notifier, 2)
+	N.Notifiers = make(map[string]Notifier)
+	N.lastSentCategory = make(map[Category]time.Time)
 
 	if err := N.LoadNotifiers(); err != nil {
 		return errors.Wrap(err, "Failed New Notification")
@@ -33,7 +47,7 @@ func New() error {
 	return nil
 }
 
-func (N *Notification) LoadNotifiers() error {
+func (n *Notification) LoadNotifiers() error {
 
 	// Get telegram notifications config from DB, as []byte string
 	tConfig, err := storage.DB.GetNotifiersConfig("telegram")
@@ -42,7 +56,7 @@ func (N *Notification) LoadNotifiers() error {
 	}
 
 	// Configure telegram; Don't save what we just loaded
-	if err := N.Configure("telegram", tConfig, false); err != nil {
+	if err := n.Configure("telegram", tConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init telegram")
 	}
 
@@ -53,14 +67,14 @@ func (N *Notification) LoadNotifiers() error {
 	}
 
 	// Configure email; Don't save what we just loaded
-	if err := N.Configure("email", eConfig, false); err != nil {
+	if err := n.Configure("email", eConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init email")
 	}
 
 	return nil
 }
 
-func (N *Notification) Configure(notifier string, config []byte, saveconfig bool) error {
+func (n *Notification) Configure(notifier string, config []byte, saveconfig bool) error {
 
 	switch notifier {
 	case "telegram":
@@ -68,14 +82,14 @@ func (N *Notification) Configure(notifier string, config []byte, saveconfig bool
 		if err != nil {
 			return err
 		}
-		N.Notifiers["telegram"] = nt
+		n.Notifiers["telegram"] = nt
 
 	case "email":
 		ne, err := NewEmail(config, saveconfig)
 		if err != nil {
 			return err
 		}
-		N.Notifiers["email"] = ne
+		n.Notifiers["email"] = ne
 
 	default:
 		return errors.New("Unknown notification type")
@@ -84,8 +98,21 @@ func (N *Notification) Configure(notifier string, config []byte, saveconfig bool
 	return nil
 }
 
-func (N *Notification) Send(message string) {
-	for k, n := range N.Notifiers {
+func (n *Notification) Send(message string, category Category) {
+
+	// Check that we haven't sent a message from this category
+	// within the past 10 minutes
+	if lastSentTime, ok := n.lastSentCategory[category]; ok {
+		if lastSentTime.After(time.Now().UTC().Add(time.Minute * -10)) {
+			log.Info("Notification last sent within 10 minutes")
+			return
+		}
+	}
+
+	// Add/update notification timestamp for category
+	n.lastSentCategory[category] = time.Now().UTC()
+
+	for k, n := range n.Notifiers {
 		if n.IsEnabled() {
 			n.Send(message)
 		} else {
@@ -94,13 +121,13 @@ func (N *Notification) Send(message string) {
 	}
 }
 
-func (N *Notification) TestSend(notifier string, message string) error {
+func (n *Notification) TestSend(notifier string, message string) error {
 
 	switch notifier {
 	case "telegram":
-		N.Notifiers["telegram"].Send(message)
+		n.Notifiers["telegram"].Send(message)
 	case "email":
-		N.Notifiers["email"].Send(message)
+		n.Notifiers["email"].Send(message)
 	default:
 		return errors.New("Unknown notification type")
 	}
@@ -108,10 +135,10 @@ func (N *Notification) TestSend(notifier string, message string) error {
 	return nil
 }
 
-func (N *Notification) GetConfig() (json.RawMessage, error) {
+func (n *Notification) GetConfig() (json.RawMessage, error) {
 
 	// Marshal the current Notifiers as the current config
 	// Return RawMessage so as not to double Marshal
-	bts, err := json.Marshal(N.Notifiers)
+	bts, err := json.Marshal(n.Notifiers)
 	return json.RawMessage(bts), err
 }

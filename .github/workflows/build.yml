@@ -44,7 +44,7 @@ jobs:
         skip-go-installation: true
 
     - name: Fry some bacon
-      run: go build .
+      run: make
 
     - name: Release
       uses: softprops/action-gh-release@v1

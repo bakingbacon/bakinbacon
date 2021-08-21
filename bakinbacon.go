@@ -18,8 +18,6 @@ import (
 
 var (
 	bc         *baconclient.BaconClient
-	commitHash string
-	version    string
 
 	// Flags
 	network           string

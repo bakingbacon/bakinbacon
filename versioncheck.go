@@ -2,16 +2,25 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/mod/semver"
 
 	log "github.com/sirupsen/logrus"
+
+	"bakinbacon/notifications"
 )
 
 const (
 	VERSION_URL = "https://bakingbacon.github.io/bakinbacon/version.json"
+)
+
+var (
+	commitHash string
+	version    = "v1.0.1"
 )
 
 type Versions []Version
@@ -25,7 +34,7 @@ type Version struct {
 func RunVersionCheck() {
 
 	// Check every 12hrs
-	ticker := time.NewTicker(12 * time.Hour)
+	ticker := time.NewTicker(24 * time.Hour)
 
 	for {
 
@@ -55,12 +64,15 @@ func RunVersionCheck() {
 			log.WithError(err).Error("Error checking version")
 		} else {
 
-			// Just log for now
-			for _, v := range versions {
-				log.WithFields(log.Fields{
-					"Date": v.Date, "Version": v.Version, "Notes": v.Notes,
-				}).Info("Version Update")
+			// Assume JSON is in version order, get latest entry
+			latestVersion := versions[0]
+
+			// If newer version available, send notification
+			if semver.Compare(version, latestVersion.Version) == -1 {
+				notifications.N.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
+					latestVersion, version), notifications.VERSION)
 			}
+
 		}
 
 		// wait here for next iteration

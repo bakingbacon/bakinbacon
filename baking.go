@@ -14,6 +14,7 @@ import (
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 	log "github.com/sirupsen/logrus"
 
+	"bakinbacon/baconsigner"
 	"bakinbacon/nonce"
 	"bakinbacon/notifications"
 	"bakinbacon/storage"
@@ -210,11 +211,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Retrieve mempool operations
-	// There's a minimum required number of endorsements at priority 0 which is 24,
-	// so we will keep fetching from the mempool until we get at least 24, or
+	// There's a minimum required number of endorsements at priority 0 which is 192,
+	// so we will keep fetching from the mempool until we get at least 192, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	minEndorsingPower := networkConstants[network].MinEndorsingPower
+	minEndorsingPower := networkConstants[network].InitialEndorsers
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -226,15 +227,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	for time.Now().UTC().Before(endMempool) && endorsingPower < minEndorsingPower {
 
-		// Sleep 5s to let mempool accumulate
-		log.Infof("Sleeping 5s for more endorsements and ops")
+		// Sleep 10s to let mempool accumulate
+		log.Infof("Sleeping 10s for more endorsements and ops")
 
 		// Sleep, but also check if new block arrived
 		select {
 		case <-ctx.Done():
 			log.Info("New block arrived; Canceling current bake")
 			return
-		case <-time.After(5 * time.Second):
+		case <-time.After(10 * time.Second):
 			break
 		}
 
@@ -257,11 +258,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// compute_endorsing_power with current endorsements
 		// Send all operations in the first slot, which are endorsements
-		endorsingPower, err = computeEndorsingPower(&hashBlockID, block.ChainID, operations[0])
+		endorsingPower, err = computeEndorsingPower(&hashBlockID, block.Header.Level, operations[0])
 		if err != nil {
-			log.WithError(err).Error("Unable to compute endorsing power; Using 0 power")
+			log.WithError(err).Error("Unable to compute endorsing power; Using 90% of minimum power")
 
-			endorsingPower = 0
+			endorsingPower = int(float32(minEndorsingPower) * 0.90)
 		}
 
 		log.WithField("EndorsingPower", endorsingPower).Debug("Computed Endorsing Power")
@@ -275,6 +276,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	default:
 		break
 	}
+
+	// TODO Remove minimal_valid_time by calculating ourselves
+	// Ref: https://gitlab.com/tezos/tezos/-/blob/master/src/proto_010_PtGRANAD/lib_protocol/baking.ml#L451
+	// As long as we have at least 192 endorsing power, we can submit bake at 30s
+	// Timestamp of previous block + 30s = minimal timestamp
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
 	resp, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
@@ -415,14 +421,28 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		"Bytes": blockBytes, "Attempts": attempts,
 	}).Trace("Proof-of-Work Complete")
 
-	// TODO Attempt to sign twice, short sleep in-between
-	signedBlock, err := bc.Signer.SignBlock(blockBytes, block.ChainID)
-	if err != nil {
-		log.WithField("Attempt", attempts).WithError(err).Error("Failed to sign block")
+	// Attempt to sign twice, short sleep in-between
+	var signedBlock baconsigner.SignOperationOutput
+	var signedErr error
+
+	for i := 1; i < 3; i++ {
+		signedBlock, signedErr = bc.Signer.SignBlock(blockBytes, block.ChainID)
+		if err != nil {
+			log.WithField("Attempt", i).WithError(err).Error("Failed to sign block")
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break // Break loop; No error; Success sign
+	}
+
+	if signedErr != nil {
+		msg := "Unable to sign block bytes; Cannot inject block"
+		log.Error(msg)
+		notifications.N.Send(msg, notifications.BAKING_FAIL)
 		return
 	}
 
-	log.WithField("Signature", signedBlock.EDSig).Debug("Block Signer Signature")
+	log.WithField("Signature", signedBlock.EDSig).Debug("Signed New Block")
 
 	// The data of the block
 	ibi := rpc.InjectionBlockInput{
@@ -684,48 +704,47 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	return operations, nil
 }
 
-func computeEndorsingPower(blockId rpc.BlockID, chainId string, operations []rpc.Operations) (int, error) {
+func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rpc.Operations) (int, error) {
 
-	// https://blog.nomadic-labs.com/emmy-an-improved-consensus-algorithm.html
-	// >>>>149: http://172.17.0.5:8732/chains/NetXjD3HPJJjmcd/blocks/BLfXz42dc2.../endorsing_power
-	// { "endorsement_operation":
-	//       { "branch": "BLfXz42dc2JyHUkHpp7gErVP5djwrtcwsxXy8hvt7dPHy5jBqrM",
-	//         "contents": [ { "kind": "endorsement", "level": 43256 } ],
-	//         "signature": "sigQPBM4f4aCZWHXeJz7g2gEDP...."
-	//        },
-	//   "chain_id": "NetXjD3HPJJjmcd"
-	//  }
-	// <<<<149: 200 OK
-	// 2
-
-	// TODO: Endorsing power is just the number of endorsing slots.
-	//       Fetch endorsing rights for this level, validate entry, increment power
+	// Endorsing power is just the total number of endorsing slots for a delegate.
+	// We fetch endorsing rights for this level, validate entry, increment power.
 
 	var endorsingPower int
 
+	// Get endorsing rights for this level
+	endorsingRightsInput := rpc.EndorsingRightsInput{
+		BlockID:  blockId,
+		Level:    bakingLevel,
+	}
+	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsInput)
+	if err != nil {
+		return endorsingPower, err
+	}
+
+	log.WithFields(log.Fields{
+		"Level": bakingLevel, "Request": resp.Request.URL, "Response": string(resp.Body()),
+	}).Trace("Fetched block endorsing rights")
+
+	// Convert endorsing rights to map for faster searching
+	rightsMap := make(map[int]int, 256)
+
+	for _, r := range endorsingRights {
+		k := r.Slots[0]
+		v := len(r.Slots)
+		rightsMap[k] = v
+	}
+
+	// For each mempool endorsement operation, search for
+	// endorsing rights to calculate total number of slots
 	for _, o := range operations {
 
-		endorsementPowInput := rpc.EndorsingPowerInput{ // block.go
-			BlockID: blockId,
-			Cycle:   0,
-			EndorsingPower: rpc.EndorsingPower{
-				EndorsementOperation: rpc.EndorsingOperation{
-					Branch:    o.Branch,
-					Contents:  o.Contents,
-					Signature: o.Signature,
-				},
-				ChainID: chainId,
-			},
+		for _, c := range o.Contents {
+			slot := c.Slot // lowest slot for this delegate
+
+			// Find slot in endorsing rights of delegate.
+			// Add length of total number of slots array to endorsing power.
+			endorsingPower += rightsMap[slot]
 		}
-
-		_, ep, err := bc.Current.EndorsingPower(endorsementPowInput) // block.go
-		if err != nil {
-			log.WithError(err).WithField("Op", o).Error("Unable to compute endorsing power")
-
-			ep = 0
-		}
-
-		endorsingPower += ep
 	}
 
 	return endorsingPower, nil

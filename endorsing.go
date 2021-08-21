@@ -183,43 +183,6 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	//log.WithField("DecodedSig", signedInnerEndorsement.Signature).Debug("DECODED SIG")
 	//log.WithField("Signature", signedInnerEndorsement.EDSig).Debug("EDSIG")
 
-	// Check if a new block has been posted to /head and we should abort
-	select {
-	case <-ctx.Done():
-		log.Warn("New block arrived; Canceling endorsement")
-		return
-	default:
-		break
-	}
-
-	// TODO Fix Preapply
-
-// 	// Prepare to pre-apply the operation
-// 	preapplyEndoOp := rpc.PreapplyOperationsInput{
-// 		BlockID: &hashBlockID,
-// 		Operations: []rpc.Operations{
-// 			{
-// 				Branch: block.Hash,
-// 				Contents: rpc.Contents{
-// 					endoWithSlot,
-// 				},
-// 				Protocol:  block.Protocol,
-// 				Signature: signedInnerEndorsement.EDSig,
-// 			},
-// 		},
-// 	}
-//
-// 	// Validate the operation against the node for any errors
-// 	resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyEndoOp)
-// 	if err != nil {
-// 		log.WithError(err).WithFields(log.Fields{
-// 			"Request": resp.Request.URL, "Response": string(resp.Body()),
-// 		}).Error("Could not preapply operations")
-// 		//return
-// 	}
-//
-// 	log.WithField("Resp", preApplyResp).Trace("Preapply Response")
-
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{
 		Operation: endoWithSlotBytes,
@@ -247,8 +210,6 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
 		}).Error("Endorsement Injection Failure")
 
-		// TODO
-		// Check error message against known issues
 		return
 	}
 

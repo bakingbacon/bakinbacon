@@ -14,7 +14,7 @@ type Constants struct {
 	BlockSecurityDeposit       int
 	EndorsementSecurityDeposit int
 	ProofOfWorkThreshold       uint64
-	MinEndorsingPower          int
+	InitialEndorsers           int
 	GranadaActivationLevel     int
 	GranadaActivationCycle     int // Granada changed the simple calculations, so we need to
 	                               // know the last level before the change. For mainnet,

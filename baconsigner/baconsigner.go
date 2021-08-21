@@ -196,7 +196,7 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	// Decode the incoming operational hex to bytes
 	incOpBytes, err := hex.DecodeString(incOpHex)
 	if err != nil {
-		return SignOperationOutput{}, errors.Wrap(err, "failed to sign operation")
+		return SignOperationOutput{}, errors.Wrap(err, "Failed to sign operation")
 	}
 	//fmt.Println("IncOpHex:   ", incOpHex)
 	//fmt.Println("IncOpBytes: ", incOpBytes)
@@ -226,7 +226,7 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	// Decode out the signature from the operation
 	decodedSig, err := decodeSignature(edSig)
 	if err != nil {
-		return SignOperationOutput{}, errors.Wrap(err, "failed to decode signed block")
+		return SignOperationOutput{}, errors.Wrap(err, "Failed to decode signed block")
 	}
 	//fmt.Println("DecodedSign: ", decodedSig)
 

@@ -49,9 +49,9 @@ func generateNonce() (nonce.Nonce, error) {
 	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
 
 	n := nonce.Nonce{
-		Seed:         seed,
-		Nonce:        nonceHash,
-		EncodedNonce: encodedNonce,
+		Seed:          seed,
+		Nonce:         nonceHash,
+		EncodedNonce:  encodedNonce,
 		NoPrefixNonce: hex.EncodeToString(nonceHash),
 	}
 

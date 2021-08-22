@@ -76,7 +76,7 @@ func main() {
 	// Set up RPC polling-monitoring
 	bc, err = baconclient.New(networkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
 	if err != nil {
-		log.WithError(err).Fatalf("Could not connect create BaconClient")
+		log.WithError(err).Fatalf("Cannot create BaconClient")
 	}
 
 	// Web UI

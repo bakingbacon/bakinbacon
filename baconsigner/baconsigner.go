@@ -55,7 +55,7 @@ func New() (*BaconSigner, error) {
 			return bs, errors.Wrap(err, "Cannot init ledger signer")
 		}
 	default:
-		return bs, NO_SIGNER_TYPE
+		log.WithField("Type", signerType).Error("No signer type defined. New setup?")
 	}
 
 	return bs, nil
@@ -96,7 +96,14 @@ func (s *BaconSigner) LoadDelegate(silent bool) error {
 
 // Confirm action on ledger; Not applicable to signer
 func (s *BaconSigner) ConfirmBakingPkh(pkh, bip string) error {
-	return L.ConfirmBakingPkh(pkh, bip)
+	err := L.ConfirmBakingPkh(pkh, bip)
+
+	// Need to set BaconSigner if all is good
+	if err == nil {
+		s.SignerType = SIGNER_LEDGER
+	}
+
+	return err
 }
 
 // Gets the public key, and public key hash, depending on signer type
@@ -121,8 +128,8 @@ func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
 }
 
 // Not applicable to wallet
-func (s *BaconSigner) TestLedger() (interface{}, error) {
-	return L.TestLedger()
+func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
+	return TestLedger()
 }
 
 // Save signer config to DB

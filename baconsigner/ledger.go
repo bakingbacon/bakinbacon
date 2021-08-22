@@ -161,57 +161,70 @@ func (s *LedgerSigner) SetBipPath(p string) error {
 }
 
 //
-// This function will open the ledger, get the version string of the running app, and
+// This function is only called from web UI during initial setup.
+// It will open the ledger, get the version string of the running app, and
 // fetch either the currently auth'd baking key, or fetch the default BIP path key
-func (s *LedgerSigner) TestLedger() (interface{}, error) {
+func TestLedger() (*LedgerInfo, error) {
 
-	version, err := s.IsBakingApp()
+	L = &LedgerSigner{}
+	L.Info = &LedgerInfo{}
+
+	// Get device
+	dev, err := ledger.Get()
 	if err != nil {
-		return s.Info, err
+		return L.Info, errors.Wrap(err, "Cannot get ledger device")
+	}
+	L.ledger = dev
+
+	version, err := L.IsBakingApp()
+	if err != nil {
+		return L.Info, err
 	}
 
-	s.Info.Version = version
-	log.WithField("Version", s.Info.Version).Info("Ledger Version")
+	L.Info.Version = version
+	log.WithField("Version", L.Info.Version).Info("Ledger Version")
 
 	// Check if ledger is already configured for baking
-	s.Info.BipPath = DEFAULT_BIP_PATH
+	L.Info.BipPath = DEFAULT_BIP_PATH
 
-	bipPath, err := s.GetAuthorizedKeyPath()
+	bipPath, err := L.GetAuthorizedKeyPath()
 	if err != nil {
 		log.WithError(err).Error("Unable to GetAuthorizedKeyPath")
-		return s.Info, errors.Wrap(err, "Unable to query auth path")
+		return L.Info, errors.Wrap(err, "Unable to query auth path")
 	}
 
 	// Check returned path from device
 	if bipPath != "" {
 		// Ledger is already setup for baking
-		s.Info.PrevAuth = true
-		s.Info.BipPath = bipPath
+		log.WithField("Path", bipPath).Info("Ledger previously configured for baking")
+		L.Info.PrevAuth = true
+		L.Info.BipPath = bipPath
 	}
 
 	// Get the key from the path
-	if err := s.SetBipPath(s.Info.BipPath); err != nil {
+	if err := L.SetBipPath(L.Info.BipPath); err != nil {
 		log.WithError(err).Error("Unable to SetBipPath")
-		return s.Info, errors.Wrap(err, "Unable to set bip path")
+		return L.Info, errors.Wrap(err, "Unable to set bip path")
 	}
 
-	pkh, err := s.GetPublicKey()
+	pkh, err := L.GetPublicKey()
 	if err != nil {
 		log.WithError(err).Error("Unable to GetPublicKey")
-		return s.Info, err
+		return L.Info, err
 	}
 
-	s.Info.Pkh = pkh
+	L.Info.Pkh = pkh
 
-	return s.Info, nil
+	return L.Info, nil
 }
 
 //
 // Ask ledger to display request for public key. User must press button to confirm.
 func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	log.WithFields(log.Fields{
+		"PKH": pkh, "Path": bipPath,
+	}).Debug("Confirming Baking PKH")
 
 	// Get the key from the path
 	if err := s.SetBipPath(bipPath); err != nil {

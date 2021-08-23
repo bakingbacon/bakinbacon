@@ -19,3 +19,7 @@ fmt:
 run:
 	$(GOBUILD) -o $(BINARY_NAME) -v ./...
 	./$(BINARY_NAME)
+
+ui:
+	npm --prefix webserver/ install
+	npm --prefix webserver/ run build

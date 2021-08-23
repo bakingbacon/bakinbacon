@@ -1,0 +1,8 @@
+# Node stuff downloaded anyways
+webserver/node_modules
+
+# Ignore logs
+log-bakinbacon-*.log
+
+# Not the database
+bakinbacon.db

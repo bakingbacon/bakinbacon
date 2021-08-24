@@ -33,18 +33,14 @@ type ApiError struct {
 	Error string `json:"error"`
 }
 
-func apiError(err error, w http.ResponseWriter) {
-	e, _ := json.Marshal(ApiError{err.Error()})
-	http.Error(w, string(e), http.StatusBadRequest)
+type TemplateVars struct {
+	Network        string
+	BlocksPerCycle int
+	MinBlockTime   int
+	UiBaseUrl      string
 }
 
-func apiReturnOk(w http.ResponseWriter) {
-	if err := json.NewEncoder(w).Encode(map[string]string{"ok": "ok"}); err != nil {
-		log.WithError(err).Error("UI Return Encode Failure")
-	}
-}
-
-func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
+func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int, templateVars TemplateVars, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
 
 	// Set the package global
 	baconClient = _baconClient
@@ -62,7 +58,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	var router = mux.NewRouter()
 
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if err := indexTemplate.Execute(w, nil); err != nil {
+		if err := indexTemplate.Execute(w, templateVars); err != nil {
 			log.WithError(err).Error("Unable to render index")
 		}
 	})
@@ -140,4 +136,15 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 			log.WithError(err).Errorf("Httpserver: Shutdown()")
 		}
 	}()
+}
+
+func apiError(err error, w http.ResponseWriter) {
+	e, _ := json.Marshal(ApiError{err.Error()})
+	http.Error(w, string(e), http.StatusBadRequest)
+}
+
+func apiReturnOk(w http.ResponseWriter) {
+	if err := json.NewEncoder(w).Encode(map[string]string{"ok": "ok"}); err != nil {
+		log.WithError(err).Error("UI Return Encode Failure")
+	}
 }

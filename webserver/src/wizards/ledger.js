@@ -7,7 +7,7 @@ import Col from 'react-bootstrap/Col';
 import Loader from "react-loader-spinner";
 import Row from 'react-bootstrap/Row';
 
-import { BASE_URL, BaconAlert, apiRequest } from '../util.js';
+import { BaconAlert, apiRequest } from '../util.js';
 
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
@@ -29,7 +29,7 @@ const WizardLedger = (props) => {
 		setInfo({});
 		setIsLoading(true);
 
-		const testLedgerApiUrl = BASE_URL + "/api/wizard/testLedger";
+		const testLedgerApiUrl = window.BASE_URL + "/api/wizard/testLedger";
 		apiRequest(testLedgerApiUrl)
 		.then((data) => {
 			// Ledger and baking app detected by BB; enable continue button
@@ -67,7 +67,7 @@ const WizardLedger = (props) => {
 		// Still on step 2
 		setIsLoading(true);
 
-		const confirmPkhApiURL = BASE_URL + "/api/wizard/confirmBakingPkh"
+		const confirmPkhApiURL = window.BASE_URL + "/api/wizard/confirmBakingPkh"
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

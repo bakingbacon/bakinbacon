@@ -30,7 +30,7 @@ var DB Storage
 
 func InitStorage(datadir, network string) error {
 
-	db, err := bolt.Open(datadir + DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(datadir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return errors.Wrap(err, "Failed to init db")
 	}
@@ -83,21 +83,8 @@ func InitStorage(datadir, network string) error {
 		db: db,
 	}
 
-	// Statically add BakinBacon's RPC endpoints
-	switch network {
-	case "mainnet":
-		_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
-		_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
-
-	case "granadanet":
-		_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
-		_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
-
-	default:
-		return errors.New("Unknown network for storage")
-	}
-
-	return nil
+	// Add the default endpoints only on brand new setup
+	return DB.AddDefaultEndpoints(network)
 }
 
 func (s *Storage) Close() {

@@ -191,3 +191,41 @@ func (s *Storage) DeleteRPCEndpoint(endpointId int) error {
 		return b.Delete(itob(endpointId))
 	})
 }
+
+func (s *Storage) AddDefaultEndpoints(network string) error {
+
+	// Check the current sequence id for endpoints bucket. If > 2, then
+	// this is not a first-time init and we should not add these again
+
+	var currentSeq uint64
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		if b == nil {
+			return errors.New("AddDefaultRPCs - Unable to locate endpoints bucket")
+		}
+		currentSeq = b.Sequence()
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if currentSeq == 0 {
+
+		// Statically add BakinBacon's RPC endpoints
+		switch network {
+		case "mainnet":
+			_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
+			_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
+
+		case "granadanet":
+			_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
+			_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
+
+		default:
+			return errors.New("Unknown network for storage")
+		}
+	}
+
+	return nil
+}

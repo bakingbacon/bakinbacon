@@ -12,11 +12,11 @@ WINDOWS_BASE=$(BINARY_NAME)-windows-amd64
 WINDOWS_BINARY=$(WINDOWS_BASE).exe
 
 GIT_COMMIT := $(shell git rev-list -1 HEAD | cut -c 1-6)
+SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 
 all: build
 
-build: $(LINUX_BINARY)
-$(LINUX_BINARY):
+build: $(SOURCES)
 	$(GOBUILD) -o $(LINUX_BINARY) -ldflags "-X main.commitHash=$(GIT_COMMIT)"
 
 dist: $(LINUX_BINARY)
@@ -25,7 +25,7 @@ dist: $(LINUX_BINARY)
 windows: $(WINDOWS_BINARY)
 $(WINDOWS_BINARY):
 	PWD=$(shell pwd)
-	docker run --rm -v golang-windows-cache:/go/pkg -v $(PWD):/go/src/bakinbacon -e GOCACHE=/go/pkg/.cache x1unix/go-mingw /bin/sh -c "cd /go/src/bakinbacon && go build -v -o $(WINDOWS_BINARY) -ldflags '-X main.commitHash=$(GIT_COMMIT)'"
+	docker run --rm -v golang-windows-cache:/go/pkg -v $(PWD):/go/src/bakinbacon -w /go/src/bakinbacon -e GOCACHE=/go/pkg/.cache x1unix/go-mingw /bin/sh -c "go build -v -o $(WINDOWS_BINARY) -ldflags '-X main.commitHash=$(GIT_COMMIT)'"
 
 windows-dist: $(WINDOWS_BINARY)
 	tar -cvzf $(WINDOWS_BASE).tar.gz $(WINDOWS_BINARY)
@@ -36,6 +36,8 @@ fmt:
 clean:
 	rm -f *.tar.gz $(LINUX_BINARY) $(MAC_BINARY) $(WINDOWS_BINARY)
 
-ui:
+ui-dev:
 	npm --prefix webserver/ install
+
+ui:
 	npm --prefix webserver/ run build

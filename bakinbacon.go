@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	bc         *baconclient.BaconClient
+	bc *baconclient.BaconClient
 
 	// Flags
 	network           string
@@ -68,10 +68,9 @@ func main() {
 
 	// Network constants
 	log.WithFields(log.Fields{ //nolint:wsl
-		"PreservedCycles":       networkConstants[network].PreservedCycles,
-		"BlocksPerCycle":        networkConstants[network].BlocksPerCycle,
-		"BlocksPerRollSnapshot": networkConstants[network].BlocksPerRollSnapshot,
-		"BlocksPerCommitment":   networkConstants[network].BlocksPerCommitment,
+		"BlocksPerCycle":      networkConstants[network].BlocksPerCycle,
+		"BlocksPerCommitment": networkConstants[network].BlocksPerCommitment,
+		"TimeBetweenBlocks":   networkConstants[network].TimeBetweenBlocks,
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
@@ -80,10 +79,18 @@ func main() {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
 	}
 
-	// Web UI
+	// Start web UI
+	// Template variables for the UI
 	wg.Add(1)
-	webserver.Start(bc, *webUiAddr, *webUiPort, shutdownChannel, &wg)
+	templateVars := webserver.TemplateVars{
+		Network:        network,
+		BlocksPerCycle: networkConstants[network].BlocksPerCycle,
+		MinBlockTime:   networkConstants[network].TimeBetweenBlocks,
+		UiBaseUrl:      os.Getenv("UI_DEBUG"),
+	}
+	webserver.Start(bc, *webUiAddr, *webUiPort, templateVars, shutdownChannel, &wg)
 
+	// For canceling when new blocks appear
 	_, ctxCancel := context.WithCancel(context.Background())
 
 	// Run checks against our address; silent mode = false

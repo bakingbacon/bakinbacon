@@ -8,7 +8,7 @@ import Loader from "react-loader-spinner";
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
-import { BASE_URL, BaconAlert, apiRequest } from './util.js';
+import { BaconAlert, apiRequest } from './util.js';
 
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
@@ -40,7 +40,7 @@ const DelegateRegister = (props) => {
 	}, []);
 
 	const registerBaker = () => {
-		const registerBakerApiUrl = BASE_URL + "/api/wizard/registerBaker";
+		const registerBakerApiUrl = window.BASE_URL + "/api/wizard/registerBaker";
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

@@ -713,8 +713,8 @@ func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rp
 
 	// Get endorsing rights for this level
 	endorsingRightsInput := rpc.EndorsingRightsInput{
-		BlockID:  blockId,
-		Level:    bakingLevel,
+		BlockID: blockId,
+		Level:   bakingLevel,
 	}
 	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsInput)
 	if err != nil {

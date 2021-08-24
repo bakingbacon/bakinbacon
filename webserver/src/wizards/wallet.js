@@ -7,7 +7,7 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row';
 
-import { BASE_URL, apiRequest } from '../util.js';
+import { apiRequest } from '../util.js';
 
 
 const WizardWallet = (props) => {
@@ -21,7 +21,7 @@ const WizardWallet = (props) => {
 	const [ err, setError ] = useState("");
 	
 	const generateNewKey = () => {
-		const generateKeyApiUrl = BASE_URL + "/api/wizard/generateNewKey";
+		const generateKeyApiUrl = window.BASE_URL + "/api/wizard/generateNewKey";
 		apiRequest(generateKeyApiUrl)
 		.then((data) => {
 			setEdsk(data.edsk);
@@ -35,7 +35,7 @@ const WizardWallet = (props) => {
 	};
 	
 	const exitWizardWallet = () => {
-		const finishWizardApiUrl = BASE_URL + "/api/wizard/finishWallet";
+		const finishWizardApiUrl = window.BASE_URL + "/api/wizard/finishWallet";
 		apiRequest(finishWizardApiUrl)
 		.then(() => {
 			// Ignore response body; just need 200 OK
@@ -68,7 +68,7 @@ const WizardWallet = (props) => {
 		}
 
 		// Call API to import key
-		const importKeyApiUrl = BASE_URL + "/api/wizard/importKey";
+		const importKeyApiUrl = window.BASE_URL + "/api/wizard/importKey";
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

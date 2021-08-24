@@ -147,8 +147,8 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 
 	lostTicks := 0
 
-	// Get network constant time_between_blocks and set sleep-ticker to 25%
-	sleepTime := time.Duration(timeBetweenBlocks / 4)
+	// Get network constant time_between_blocks and set sleep-ticker to 50%
+	sleepTime := time.Duration(timeBetweenBlocks / 2)
 	ticker := time.NewTicker(sleepTime * time.Second)
 
 	log.WithField("Endpoint", client.Host).Info("Blockwatch running...")

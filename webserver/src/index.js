@@ -16,7 +16,7 @@ import SetupWizard from './wizards'
 import Voting from './voting.js'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
-import { BASE_URL, NO_SIGNER, NOT_REGISTERED, apiRequest } from './util.js';
+import { NO_SIGNER, NOT_REGISTERED, apiRequest } from './util.js';
 
 import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
@@ -66,7 +66,7 @@ const Bakinbacon = () => {
 
 	const fetchStatus = () => {
 
-		const statusApiUrl = BASE_URL + "/api/status";
+		const statusApiUrl = window.BASE_URL + "/api/status";
 
 		apiRequest(statusApiUrl)
 		.then((statusRes) => {

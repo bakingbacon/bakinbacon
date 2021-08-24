@@ -9,7 +9,7 @@ import Loader from "react-loader-spinner";
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from './toaster.js';
-import { BASE_URL, BaconAlert, apiRequest } from './util.js';
+import { BaconAlert, apiRequest } from './util.js';
 
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
@@ -98,7 +98,7 @@ const Voting = (props) => {
 
 		// TODO: Check if already voted?
 		
-		const upVoteApiUrl = BASE_URL + "/api/voting/upvote"
+		const upVoteApiUrl = window.BASE_URL + "/api/voting/upvote"
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

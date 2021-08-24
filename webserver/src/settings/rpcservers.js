@@ -7,7 +7,7 @@ import Form from 'react-bootstrap/Form'
 import ListGroup from 'react-bootstrap/ListGroup';
 
 import ToasterContext from '../toaster.js';
-import { BASE_URL, CHAINID_GRANADANET, apiRequest } from '../util.js';
+import { CHAINIDS, apiRequest } from '../util.js';
 
 
 const Rpcservers = (props) => {
@@ -46,13 +46,14 @@ const Rpcservers = (props) => {
 		// This has the added effect of forcing upgrades for new protocols.
 		apiRequest(rpcToAdd + "/chains/main/blocks/head/header")
 		.then((data) => {
-			const chainId = data.chain_id;
-			if (chainId !== CHAINID_GRANADANET) {
-				throw new Error("RPC chain ("+chainId+") does not match "+CHAINID_GRANADANET+". Please use a correct RPC server.");
+			const rpcChainId = data.chain_id;
+			const networkChainId = CHAINIDS[window.NETWORK]
+			if (rpcChainId !== networkChainId) {
+				throw new Error("RPC chain ("+rpcChainId+") does not match "+networkChainId+". Please use a correct RPC server.");
 			}
 
 			// RPC is good! Add it via API.
-			const apiUrl = BASE_URL + "/api/settings/addendpoint"
+			const apiUrl = window.BASE_URL + "/api/settings/addendpoint"
 			const postData = {rpc: rpcToAdd}
 			handlePostAPI(apiUrl, postData).then(() => {
 				addToast({
@@ -77,7 +78,7 @@ const Rpcservers = (props) => {
 	}
 
 	const delRpc = (rpc) => {
-		const apiUrl = BASE_URL + "/api/settings/deleteendpoint"
+		const apiUrl = window.BASE_URL + "/api/settings/deleteendpoint"
 		const postData = {rpc: Number(rpc)}
 		handlePostAPI(apiUrl, postData).then(() => {
 			addToast({

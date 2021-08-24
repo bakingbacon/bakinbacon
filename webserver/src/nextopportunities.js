@@ -4,14 +4,12 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 
-import { MIN_BLOCK_TIME } from './util.js'
-
 const NextOpportunities = (props) => {
 
 	const status = props.status
 
 	const nextBake = () => {
-		const nextBakeSeconds = (status.nbl - status.level) * MIN_BLOCK_TIME
+		const nextBakeSeconds = (status.nbl - status.level) * window.MIN_BLOCK_TIME
 		const t = new Date()
 		t.setSeconds(t.getSeconds() + nextBakeSeconds)
 		return (

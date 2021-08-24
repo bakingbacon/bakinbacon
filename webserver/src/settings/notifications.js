@@ -7,7 +7,7 @@ import Form from 'react-bootstrap/Form'
 import Row from 'react-bootstrap/Row';
 
 import ToasterContext from '../toaster.js';
-import { BASE_URL, apiRequest } from '../util.js';
+import { apiRequest } from '../util.js';
 
 
 const Notifications = (props) => {
@@ -85,7 +85,7 @@ const Notifications = (props) => {
 		}
 
 		// Validations complete
-		const apiUrl = BASE_URL + "/api/settings/savetelegram"
+		const apiUrl = window.BASE_URL + "/api/settings/savetelegram"
 		const postData = {
 			chatids: chatIds,
 			apikey: botapikey,

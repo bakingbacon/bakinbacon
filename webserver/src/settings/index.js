@@ -7,7 +7,7 @@ import Notifications from './notifications.js'
 import Rpcservers from './rpcservers.js'
 
 import ToasterContext from '../toaster.js';
-import { BASE_URL, apiRequest } from '../util.js';
+import { apiRequest } from '../util.js';
 
 
 const Settings = (props) => {
@@ -22,7 +22,7 @@ const Settings = (props) => {
 	}, []);
 
 	const loadSettings = () => {
-		const apiUrl = BASE_URL + "/api/settings/";
+		const apiUrl = window.BASE_URL + "/api/settings/";
 		apiRequest(apiUrl)
 		.then((data) => {
 			updateSettings((prev) => ({ ...prev, ...data }))

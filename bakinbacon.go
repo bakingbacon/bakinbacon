@@ -27,6 +27,7 @@ var (
 	dryRunBake        *bool
 	webUiAddr         *string
 	webUiPort         *int
+	dataDir           *string
 )
 
 // TODO: Translations (https://www.transifex.com/bakinbacon/bakinbacon-core/content/)
@@ -49,7 +50,7 @@ func main() {
 	shutdownChannel := setupCloseChannel()
 
 	// Open/Init database
-	if err := storage.InitStorage(network); err != nil {
+	if err := storage.InitStorage(*dataDir, network); err != nil {
 		log.WithError(err).Fatal("Could not open storage")
 	}
 
@@ -178,11 +179,22 @@ func parseArgs() {
 	webUiAddr = flag.String("webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
 	webUiPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
 
+	dataDir = flag.String("datadir", "./", "Location of database")
+
+	printVersion := flag.Bool("version", false, "Show version and exit")
+
 	flag.Parse()
 
 	// Sanity
 	if network != NETWORK_MAINNET && network != NETWORK_GRANADANET {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	// Handle print version and exit
+	if *printVersion {
+		log.Printf("Bakin'Bacon %s (%s)", version, commitHash)
+		log.Printf("https://github.com/bakingbacon/bakinbacon")
+		os.Exit(0)
 	}
 }

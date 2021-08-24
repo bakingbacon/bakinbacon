@@ -17,6 +17,7 @@ export const CHAINID_MAINNET     = "NetXdQprcVkpaWU";
 export const CHAINID_FLORENCENET = "NetXxkAx4woPLyu";
 export const CHAINID_GRANADANET  = "NetXz969SFaFn8k";
 
+export const MIN_BLOCK_TIME = 30;
 
 // Copied from https://github.com/github/fetch/issues/203#issuecomment-266034180
 function parseJSON(response) {

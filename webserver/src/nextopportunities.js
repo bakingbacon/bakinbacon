@@ -4,17 +4,23 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Row from 'react-bootstrap/Row';
 
+import { MIN_BLOCK_TIME } from './util.js'
+
 const NextOpportunities = (props) => {
 
 	const status = props.status
 
 	const nextBake = () => {
+		const nextBakeSeconds = (status.nbl - status.level) * MIN_BLOCK_TIME
+		const t = new Date()
+		t.setSeconds(t.getSeconds() + nextBakeSeconds)
 		return (
 			<>
 			<Card.Title>Baking</Card.Title>
 			<Card.Subtitle className="mb-2 text-muted">Level: {status.nbl}</Card.Subtitle>
 			<Card.Subtitle className="mb-2 text-muted">Cycle: {status.nbc}</Card.Subtitle>
 			<Card.Subtitle className="mb-2 text-muted">Priority: {status.nbp}</Card.Subtitle>
+			<Card.Subtitle className="mb-2 text-muted">Est. Time: {t.toLocaleString()}</Card.Subtitle>
 			</>
 		)
 	}

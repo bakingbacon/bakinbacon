@@ -13,6 +13,10 @@ all: build
 build: 
 	$(GOBUILD) -o $(BINARY_NAME) -ldflags "-X main.commitHash=$(GIT_COMMIT)"
 
+windows:
+	PWD=$(shell pwd)
+	docker run --rm -it -v golang-windows-cache:/go/pkg -v $(PWD):/go/src/bakinbacon x1unix/go-mingw /bin/sh -c "cd /go/src/bakinbacon && go build -v -o $(BINARY_NAME)-win-x64.exe -ldflags '-X main.commitHash=$(GIT_COMMIT)'"
+
 fmt: 
 	$(GOFMT) baconclient/ nonce/ notifications/ storage/ util/ webserver/ *.go
 

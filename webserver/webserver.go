@@ -88,7 +88,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	wizardRouter.HandleFunc("/generateNewKey", generateNewKey)
 	wizardRouter.HandleFunc("/importKey", importSecretKey).Methods("POST", "OPTIONS")
 	wizardRouter.HandleFunc("/registerBaker", registerBaker).Methods("POST", "OPTIONS")
-	wizardRouter.HandleFunc("/finishwallet", finishWalletWizard)
+	wizardRouter.HandleFunc("/finishWallet", finishWalletWizard)
 
 	// For static content (js, images)
 	router.PathPrefix("/static/").Handler(http.FileServer(http.FS(contentStatic)))

@@ -119,7 +119,14 @@ func (s *BaconSigner) GetPublicKey() (string, error) {
 
 // Generates new key; Not applicable to Ledger
 func (s *BaconSigner) GenerateNewKey() (string, string, error) {
-	return W.GenerateNewKey()
+	sk, pkh, err := GenerateNewKey()
+
+	// Need to set if all is good
+	if err == nil {
+		s.SignerType = SIGNER_WALLET
+	}
+
+	return sk, pkh, err
 }
 
 // Imports a secret key; Not applicable to ledger

@@ -7,12 +7,12 @@ GOGET=$(GOCMD) get
 BINARY_NAME=bakinbacon
 
 LINUX_BINARY=$(BINARY_NAME)-linux-amd64
-MAC_BINARY=$(BINARY_NAME)-darwin-amd64
+DARWIN_BINARY=$(BINARY_NAME)-darwin-amd64
 WINDOWS_BASE=$(BINARY_NAME)-windows-amd64
 WINDOWS_BINARY=$(WINDOWS_BASE).exe
 
 GIT_COMMIT := $(shell git rev-list -1 HEAD | cut -c 1-6)
-SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
+SOURCES := $(shell find ./ -name '*.go')
 
 all: build
 
@@ -21,6 +21,9 @@ build: $(SOURCES)
 
 dist: $(LINUX_BINARY)
 	tar -cvzf $(LINUX_BINARY).tar.gz $(LINUX_BINARY)
+
+darwin: $(SOURCES)
+	$(GOBUILD) -o $(DARWIN_BINARY) -ldflags "-X main.commitHash=$(GIT_COMMIT)"
 
 windows: $(WINDOWS_BINARY)
 $(WINDOWS_BINARY):
@@ -34,7 +37,7 @@ fmt:
 	$(GOFMT) baconclient/ nonce/ notifications/ storage/ util/ webserver/ *.go
 
 clean:
-	rm -f *.tar.gz $(LINUX_BINARY) $(MAC_BINARY) $(WINDOWS_BINARY)
+	rm -f *.tar.gz $(LINUX_BINARY) $(DARWIN_BINARY) $(WINDOWS_BINARY)
 
 ui-dev:
 	npm --prefix webserver/ install

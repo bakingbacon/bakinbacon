@@ -47,7 +47,9 @@ func InitWalletSigner() error {
 }
 
 // Generates a new ED25519 keypair
-func (s *WalletSigner) GenerateNewKey() (string, string, error) {
+func GenerateNewKey() (string, string, error) {
+
+	W = &WalletSigner{}
 
 	newKey, err := gtks.Generate(gtks.Ed25519)
 	if err != nil {
@@ -55,10 +57,10 @@ func (s *WalletSigner) GenerateNewKey() (string, string, error) {
 		return "", "", errors.Wrap(err, "failed to generate new key")
 	}
 
-	s.sk = newKey.GetSecretKey()
-	s.Pkh = newKey.PubKey.GetAddress()
+	W.sk = newKey.GetSecretKey()
+	W.Pkh = newKey.PubKey.GetAddress()
 
-	return s.sk, s.Pkh, nil
+	return W.sk, W.Pkh, nil
 }
 
 // Imports a secret key, saves to DB, and sets signer type to wallet

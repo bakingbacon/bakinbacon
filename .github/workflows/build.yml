@@ -4,7 +4,7 @@ env:
   WEBSERVER_PATH: ${{ github.workspace }}/webserver
 
 jobs:
-  build:
+  linux-windows-build:
     runs-on: ubuntu-latest
     steps:
 
@@ -43,13 +43,19 @@ jobs:
         version: latest
         skip-go-installation: true
 
-    - name: Fry some bacon
-      run: make
+    - name: Fry some linux bacon
+      run: make && make dist
+
+    - name: Fry some windows bacon
+      run: make windows && make windows-dist
 
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: bakinbacon
+        prerelease: true
+        files: |
+          bakinbacon-linux-amd64.tar.gz
+          bakinbacon-windows-amd64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

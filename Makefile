@@ -27,7 +27,7 @@ darwin: $(SOURCES)
 	$(GOBUILD) -o $(DARWIN_BINARY) -ldflags "-X main.commitHash=$(GIT_COMMIT)"
 
 darwin-dist: $(DARWIN_BINARY)
-	tar -cvzf $(DARWIN_BASE).tar.gz $(DARWIN_BINARY)
+	tar -cvzf $(DARWIN_BINARY).tar.gz $(DARWIN_BINARY)
 
 windows: $(SOURCES)
 	docker run --rm -v golang-windows-cache:/go/pkg -v $(PWD):/go/src/bakinbacon -w /go/src/bakinbacon -e GOCACHE=/go/pkg/.cache x1unix/go-mingw /bin/sh -c "go build -v -o $(WINDOWS_BINARY) -ldflags '-X main.commitHash=$(GIT_COMMIT)'"

@@ -39,6 +39,7 @@ jobs:
     - name: Bellybutton lint
       uses: golangci/golangci-lint-action@v2
       with:
+        working-directory: ${{ github.workspace }}
         version: latest
         skip-go-installation: true
 

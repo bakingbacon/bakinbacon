@@ -95,7 +95,22 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		break
 	}
 
+	// Join up all endorsing slots for sorting
+	var allSlots []int
+	for _, e := range endorsingRights {
+		allSlots = append(allSlots, e.Slots...)
+	}
+
+	// 009 requires the lowest slot be submitted
+	sort.Ints(allSlots)
+
+	slotString := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(allSlots)), ","), "[]")
+	log.WithFields(log.Fields{
+		"Level": endorsingLevel, "Slots": slotString,
+	}).Info("Endorsing rights found")
+
 	// Continue since we have at least 1 endorsing right
+	// Check if we can pay bond
 	requiredBond := networkConstants[network].EndorsementSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
@@ -121,19 +136,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 		}
 	}
 
-	// Join up all endorsing slots for sorting
-	var allSlots []int
-	for _, e := range endorsingRights {
-		allSlots = append(allSlots, e.Slots...)
-	}
-
-	// 009 requires the lowest slot be submitted
-	sort.Ints(allSlots)
-
-	slotString := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(allSlots)), ","), "[]")
-	log.WithFields(log.Fields{
-		"Level": endorsingLevel, "Slots": slotString,
-	}).Info("Endorsing rights found")
+	// Continue; have rights, have enough bond
 
 	// Inner endorsement; forge and sign
 	endoContent := rpc.Content{

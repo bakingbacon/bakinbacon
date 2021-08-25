@@ -46,6 +46,7 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 	// Update BaconClient status, even if next level is 0 (none found)
 	nextEndorsingCycle := getCycleFromLevel(nextEndorsingLevel)
 	bc.Status.SetNextEndorsement(nextEndorsingLevel, nextEndorsingCycle)
+
 	log.WithFields(log.Fields{
 		"Level": nextEndorsingLevel, "Cycle": nextEndorsingCycle,
 	}).Trace("Next Endorsing")
@@ -56,12 +57,12 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Endorsing Rights")
 
-			go fetchEndorsingRights(metadataLevel.Cycle)
+			go fetchEndorsingRights(metadataLevel, metadataLevel.Cycle)
 
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Endorsing Rights")
 
-			go fetchEndorsingRights(nextCycle)
+			go fetchEndorsingRights(metadataLevel, nextCycle)
 		}
 	}
 
@@ -76,6 +77,7 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 	// Update BaconClient status, even if next level is 0 (none found)
 	nextBakeCycle := getCycleFromLevel(nextBakeLevel)
 	bc.Status.SetNextBake(nextBakeLevel, nextBakeCycle, nextBakePriority)
+
 	log.WithFields(log.Fields{
 		"Level": nextBakeLevel, "Cycle": nextBakeCycle, "Priority": nextBakePriority,
 	}).Trace("Next Baking")
@@ -94,51 +96,96 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 	}
 }
 
-// Called on each new block; Only processes every 512 blocks
+// Called on each new block; Only processes every 1024 blocks
 // Fetches the bake/endorse rights for the next cycle and stores to DB
 func prefetchCycleRights(metadataLevel rpc.Level) {
 
-	// We only prefetch every 512 levels
-	if metadataLevel.Level % 512 != 0 {
+	// We only prefetch every 1024 levels
+	if metadataLevel.Level % 1024 != 0 {
 		return
 	}
 
 	nextCycle := metadataLevel.Cycle + 1
 
-	log.WithField("Cycle", nextCycle).Info("Pre-fetching rights for next cycle")
+	log.WithField("NextCycle", nextCycle).Info("Pre-fetching rights for next cycle")
 
-	go fetchEndorsingRights(nextCycle)
+	go fetchEndorsingRights(metadataLevel, nextCycle)
 	go fetchBakingRights(nextCycle)
 }
 
-func fetchEndorsingRights(nextCycle int) {
+func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
 	if bc.Signer.BakerPkh == "" {
 		log.Error("Cannot fetch endorsing rights; No baker configured")
 		return
 	}
 
-	endorsingRightsFilter := rpc.EndorsingRightsInput{
-		BlockID:  &rpc.BlockIDHead{},
-		Cycle:    nextCycle,
-		Delegate: bc.Signer.BakerPkh,
+	// Due to inefficiencies in tezos-node RPC introduced by Granada,
+	// we cannot query all rights of a delegate based on cycle.
+	// This produces too much load on the node and usually times out.
+	//
+	// Instead, we make an insane number of fast RPCs to get rights
+	// per level for the reminder of this cycle, or for the next cycle.
+
+	var levelToStart, levelToEnd int
+
+	levelInCycle := metadataLevel.CyclePosition
+	blocksPerCycle := networkConstants[network].BlocksPerCycle
+	levelsRemainingInCycle := (blocksPerCycle - levelInCycle)
+
+	// Are we fetching remaining rights in this level?
+	if cycleToFetch == metadataLevel.Cycle {
+
+		levelToStart = metadataLevel.Level
+		levelToEnd = levelToStart + levelsRemainingInCycle + 1
+
+	} else if cycleToFetch == (metadataLevel.Cycle + 1) {
+
+		levelToStart = metadataLevel.Level + levelsRemainingInCycle
+		levelToEnd = levelToStart + blocksPerCycle + 1
+
+	} else {
+		log.WithFields(log.Fields{
+			"CycleToFetch": cycleToFetch, "CurrentCycle": metadataLevel.Cycle,
+		}).Error("Unable to fetch endorsing rights")
 	}
 
-	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
-	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": string(resp.Body()),
-		}).Error("Unable to fetch next cycle endorsing rights")
+	// Can't have more rights than blocks per cycle; set the
+	// capacity of the slice to avoid reallocation on append
+	allEndorsingRights := make([]rpc.EndorsingRights, 0, blocksPerCycle)
 
-		return
+	// Range from start to end, fetch rights per level
+	for level := levelToStart; level < levelToEnd; level++ {
+
+		log.WithField("L", level).Trace("Fetching endorsing rights")
+
+		endorsingRightsFilter := rpc.EndorsingRightsInput{
+			BlockID:  &rpc.BlockIDHead{},
+			Level:    level,
+			Delegate: bc.Signer.BakerPkh,
+		}
+
+		resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+		if err != nil {
+			log.WithError(err).WithFields(log.Fields{
+				"Request": resp.Request.URL, "Response": string(resp.Body()),
+			}).Error("Unable to fetch endorsing rights")
+
+			return
+		}
+
+		// Append this levels' rights, if exists
+		if len(endorsingRights) > 0 {
+			allEndorsingRights = append(allEndorsingRights, endorsingRights[0])
+		}
 	}
 
-	if len(endorsingRights) == 0 {
-		log.WithField("Cycle", nextCycle).Info("Pre-fetch no endorsing rights")
-	}
+	log.WithFields(log.Fields{
+		"Cycle": cycleToFetch, "LS": levelToStart, "LE": levelToEnd, "Num": len(allEndorsingRights),
+	}).Debug("Prefetched Endorsing Rights")
 
 	// Save rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveEndorsingRightsForCycle(nextCycle, endorsingRights); err != nil {
+	if err := storage.DB.SaveEndorsingRightsForCycle(cycleToFetch, allEndorsingRights); err != nil {
 		log.WithError(err).Error("Unable to save endorsing rights for cycle")
 	}
 }

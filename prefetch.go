@@ -3,6 +3,8 @@ package main
 import (
 	log "github.com/sirupsen/logrus"
 
+	"github.com/pkg/errors"
+
 	"github.com/bakingbacon/go-tezos/v4/rpc"
 
 	"bakinbacon/storage"
@@ -87,11 +89,12 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Baking Rights")
 
-			go fetchBakingRights(metadataLevel.Cycle)
+			go fetchBakingRights(metadataLevel, metadataLevel.Cycle)
+
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Baking Rights")
 
-			go fetchBakingRights(nextCycle)
+			go fetchBakingRights(metadataLevel, nextCycle)
 		}
 	}
 }
@@ -110,7 +113,7 @@ func prefetchCycleRights(metadataLevel rpc.Level) {
 	log.WithField("NextCycle", nextCycle).Info("Pre-fetching rights for next cycle")
 
 	go fetchEndorsingRights(metadataLevel, nextCycle)
-	go fetchBakingRights(nextCycle)
+	go fetchBakingRights(metadataLevel, nextCycle)
 }
 
 func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
@@ -127,27 +130,12 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	// Instead, we make an insane number of fast RPCs to get rights
 	// per level for the reminder of this cycle, or for the next cycle.
 
-	var levelToStart, levelToEnd int
-
-	levelInCycle := metadataLevel.CyclePosition
 	blocksPerCycle := networkConstants[network].BlocksPerCycle
-	levelsRemainingInCycle := (blocksPerCycle - levelInCycle)
 
-	// Are we fetching remaining rights in this level?
-	if cycleToFetch == metadataLevel.Cycle {
-
-		levelToStart = metadataLevel.Level
-		levelToEnd = levelToStart + levelsRemainingInCycle + 1
-
-	} else if cycleToFetch == (metadataLevel.Cycle + 1) {
-
-		levelToStart = metadataLevel.Level + levelsRemainingInCycle
-		levelToEnd = levelToStart + blocksPerCycle + 1
-
-	} else {
-		log.WithFields(log.Fields{
-			"CycleToFetch": cycleToFetch, "CurrentCycle": metadataLevel.Cycle,
-		}).Error("Unable to fetch endorsing rights")
+	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
+	if err != nil {
+		log.WithError(err).Error("Unable to fetch endorsing rights")
+		return
 	}
 
 	// Can't have more rights than blocks per cycle; set the
@@ -190,48 +178,84 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	}
 }
 
-func fetchBakingRights(nextCycle int) {
+func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
 	if bc.Signer.BakerPkh == "" {
 		log.Error("Cannot fetch baking rights; No baker configured")
 		return
 	}
 
-	bakingRightsFilter := rpc.BakingRightsInput{
-		BlockID:  &rpc.BlockIDHead{},
-		Cycle:    nextCycle,
-		Delegate: bc.Signer.BakerPkh,
-	}
+	blocksPerCycle := networkConstants[network].BlocksPerCycle
 
-	resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
+	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": string(resp.Body()),
-		}).Error("Unable to fetch next cycle baking rights")
-
+		log.WithError(err).Error("Unable to fetch baking rights")
 		return
 	}
 
-	// Got any rights?
-	if len(bakingRights) == 0 {
-		log.WithFields(log.Fields{
-			"Cycle": nextCycle, "MaxPriority": MAX_BAKE_PRIORITY,
-		}).Info("Pre-fetch no baking rights")
-	}
+	allBakingRights := make([]rpc.BakingRights, 0, blocksPerCycle)
 
-	// Filter max priority
-	var filteredRights []rpc.BakingRights
+	// Range from start to end, fetch rights per level
+	for level := levelToStart; level < levelToEnd; level++ {
 
-	for _, r := range bakingRights {
-		if r.Priority < MAX_BAKE_PRIORITY {
-			filteredRights = append(filteredRights, r)
+		bakingRightsFilter := rpc.BakingRightsInput{
+			BlockID:  &rpc.BlockIDHead{},
+			Level:    level,
+			Delegate: bc.Signer.BakerPkh,
+		}
+
+		resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
+		if err != nil {
+			log.WithError(err).WithFields(log.Fields{
+				"Request": resp.Request.URL, "Response": string(resp.Body()),
+			}).Error("Unable to fetch next cycle baking rights")
+
+			return
+		}
+
+		// If have rights and priority is < max, append to slice
+		if len(bakingRights) > 0 {
+			if bakingRights[0].Priority < MAX_BAKE_PRIORITY {
+				allBakingRights = append(allBakingRights, bakingRights[0])
+			}
 		}
 	}
 
+	// Got any rights?
+	log.WithFields(log.Fields{
+		"Cycle": cycleToFetch, "LS": levelToStart, "LE": levelToEnd, "Num": len(allBakingRights), "MaxPriority": MAX_BAKE_PRIORITY,
+	}).Info("Prefetched Baking Rights")
+
 	// Save filtered rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveBakingRightsForCycle(nextCycle, filteredRights); err != nil {
+	if err := storage.DB.SaveBakingRightsForCycle(cycleToFetch, allBakingRights); err != nil {
 		log.WithError(err).Error("Unable to save baking rights for cycle")
 	}
+}
+
+func levelToStartEnd(metadataLevel rpc.Level, blocksPerCycle, cycleToFetch int) (int, int, error) {
+
+	var levelToStart, levelToEnd int
+	levelsRemainingInCycle := (blocksPerCycle - metadataLevel.CyclePosition)
+
+	// Are we fetching remaining rights in this level?
+	if cycleToFetch == metadataLevel.Cycle {
+
+		levelToStart = metadataLevel.Level
+		levelToEnd = levelToStart + levelsRemainingInCycle + 1
+
+	} else if cycleToFetch == (metadataLevel.Cycle + 1) {
+
+		levelToStart = metadataLevel.Level + levelsRemainingInCycle
+		levelToEnd = levelToStart + blocksPerCycle + 1
+
+	} else {
+		log.WithFields(log.Fields{
+			"CycleToFetch": cycleToFetch, "CurrentCycle": metadataLevel.Cycle,
+		}).Error("Unable to fetch endorsing rights")
+		return 0, 0, errors.New("Unable to calculate start/end")
+	}
+
+	return levelToStart, levelToEnd, nil
 }
 
 func getCycleFromLevel(l int) int {

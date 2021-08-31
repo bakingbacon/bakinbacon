@@ -20,6 +20,7 @@ const (
 	BAKING_FAIL
 	ENDORSE_FAIL
 	VERSION
+	NONCE
 )
 
 type Notifier interface {

@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"os"
 	"testing"
@@ -62,9 +63,9 @@ func TestProofOfWork(t *testing.T) {
 func TestGenericHash(t *testing.T) {
 
 	seed := "e6d84e1e98a65b2f4551be3cf320f2cb2da38ab7925edb2452e90dd5d2eeeead"
-	randBytes, _ := hex.DecodeString(seed)
+	seedBytes, _ := hex.DecodeString(seed)
 
-	nonceHash, err := util.CryptoGenericHash(randBytes, []byte{})
+	nonceHash, err := util.CryptoGenericHash(seedBytes, []byte{})
 	if err != nil {
 		t.Errorf("Unable to hash rand bytes for nonce")
 	}
@@ -78,5 +79,37 @@ func TestGenericHash(t *testing.T) {
 
 	if encodedNonce != "nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm" {
 		t.Errorf("Incorrect nonce from seed")
+	}
+}
+
+func TestNonce(t *testing.T) {
+
+	randBytes := make([]byte, 32)
+	if _, err := rand.Read(randBytes); err != nil {
+		t.Errorf("Unable to read random bytes: %s", err)
+	}
+	seed := hex.EncodeToString(randBytes)
+	seedBytes, _ := hex.DecodeString(seed)
+
+	randBytesHash, err := util.CryptoGenericHash(randBytes, []byte{})
+	if err != nil {
+		log.Errorf("Unable to hash rand bytes for nonce: %s", err)
+	}
+
+	seedBytesHash, err := util.CryptoGenericHash(seedBytes, []byte{})
+	if err != nil {
+		log.Errorf("Unable to hash rand bytes for nonce: %s", err)
+	}
+
+	// B58 encode seed hash with nonce prefix
+	encodedRandBytes := crypto.B58cencode(randBytesHash, nonce.Prefix_nonce)
+	encodedSeedBytes := crypto.B58cencode(seedBytesHash, nonce.Prefix_nonce)
+
+	t.Logf("Seed: %s\n", seed)
+	t.Logf("ERB:  %s\n", encodedRandBytes)
+	t.Logf("ESB:  %s\n", encodedSeedBytes)
+
+	if encodedRandBytes != encodedSeedBytes {
+		t.Errorf("Encoded bytes do not match")
 	}
 }

@@ -24,20 +24,12 @@ var (
 
 func generateNonce() (nonce.Nonce, error) {
 
-	//  Testing:
-	// 	  Seed:       e6d84e1e98a65b2f4551be3cf320f2cb2da38ab7925edb2452e90dd5d2eeeead
-	// 	  Seed Buf:   230,216,78,30,152,166,91,47,69,81,190,60,243,32,242,203,45,163,138,183,146,94,219,36,82,233,13,213,210,238,238,173
-	// 	  Seed Hash:  160,103,236,225,73,68,157,114,194,194,162,215,255,44,50,118,157,176,236,62,104,114,219,193,140,196,133,63,179,229,139,204
-	// 	  Nonce Hash: nceVSbP3hcecWHY1dYoNUMfyB7gH9S7KbC4hEz3XZK5QCrc5DfFGm
-	// 	  Seed Hex:   a067ece149449d72c2c2a2d7ff2c32769db0ec3e6872dbc18cc4853fb3e58bcc
-
-	// Generate a hexadecimal seed from random bytes
-	randBytes := make([]byte, 64)
+	// Generate a 64 char hexadecimal seed from random 32 bytes
+	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {
 		log.WithError(err).Error("Unable to read random bytes")
 		return nonce.Nonce{}, err
 	}
-	seed := hex.EncodeToString(randBytes)[:64]
 
 	nonceHash, err := util.CryptoGenericHash(randBytes, []byte{})
 	if err != nil {
@@ -49,7 +41,7 @@ func generateNonce() (nonce.Nonce, error) {
 	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
 
 	n := nonce.Nonce{
-		Seed:          seed,
+		Seed:          hex.EncodeToString(randBytes),
 		Nonce:         nonceHash,
 		EncodedNonce:  encodedNonce,
 		NoPrefixNonce: hex.EncodeToString(nonceHash),

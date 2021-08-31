@@ -363,32 +363,32 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header using RPC
-	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
-		BlockID: &hashBlockID,
-		BlockHeader: rpc.ForgeBlockHeaderBody{
-			Level:          shellHeader.Level,
-			Proto:          shellHeader.Proto,
-			Predecessor:    shellHeader.Predecessor,
-			Timestamp:      shellHeader.Timestamp,
-			ValidationPass: shellHeader.ValidationPass,
-			OperationsHash: shellHeader.OperationsHash,
-			Fitness:        shellHeader.Fitness,
-			Context:        shellHeader.Context,
-			ProtocolData:   protocolData,
-		},
-	})
-	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": string(resp.Body()),
-		}).Error("Unable to forge block header")
-		return
-	}
-
-	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
+// 	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
+// 		BlockID: &hashBlockID,
+// 		BlockHeader: rpc.ForgeBlockHeaderBody{
+// 			Level:          shellHeader.Level,
+// 			Proto:          shellHeader.Proto,
+// 			Predecessor:    shellHeader.Predecessor,
+// 			Timestamp:      shellHeader.Timestamp,
+// 			ValidationPass: shellHeader.ValidationPass,
+// 			OperationsHash: shellHeader.OperationsHash,
+// 			Fitness:        shellHeader.Fitness,
+// 			Context:        shellHeader.Context,
+// 			ProtocolData:   protocolData,
+// 		},
+// 	})
+// 	if err != nil {
+// 		log.WithError(err).WithFields(log.Fields{
+// 			"Request": resp.Request.URL, "Response": string(resp.Body()),
+// 		}).Error("Unable to forge block header")
+// 		return
+// 	}
+//
+// 	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
 
 	//
 	// Forge block header locally
-	newForgedBlock, err := forge.ForgeBlockShell(rpc.ForgeBlockHeaderBody{
+	locallyForgedBlock, err := forge.ForgeBlockShell(rpc.ForgeBlockHeaderBody{
 		Level:          shellHeader.Level,
 		Proto:          shellHeader.Proto,
 		Predecessor:    shellHeader.Predecessor,
@@ -402,15 +402,17 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if err != nil {
 		log.WithError(err).Error("Unable to locally forge block header")
 	}
-	log.WithField("Local", hex.EncodeToString(newForgedBlock)).Info("Locally Forged Block")
+
+	localForgedBlockHex := hex.EncodeToString(locallyForgedBlock)
+	log.WithField("Local", localForgedBlockHex).Info("Locally Forged Block")
 
 	// forged block header includes protocol_data and proof-of-work placeholder bytes
 	// protocol_data can sometimes contain seed_nonce_hash, so send the offset to powLoop
-	forgedBlock := forgedBlockHeader.Block
+	//forgedBlock := forgedBlockHeader.Block
 	protocolDataLength := len(protocolData)
 
 	// Perform a lame proof-of-work computation
-	blockBytes, attempts, err := powLoop(forgedBlock, protocolDataLength)
+	blockBytes, attempts, err := powLoop(localForgedBlockHex, protocolDataLength)
 	if err != nil {
 		log.WithError(err).Error("Unable to POW!")
 		return
@@ -484,17 +486,19 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Save nonce to DB for reveal in next cycle
+	withNonce := ""
 	if n.EncodedNonce != "" {
 		if err := storage.DB.SaveNonce(block.Metadata.Level.Cycle, n); err != nil {
 			log.WithError(err).Error("Unable to save nonce for reveal")
 		}
+		withNonce = ", with nonce"
 	}
 
 	// Update status for UI
 	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 
 	// Send notification
-	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d!", nextLevelToBake), notifications.BAKING_OK)
+	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BAKING_OK)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {

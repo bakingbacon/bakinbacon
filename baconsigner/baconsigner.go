@@ -131,7 +131,14 @@ func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 
 // Imports a secret key; Not applicable to ledger
 func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
-	return W.ImportSecretKey(k)
+	sk, pkh, err := ImportSecretKey(k)
+
+	// Need to set if all is good
+	if err == nil {
+		s.SignerType = SIGNER_WALLET
+	}
+
+	return sk, pkh, err
 }
 
 // Not applicable to wallet

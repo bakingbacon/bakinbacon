@@ -124,16 +124,6 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
-		// // Sign using http(s) signer
-		// signedNonceReveal, err := bc.Signer.SignNonce(nonceRevelationBytes, "NetXdQprcVkpaWU")
-		// if err != nil {
-		// 	log.WithError(err).Error("Signer nonce failure")
-		//
-		// 	continue
-		// }
-		//
-		// log.WithField("Signature", signedNonceReveal.EDSig).Debug("Signed Nonce Reveal")
-
 		// Build preapply
 		preapplyNonceRevealOp := rpc.PreapplyOperationsInput{
 			BlockID: &hashBlockID,
@@ -174,7 +164,6 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// Inject nonce reveal op
 		injectionInput := rpc.InjectionOperationInput{
-			// Operation: signedNonceReveal.SignedOperation,
 			Operation: nonceRevelationBytes,
 		}
 

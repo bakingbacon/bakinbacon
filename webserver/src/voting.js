@@ -28,10 +28,12 @@ const Voting = (props) => {
 	const [ isLoading, setIsLoading ] = useState(true);
 	const addToast = useContext(ToasterContext);
 
+	const baseVotesApiUrl = "http://"+window.NETWORK+"-us.rpc.bakinbacon.io/chains/main/blocks/head/votes"
+
 	useEffect(() => {
 
 		// Determine current period
-		const currentPeriodApi = "https://mainnet-tezos.giganode.io/chains/main/blocks/1504327/votes/current_period"
+		const currentPeriodApi = baseVotesApiUrl + "/current_period"
 		apiRequest(currentPeriodApi)
 		.then((data) => {
 
@@ -43,7 +45,7 @@ const Voting = (props) => {
 
 			if (votingPhase === "proposal") {
 				// Fetch current list of proposals and display
-				const activeProposalsApi = "https://mainnet-tezos.giganode.io/chains/main/blocks/1504327/votes/proposals"
+				const activeProposalsApi = baseVotesApiUrl + "/proposals"
 				apiRequest(activeProposalsApi)
 				.then((data) => {
 					setExplorationProposals(data);
@@ -54,7 +56,7 @@ const Voting = (props) => {
 			if (votingPhase === "exploration" || votingPhase === "cooldown" || votingPhase === "promotion") {
 
 				// Fetch current proposal
-				const currentProposalApi = "https://mainnet-tezos.giganode.io/chains/main/blocks/1504327/votes/current_proposal"
+				const currentProposalApi = baseVotesApiUrl + "/current_proposal"
 				apiRequest(currentProposalApi)
 				.then((data) => {
 					setCurrentProposal(data)
@@ -63,7 +65,7 @@ const Voting = (props) => {
 
 				// If exploration, get list of votes to check if already voted
 				if (votingPhase === "exploration") {
-					const ballotListApi = "https://mainnet-tezos.giganode.io/chains/main/blocks/1509400/votes/ballot_list"
+					const ballotListApi = baseVotesApiUrl + "/ballot_list"
 					apiRequest(ballotListApi)
 					.then((data) => {
 						const ballots = data;

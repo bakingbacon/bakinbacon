@@ -33,8 +33,13 @@ If you want to contribute to BakinBacon with pull-requests, you'll need a proper
 
 * go-1.16+
 * nodejs-14.15 (npm 6.14)
-* gcc-7.5+ (build-essential package on Ubuntu)
+* gcc-7.5+, make (build-essential package on Ubuntu)
 * libhidapi-libusb0, libusb, libusb-dev (For compiling ledger nano support)
+
+### Ledger Usage
+
+If you want to use a Ledger device with BakinBacon, you will need to [download and install](https://www.ledger.com/ledger-live/download) Ledger Live, and install **BOTH** Tezos Wallet and Tezos Baker apps to your device. We **DO NOT** recommend any version higher than 2.2.9 as they are buggy and prone to device freeze.
+* If using a ledger on linux, you'll need to add the [udev rules](https://support.ledger.com/hc/en-us/articles/115005165269-Fix-USB-connection-issues-with-Ledger-Live).
 
 ### Build Steps
 

@@ -120,12 +120,15 @@ func main() {
 			}
 
 			wg.Add(1)
+			log.Trace("ENDO")
 			go handleEndorsement(ctx, &wg, *block)
 
 			wg.Add(1)
+			log.Trace("NONCE")
 			go revealNonces(ctx, &wg, *block)
 
 			wg.Add(1)
+			log.Trace("BAKE")
 			go handleBake(ctx, &wg, *block)
 
 			//

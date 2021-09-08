@@ -628,7 +628,12 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	// 		}
 	// 	}
 
-	// 4 slots for operations to be sorted into
+	// 4 slots for operations to be sorted into:
+	//  0 endorsements
+	//  1 votes/proposals
+	//  2 anonymous operations - operations that do not have signatures
+	//  3 manager operations - signed operations that change account states (trx, contracts, etc)
+
 	// Init each slot to size 0 so that marshaling returns "[]" instead of null
 	operations := make([][]rpc.Operations, 4)
 	for i := range operations {
@@ -647,35 +652,41 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			opSlot = func(branch string, opContent rpc.Content) int {
 
 				switch opContent.Kind {
-				case rpc.ENDORSEMENT_WITH_SLOT:
+					case rpc.ENDORSEMENT_WITH_SLOT:
 
-					endorsement := op.Contents[0].Endorsement
+						endorsement := op.Contents[0].Endorsement
 
-					// Endorsements must match the current head block level and block hash
-					if endorsement.Operations.Level != curLevel {
-						return -1
-					}
+						// Endorsements must match the current head block level and block hash
+						if endorsement.Operations.Level != curLevel {
+							return -1
+						}
 
-					if branch != curBranch {
-						return -1
-					}
+						if branch != curBranch {
+							return -1
+						}
 
-					return 0
+						return 0
 
-				case rpc.PROPOSALS, rpc.BALLOT:
-					return 1
+					case rpc.PROPOSALS, rpc.BALLOT:
+						return 1
 
-				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
-					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
-					return 2
+					case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
+						rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
+						return 2
+
+					default:
+						log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
 				}
 
+				// Hit default case
 				return 3
+
 			}(op.Branch, op.Contents[0])
 		}
 
-		// For now, skip transactions and other unknown operations
-		if opSlot == 3 {
+		// Attempt to parse transactions
+		if opSlot == 3 && len(op.Contents) == 1 {
+
 			transaction := op.Contents[0].ToTransaction()
 			amount, _ := strconv.Atoi(transaction.Amount)
 			fee, _ := strconv.Atoi(transaction.Fee)
@@ -683,6 +694,8 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			log.WithFields(log.Fields{
 				"S": transaction.Source, "D": transaction.Destination, "A": amount / 1e6, "F": fee / 1e6,
 			}).Debug("Mempool Transaction")
+
+			// TODO: Sort based on fee
 		}
 
 		if opSlot == 3 && len(op.Contents) > 1 {
@@ -695,7 +708,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			continue
 		}
 
-		// Add operation to slot
+		// Add operation to slot; Must take into account max block gas/storage
 		operations[opSlot] = append(operations[opSlot], rpc.Operations{
 			Protocol:  headProtocol,
 			Branch:    op.Branch,

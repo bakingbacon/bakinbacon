@@ -18,6 +18,10 @@ The following binaries are available as part of our release process:
 
 If you would like bakinbacon compiled for a different platform, you can build it yourself below, or open an issue and we might be able to add it to our build prcocess.
 
+### Testing Tokens
+
+The Tezos network requires 8000 XTZ at stake in order to be considered a baker. Please fill out this form https://forms.gle/iuSuWprvhejCGKP56 to request enough tokens from our pool. You should receive the funds within 12-16 hours.
+
 ## Building BakinBacon
 
 If you want to contribute to BakinBacon with pull-requests, you'll need a proper environment set up to build and test BakinBacon.

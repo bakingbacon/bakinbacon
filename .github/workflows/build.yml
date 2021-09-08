@@ -42,7 +42,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         version: latest
         skip-go-installation: true
-        args: "--timeout 300"
+        args: --timeout 300s
 
     - name: Fry some darwin bacon
       run: make darwin && make darwin-dist

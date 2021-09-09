@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/bakingbacon/go-tezos/v4/crypto"
@@ -18,9 +19,7 @@ import (
 	"bakinbacon/util"
 )
 
-var (
-	previouslyInjectedErr = regexp.MustCompile(`while applying operation ([a-zA-Z0-9]{51}).*previously revealed`)
-)
+var previouslyInjectedErr = regexp.MustCompile(`while applying operation (o[a-zA-Z0-9]{50}).*previously revealed`)
 
 func generateNonce() (nonce.Nonce, error) {
 
@@ -121,10 +120,11 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 			return
 		}
+		nonceRevelationBytes += strings.Repeat("0", 128) // Nonce requires a null signature
 
 		log.WithField("Bytes", nonceRevelationBytes).Trace("Forged Nonce Reveal")
 
-		// Build preapply
+		// Build preapply using null signature
 		preapplyNonceRevealOp := rpc.PreapplyOperationsInput{
 			BlockID: &hashBlockID,
 			Operations: []rpc.Operations{
@@ -142,15 +142,29 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		// Validate the operation against the node for any errors
 		resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
-			log.WithError(err).WithFields(log.Fields{
-				"Request": resp.Request.URL, "Response": string(resp.Body()),
-			}).Error("Could not preapply nonce reveal operation")
 
-			continue
+			// If somehow the nonce reveal was already injected, but we have no record of the opHash,
+			// we can inject it again without worry to discover the opHash and save it
+			if strings.Contains(resp.String(), "nonce.previously_revealed") {
+
+				log.Warn("Nonce previously injected, unknown opHash.")
+
+			} else {
+
+				// Any other error we display and move to next nonce
+				log.WithError(err).WithFields(log.Fields{
+					"Request": resp.Request.URL, "Response": string(resp.Body()),
+				}).Error("Could not preapply nonce reveal operation")
+
+				continue
+			}
+
+		} else {
+
+			// Preapply success
+			log.WithField("Response", preApplyResp).Trace("Nonce Preapply")
+			log.Info("Nonce Preapply Successful")
 		}
-
-		log.Info("Nonce Preapply Successful")
-		log.WithField("Response", preApplyResp).Trace("Nonce Preapply")
 
 		// Check if new block came in
 		select {

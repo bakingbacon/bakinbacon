@@ -20,7 +20,7 @@ const (
 
 var (
 	commitHash string
-	version    = "v0.6.0"
+	version    = "v0.6.1"
 )
 
 type Versions []Version

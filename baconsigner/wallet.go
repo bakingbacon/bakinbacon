@@ -58,6 +58,7 @@ func GenerateNewKey() (string, string, error) {
 		return "", "", errors.Wrap(err, "failed to generate new key")
 	}
 
+	W.wallet = newKey
 	W.sk = newKey.GetSecretKey()
 	W.Pkh = newKey.PubKey.GetAddress()
 
@@ -69,14 +70,15 @@ func ImportSecretKey(iEdsk string) (string, string, error) {
 
 	W = &WalletSigner{}
 
-	key, err := gtks.FromBase58(iEdsk, gtks.Ed25519)
+	importKey, err := gtks.FromBase58(iEdsk, gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to import key")
 		return "", "", err
 	}
 
+	W.wallet = importKey
 	W.sk = iEdsk
-	W.Pkh = key.PubKey.GetAddress()
+	W.Pkh = importKey.PubKey.GetAddress()
 
 	return W.sk, W.Pkh, nil
 }
@@ -105,6 +107,6 @@ func (s *WalletSigner) SignBytes(opBytes []byte) (string, error) {
 	return sig.ToBase58(), nil
 }
 
-func (s *WalletSigner) GetPublicKey() (string, error) {
-	return s.Pkh, nil
+func (s *WalletSigner) GetPublicKey() (string, string, error) {
+	return s.wallet.PubKey.GetPublicKey(), s.Pkh, nil
 }

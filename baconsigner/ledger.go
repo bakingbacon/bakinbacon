@@ -80,7 +80,7 @@ func InitLedgerSigner() error {
 	}
 
 	// Get the pkh from dbBipPath from DB config
-	compPkh, err := L.GetPublicKey()
+	_, compPkh, err := L.GetPublicKey()
 	if err != nil {
 		return errors.Wrap(err, "Cannot fetch pkh from ledger")
 	}
@@ -106,15 +106,15 @@ func (s *LedgerSigner) Close() {
 }
 
 // Gets the public key from ledger device
-func (s *LedgerSigner) GetPublicKey() (string, error) {
+func (s *LedgerSigner) GetPublicKey() (string, string, error) {
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	// ledger.GetPublicKey returns (pk, pkh, error)
-	_, pkh, err := s.ledger.GetPublicKey()
+	pk, pkh, err := s.ledger.GetPublicKey()
 
-	return pkh, err
+	return pk, pkh, err
 }
 
 func (s *LedgerSigner) SignBytes(opBytes []byte) (string, error) {
@@ -207,7 +207,7 @@ func TestLedger() (*LedgerInfo, error) {
 		return L.Info, errors.Wrap(err, "Unable to set bip path")
 	}
 
-	pkh, err := L.GetPublicKey()
+	_, pkh, err := L.GetPublicKey()
 	if err != nil {
 		log.WithError(err).Error("Unable to GetPublicKey")
 		return L.Info, err

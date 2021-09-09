@@ -107,14 +107,14 @@ func (s *BaconSigner) ConfirmBakingPkh(pkh, bip string) error {
 }
 
 // Gets the public key, and public key hash, depending on signer type
-func (s *BaconSigner) GetPublicKey() (string, error) {
+func (s *BaconSigner) GetPublicKey() (string, string, error) {
 	switch s.SignerType {
 	case SIGNER_WALLET:
 		return W.GetPublicKey()
 	case SIGNER_LEDGER:
 		return L.GetPublicKey()
 	}
-	return "", NO_SIGNER_TYPE
+	return "", "", NO_SIGNER_TYPE
 }
 
 // Generates new key; Not applicable to Ledger

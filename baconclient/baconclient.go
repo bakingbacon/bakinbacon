@@ -441,7 +441,7 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		counter += 1
 
 		// Get public key from source
-		pk, err := b.Signer.GetPublicKey()
+		pk, _, err := b.Signer.GetPublicKey()
 		if err != nil {
 			return "", errors.Wrap(err, "Cannot register baker")
 		}

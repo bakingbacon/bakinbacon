@@ -52,7 +52,7 @@ const DelegateInfo = (props) => {
 	const fetchDelegateInfo = () => {
 
 		// Fetch delegator info which is only necessary when looking at the UI
-		const apiUrl = "http://granadanet-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + delegate
+		const apiUrl = "http://"+window.NETWORK+"-us.rpc.bakinbacon.io/chains/main/blocks/head/context/delegates/" + delegate
 		apiRequest(apiUrl)
 		.then(data => {
 

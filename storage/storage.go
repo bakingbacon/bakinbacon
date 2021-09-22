@@ -26,18 +26,14 @@ type Storage struct {
 	db *bolt.DB
 }
 
-var DB Storage
-
-func InitStorage(dataDir, network string) error {
-
+func InitStorage(dataDir, network string) (*Storage, error) {
 	db, err := bolt.Open(dataDir+DatabaseFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return errors.Wrap(err, "Failed to init db")
+		return nil, errors.Wrap(err, "Failed to init db")
 	}
 
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
-
 		// Config bucket
 		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(ConfigBucket))
 		if err != nil {
@@ -75,16 +71,20 @@ func InitStorage(dataDir, network string) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// set variable so main program can access
-	DB = Storage{
+	storage := &Storage{
 		db: db,
 	}
 
 	// Add the default endpoints only on brand-new setup
-	return DB.AddDefaultEndpoints(network)
+	if err := storage.AddDefaultEndpoints(network); err != nil {
+		log.WithError(err).Error("could not add default endpoints")
+		return nil, err
+	}
+	return storage, err
 }
 
 func (s *Storage) Close() {

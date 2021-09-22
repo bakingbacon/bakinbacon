@@ -23,7 +23,7 @@ const (
 	Nonce
 
 	telegram = "telegram"
-	email = "email"
+	email    = "email"
 )
 
 type Notifier interface {
@@ -34,13 +34,15 @@ type Notifier interface {
 type NotificationHandler struct {
 	Notifiers        map[string]Notifier
 	lastSentCategory map[Category]time.Time
+	Storage          *storage.Storage
 }
 
-
-func NewHandler() (*NotificationHandler, error) {
-	n := new(NotificationHandler)
-	n.Notifiers = make(map[string]Notifier)
-	n.lastSentCategory = make(map[Category]time.Time)
+func NewHandler(db *storage.Storage) (*NotificationHandler, error) {
+	n := &NotificationHandler{
+		Notifiers:         make(map[string]Notifier),
+		lastSentCategory: make(map[Category]time.Time),
+		Storage:          db,
+	}
 
 	if err := n.LoadNotifiers(); err != nil {
 		return nil, errors.Wrap(err, "Failed to instantiate notification handler")
@@ -50,9 +52,8 @@ func NewHandler() (*NotificationHandler, error) {
 }
 
 func (n *NotificationHandler) LoadNotifiers() error {
-
 	// Get telegram notifications config from DB, as []byte string
-	tConfig, err := storage.DB.GetNotifiersConfig("telegram")
+	tConfig, err := n.Storage.GetNotifiersConfig("telegram")
 	if err != nil {
 		return errors.Wrap(err, "Unable to load telegram config")
 	}
@@ -63,7 +64,7 @@ func (n *NotificationHandler) LoadNotifiers() error {
 	}
 
 	// Get email notifications config from DB
-	eConfig, err := storage.DB.GetNotifiersConfig("email")
+	eConfig, err := n.Storage.GetNotifiersConfig("email")
 	if err != nil {
 		return errors.Wrap(err, "Unable to load email config")
 	}
@@ -79,14 +80,14 @@ func (n *NotificationHandler) LoadNotifiers() error {
 func (n *NotificationHandler) Configure(notifier string, config []byte, saveConfig bool) error {
 	switch notifier {
 	case telegram:
-		nt, err := NewTelegram(config, saveConfig)
+		nt, err := n.NewTelegram(config, saveConfig)
 		if err != nil {
 			return err
 		}
 		n.Notifiers[telegram] = nt
 
 	case email:
-		ne, err := NewEmail(config, saveConfig)
+		ne, err := n.NewEmail(config, saveConfig)
 		if err != nil {
 			return err
 		}

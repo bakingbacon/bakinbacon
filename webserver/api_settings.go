@@ -8,8 +8,6 @@ import (
 	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
-
-	"bakinbacon/storage"
 )
 
 func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +43,10 @@ func (ws *WebServer) saveEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
-
 	log.Trace("API - getSettings")
 
 	// Get RPC endpoints
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
 		return
@@ -85,7 +82,7 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save new RPC to db to get id
-	id, err := storage.DB.AddRPCEndpoint(k["rpc"])
+	id, err := ws.storage.AddRPCEndpoint(k["rpc"])
 	if err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API AddEndpoint")
 		apiError(errors.Wrap(err, "Cannot add endpoint to DB"), w)
@@ -104,7 +101,7 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - listEndpoints")
 
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
 		return
@@ -138,7 +135,7 @@ func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Then delete from storage
-	if err := storage.DB.DeleteRPCEndpoint(k["rpc"]); err != nil {
+	if err := ws.storage.DeleteRPCEndpoint(k["rpc"]); err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot delete endpoint from DB"), w)
 

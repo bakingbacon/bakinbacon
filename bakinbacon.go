@@ -22,14 +22,13 @@ import (
 
 var (
 	server *BakinBaconServer
-	once   sync.Once
 )
 
 type BakinBaconServer struct {
 	*baconclient.BaconClient
 	*notifications.NotificationHandler
 	*webserver.WebServer
-	storage.Storage
+	*storage.Storage
 	Flags
 }
 
@@ -64,7 +63,8 @@ func main() {
 	shutdownChannel := setupCloseChannel()
 
 	// Open/Init database
-	if err := storage.InitStorage(server.dataDir, server.networkName); err != nil {
+	server.Storage, err = storage.InitStorage(server.dataDir, server.networkName)
+	if err != nil {
 		log.WithError(err).Fatal("Could not open storage")
 	}
 
@@ -73,11 +73,9 @@ func main() {
 	log.Infof("=== Network: %s ===", server.networkName)
 
 	// Global Notifications notificationHandler singleton
-	notificationHandler, err := notifications.NewHandler()
+	server.NotificationHandler, err = notifications.NewHandler(server.Storage)
 	if err != nil {
 		log.WithError(err).Error("Unable to load notifiers")
-	} else {
-		server.NotificationHandler = notificationHandler
 	}
 
 	// Version checking
@@ -91,7 +89,7 @@ func main() {
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
-	server.BaconClient, err = baconclient.New(notificationHandler, util.NetworkConstants[server.networkName].TimeBetweenBlocks, shutdownChannel, &wg)
+	server.BaconClient, err = baconclient.New(server.NotificationHandler, server.Storage, util.NetworkConstants[server.networkName].TimeBetweenBlocks, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
 	}
@@ -111,6 +109,7 @@ func main() {
 		Network:             server.networkName,
 		Client:              server.BaconClient,
 		NotificationHandler: server.NotificationHandler,
+		Storage:             server.Storage,
 		BindAddr:            server.webUIAddr,
 		BindPort:            server.webUIPort,
 		TemplateVars:        templateVars,
@@ -182,7 +181,7 @@ Main:
 	wg.Wait()
 
 	// Clean close DB, logs
-	storage.DB.Close()
+	server.Storage.Close()
 	closeLogging()
 
 	os.Exit(0)

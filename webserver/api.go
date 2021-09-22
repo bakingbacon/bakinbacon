@@ -11,7 +11,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/baconclient"
-	"bakinbacon/storage"
 )
 
 // Dummy health check
@@ -30,7 +29,7 @@ func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
 func (ws *WebServer) getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Debug("API - GetStatus")
 
-	_, pkh, err := storage.DB.GetDelegate()
+	_, pkh, err := ws.storage.GetDelegate()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get delegate"), w)
 		return
@@ -63,7 +62,7 @@ func (ws *WebServer) setDelegate(w http.ResponseWriter, r *http.Request) {
 	pkh := string(body)
 
 	// No esdk if using ledger
-	if err := storage.DB.SetDelegate("", pkh); err != nil {
+	if err := ws.storage.SetDelegate("", pkh); err != nil {
 		apiError(errors.Wrap(err, "Cannot set delegate"), w)
 		return
 	}

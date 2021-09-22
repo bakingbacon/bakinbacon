@@ -105,7 +105,6 @@ func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
 }
 
 func (s *Storage) GetLedgerConfig() (string, string, error) {
-
 	var pkh, bipPath string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -118,7 +117,7 @@ func (s *Storage) GetLedgerConfig() (string, string, error) {
 	return pkh, bipPath, err
 }
 
-// RPC
+// AddRPCEndpoint
 func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 	var rpcId int = 0
 
@@ -212,12 +211,12 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 		// Statically add BakinBacon's RPC endpoints
 		switch network {
 		case "mainnet":
-			_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
-			_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
 
 		case "granadanet":
-			_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
-			_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
 
 		default:
 			return errors.New("Unknown network for storage")

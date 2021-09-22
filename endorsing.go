@@ -16,7 +16,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/notifications"
-	"bakinbacon/storage"
 )
 
 /*
@@ -49,7 +48,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	endorsingLevel := block.Header.Level
 
 	// Check watermark to ensure we have not endorsed at this level before
-	watermark, err := storage.DB.GetEndorsingWatermark()
+	watermark, err := s.GetEndorsingWatermark()
 	if err != nil {
 		// watermark = 0 on DB error
 		log.WithError(err).Error("Unable to get endorsing watermark from DB")
@@ -219,7 +218,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	log.WithField("Operation", opHash).Info("Endorsement Injected")
 
 	// Save endorsement to DB for watermarking
-	if err := storage.DB.RecordEndorsement(endorsingLevel, opHash); err != nil {
+	if err := s.RecordEndorsement(endorsingLevel, opHash); err != nil {
 		log.WithError(err).Error("Unable to save endorsement; Watermark compromised")
 	}
 

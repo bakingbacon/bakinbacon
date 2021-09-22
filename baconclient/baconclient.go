@@ -31,6 +31,7 @@ type BaconSlice struct {
 type BaconClient struct {
 	NewBlockNotifier    chan *rpc.Block
 	NotificationHandler *notifications.NotificationHandler
+	Storage             *storage.Storage
 	Current             *BaconSlice
 	rpcClients          []*BaconSlice
 
@@ -44,27 +45,28 @@ type BaconClient struct {
 	waitGroup         *sync.WaitGroup
 }
 
-func New(notificationHandler *notifications.NotificationHandler, tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+func New(notificationHandler *notifications.NotificationHandler, db *storage.Storage, tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
 	// Make new client manager
 	newBaconClient := &BaconClient{
-		NewBlockNotifier:  make(chan *rpc.Block, 1),
+		NewBlockNotifier:    make(chan *rpc.Block, 1),
 		NotificationHandler: notificationHandler,
-		rpcClients:        make([]*BaconSlice, 0),
-		Status:            new(BaconStatus),
-		timeBetweenBlocks: tbb,
-		globalShutdown:    shutdown,
-		waitGroup:         wg,
+		Storage:             db,
+		rpcClients:          make([]*BaconSlice, 0),
+		Status:              new(BaconStatus),
+		timeBetweenBlocks:   tbb,
+		globalShutdown:      shutdown,
+		waitGroup:           wg,
 	}
 
 	// Init bacon signer
-	signer, err := baconsigner.New()
+	signer, err := baconsigner.New(db)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot init bacon signer")
 	}
 	newBaconClient.Signer = signer
 
 	// Pull endpoints from storage
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := db.GetRPCEndpoints()
 	if err != nil {
 		log.WithError(err).Error("Unable to get endpoints")
 		return nil, errors.Wrap(err, "Failed DB.GetRPCEndpoints")

@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"bakinbacon/notifications"
+	"bakinbacon/storage"
 	"bakinbacon/util"
 	"context"
 	"embed"
@@ -45,12 +46,14 @@ type WebServer struct {
 	baconClient         *baconclient.BaconClient
 	network             string
 	notificationHandler *notifications.NotificationHandler
+	storage             *storage.Storage
 }
 
 type WebServerArgs struct {
 	Network             string
 	Client              *baconclient.BaconClient
 	NotificationHandler *notifications.NotificationHandler
+	Storage             *storage.Storage
 
 	BindAddr        string
 	BindPort        int
@@ -64,7 +67,10 @@ func (a *WebServerArgs) Validate() error {
 		return errors.Errorf("Network not recognized: %s", a.Network)
 	}
 	if a.Client == nil {
-		return errors.New("bacon Client not instantiated")
+		return errors.New("bacon client not instantiated")
+	}
+	if a.Storage == nil {
+		return errors.New("storage is not instantiated")
 	}
 	if a.BindAddr == "" {
 		return errors.New("bind addr empty")
@@ -85,7 +91,11 @@ func Start(args WebServerArgs) (*WebServer, error) {
 	if err := args.Validate(); err != nil {
 		return nil, errors.Wrap(err, "could not start web server")
 	}
-	ws := &WebServer{baconClient: args.Client, notificationHandler: args.NotificationHandler}
+	ws := &WebServer{
+		baconClient:         args.Client,
+		notificationHandler: args.NotificationHandler,
+		storage:             args.Storage,
+	}
 
 	// Repoint web ui down one directory
 	staticContent, err := fs.Sub(staticUI, "build")

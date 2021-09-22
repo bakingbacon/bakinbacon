@@ -10,18 +10,19 @@ import (
 )
 
 type NotifyEmail struct {
-	Username  string `json:"username"`
-	Password  string `json:"password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 	SMTPHost string `json:"smtphost"`
 	SMTPport int    `json:"smtpport"`
 	Enabled  bool   `json:"enabled"`
+	Storage  *storage.Storage
 }
 
-func NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
-	ne := new(NotifyEmail)
-	ne.Enabled = true
-
-	return ne, nil
+func (n *NotificationHandler) NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
+	return &NotifyEmail{
+		Enabled: true,
+		Storage: n.Storage,
+	}, nil
 }
 
 func (n *NotifyEmail) IsEnabled() bool {
@@ -40,7 +41,7 @@ func (n *NotifyEmail) SaveConfig() error {
 		return errors.Wrap(err, "Unable to marshal email config")
 	}
 
-	if err := storage.DB.SaveNotifiersConfig("email", config); err != nil {
+	if err := n.Storage.SaveNotifiersConfig("email", config); err != nil {
 		return errors.Wrap(err, "Unable to save email config")
 	}
 

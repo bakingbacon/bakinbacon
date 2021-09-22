@@ -22,8 +22,10 @@ var (
 )
 
 type BaconSigner struct {
-	BakerPkh   string
-	SignerType int
+	BakerPkh     string
+	signerType   int
+	signerAccess SignerAccess
+	storage      *storage.Storage
 }
 
 // SignOperationOutput contains an operation with the signature appended, and the signature
@@ -33,27 +35,32 @@ type SignOperationOutput struct {
 	EDSig           string
 }
 
-func New() (*BaconSigner, error) {
-	bs := new(BaconSigner)
+func New(db *storage.Storage) (*BaconSigner, error) {
+	bs := &BaconSigner{
+		storage:      db,
+		signerAccess: NewSignerAccess(db),
+	}
 
 	// Get which signing method (wallet or ledger), so we can perform sanity checks
-	signerType, err := storage.DB.GetSignerType()
+	signerType, err := bs.storage.GetSignerType()
 	if err != nil {
 		return bs, errors.Wrap(err, "Unable to get signer type from DB")
 	}
-	bs.SignerType = signerType
+	bs.signerType = signerType
 
-	switch bs.SignerType {
+	switch bs.signerType {
 	case SignerWallet:
-		if err := InitWalletSigner(); err != nil {
-			return nil, errors.Wrap(err, "Cannot init wallet signer")
+		_, err = bs.signerAccess.GetWalletSigner()
+		if err != nil {
+			return nil, err
 		}
 	case SignerLedger:
-		if err := InitLedgerSigner(); err != nil {
-			return nil, errors.Wrap(err, "Cannot init ledger signer")
+		_, err = bs.signerAccess.GetLedgerSigner()
+		if err != nil {
+			return nil, err
 		}
 	default:
-		log.WithField("Type", signerType).Error("No signer type defined. New setup?")
+		log.WithField("Type", signerType).Warn("No signer type defined. New setup?")
 	}
 
 	return bs, nil
@@ -72,7 +79,7 @@ func (s *BaconSigner) SignerStatus(silent bool) error {
 func (s *BaconSigner) LoadDelegate(silent bool) error {
 	var err error
 
-	_, s.BakerPkh, err = storage.DB.GetDelegate()
+	_, s.BakerPkh, err = s.storage.GetDelegate()
 	if err != nil {
 		log.WithError(err).Error("Unable to load delegate from DB")
 		return err
@@ -92,32 +99,40 @@ func (s *BaconSigner) LoadDelegate(silent bool) error {
 
 // ConfirmBakingPkh Confirm action on ledger; Not applicable to signer
 func (s *BaconSigner) ConfirmBakingPkh(pkh, bip string) error {
-	if err := L.ConfirmBakingPkh(pkh, bip); err != nil {
+	if err := s.signerAccess.ConfirmBakingPkh(pkh, bip); err != nil {
 		return err
 	}
 	// set BaconSigner if all is good
-	s.SignerType = SignerLedger
+	s.signerType = SignerLedger
 	return nil
 }
 
 // GetPublicKey Gets the public key, and public key hash, depending on signer type
 func (s *BaconSigner) GetPublicKey() (string, string, error) {
-	switch s.SignerType {
+	switch s.signerType {
 	case SignerWallet:
-		return W.GetPublicKey()
+		signer, err := s.signerAccess.GetWalletSigner()
+		if err != nil {
+			return "", "", errors.Wrap(err, "could not get wallet signer")
+		}
+		return signer.GetPublicKey()
 	case SignerLedger:
-		return L.GetPublicKey()
+		signer, err := s.signerAccess.GetLedgerSigner()
+		if err != nil {
+			return "", "", errors.Wrap(err, "could not get wallet signer")
+		}
+		return signer.GetPublicKey()
 	}
 	return "", "", NoSignerType
 }
 
 // GenerateNewKey Generates new key; Not applicable to Ledger
 func (s *BaconSigner) GenerateNewKey() (string, string, error) {
-	sk, pkh, err := GenerateNewKey()
-
+	signer := s.signerAccess.CreateWalletSigner()
+	sk, pkh, err := signer.GenerateNewKey()
 	// Need to set if all is good
 	if err == nil {
-		s.SignerType = SignerWallet
+		s.signerType = SignerWallet
 	}
 
 	return sk, pkh, err
@@ -125,11 +140,12 @@ func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 
 // ImportSecretKey Imports a secret key; Not applicable to ledger
 func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
-	sk, pkh, err := ImportSecretKey(k)
+	signer := s.signerAccess.CreateWalletSigner()
+	sk, pkh, err := signer.ImportSecretKey(k)
 
 	// Need to set if all is good
 	if err == nil {
-		s.SignerType = SignerWallet
+		s.signerType = SignerWallet
 	}
 
 	return sk, pkh, err
@@ -137,25 +153,41 @@ func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
 
 // TestLedger Not applicable to wallet
 func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
-	return TestLedger()
+	signer, err := s.signerAccess.GetLedgerSigner()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get wallet signer")
+	}
+	return signer.TestLedger()
 }
 
 // SaveSigner Save signer config to DB
 func (s *BaconSigner) SaveSigner() error {
-	switch s.SignerType {
+	switch s.signerType {
 	case SignerWallet:
-		return W.SaveSigner()
+		signer, err := s.signerAccess.GetWalletSigner()
+		if err != nil {
+			return errors.Wrap(err, "could not save wallet signer")
+		}
+		return signer.SaveSigner(signer.sk, signer.pkh)
 	case SignerLedger:
-		return L.SaveSigner()
+		signer, err := s.signerAccess.GetLedgerSigner()
+		if err != nil {
+			return errors.Wrap(err, "could not save ledger signer")
+		}
+		return signer.SaveSigner()
 	}
 	return NoSignerType
 }
 
 // Close ledger or wallet
 func (s *BaconSigner) Close() {
-	switch s.SignerType {
+	switch s.signerType {
 	case SignerLedger:
-		L.Close()
+		signer, err := s.signerAccess.GetLedgerSigner()
+		if err != nil {
+			log.Error("could not get ledger signer to close")
+		}
+		signer.Close()
 	}
 }
 
@@ -224,11 +256,19 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	//fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig, err := func(b []byte) (string, error) {
-		switch s.SignerType {
+		switch s.signerType {
 		case SignerWallet:
-			return W.SignBytes(b)
+			signer, err := s.signerAccess.GetWalletSigner()
+			if err != nil {
+				return "", errors.Wrap(err,"could not get wallet signer to sign")
+			}
+			return signer.SignBytes(b)
 		case SignerLedger:
-			return L.SignBytes(b)
+			signer, err := s.signerAccess.GetLedgerSigner()
+			if err != nil {
+				return "", errors.Wrap(err,"could not get ledger signer to sign")
+			}
+			return signer.SignBytes(b)
 		}
 		return "", NoSignerType
 	}(opBytes)

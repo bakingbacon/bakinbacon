@@ -15,7 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/nonce"
-	"bakinbacon/storage"
 	"bakinbacon/util"
 )
 
@@ -69,7 +68,7 @@ func (s *BakinBaconServer) revealNonces(ctx context.Context, wg *sync.WaitGroup,
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
 
-	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
+	nonces, err := s.GetNoncesForCycle(previousCycle)
 	if err != nil {
 		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
 		return
@@ -203,7 +202,7 @@ func (s *BakinBaconServer) revealNonces(ctx context.Context, wg *sync.WaitGroup,
 
 		// Update DB with hash of reveal operation
 		nonce.RevealOp = revealOpHash
-		if err := storage.DB.SaveNonce(previousCycle, nonce); err != nil {
+		if err := s.SaveNonce(previousCycle, nonce); err != nil {
 			log.WithError(err).Error("Unable to save nonce reveal to DB")
 		}
 	}

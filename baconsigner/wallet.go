@@ -10,89 +10,103 @@ import (
 )
 
 type WalletSigner struct {
+	Storage *storage.Storage
+
 	sk     string
-	Pkh    string
+	pkh    string
 	wallet *gtks.Key
 }
 
-var W *WalletSigner
+func (s *Access) HydrateWalletSigner() (*WalletSigner, error) {
+	w := &WalletSigner{
+		Storage: s.storage,
+	}
 
-func InitWalletSigner() error {
-
-	W = new(WalletSigner)
-
-	walletSk, err := storage.DB.GetSignerSk()
+	walletSk, err := s.storage.GetSignerSk()
 	if err != nil {
-		return errors.Wrap(err, "Unable to get signer sk from DB")
+		log.WithError(err).Error()
+		return nil, errors.Wrap(err, "Unable to get signer sk from DB")
 	}
 
 	if walletSk == "" {
-		return errors.New("No wallet secret key found. Cannot bake.")
+		log.WithError(err).Error()
+		return nil, errors.New("No wallet secret key found. Cannot bake.")
 	}
 
 	// Import key
 	wallet, err := gtks.FromBase58(walletSk, gtks.Ed25519)
 	if err != nil {
-		return errors.Wrap(err, "Failed to load wallet from secret key")
+		log.WithError(err).Error()
+		return nil, errors.Wrap(err, "Failed to load wallet from secret key")
 	}
 
-	W.wallet = wallet
-	W.Pkh = wallet.PubKey.GetAddress()
+	w.wallet = wallet
+	w.pkh = wallet.PubKey.GetAddress()
 
 	log.WithFields(log.Fields{
-		"Baker": W.Pkh, "PublicKey": W.wallet.PubKey.GetPublicKey(),
+		"Baker": w.pkh, "PublicKey": w.wallet.PubKey.GetPublicKey(),
 	}).Info("Loaded software wallet")
 
-	return nil
+	return w, nil
 }
 
 // GenerateNewKey Generates a new ED25519 keypair; Only used on first setup through
 // UI wizard so init the signer here
-func GenerateNewKey() (string, string, error) {
-
-	W = new(WalletSigner)
-
+func (s *WalletSigner) GenerateNewKey() (string, string, error) {
 	newKey, err := gtks.Generate(gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to generate new key")
 		return "", "", errors.Wrap(err, "failed to generate new key")
 	}
 
-	W.wallet = newKey
-	W.sk = newKey.GetSecretKey()
-	W.Pkh = newKey.PubKey.GetAddress()
+	s.wallet = newKey
+	if err := s.SaveSigner(newKey.GetSecretKey(), newKey.PubKey.GetAddress()); err != nil {
+		return "", "", errors.Wrap(err, "could not save new wallet signer")
+	}
 
-	return W.sk, W.Pkh, nil
+	return s.sk, s.pkh, nil
 }
 
 // ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
-func ImportSecretKey(b58Ed25519Key string) (string, string, error) {
-
-	W = new(WalletSigner)
-
+func (s *WalletSigner) ImportSecretKey(b58Ed25519Key string) (string, string, error) {
 	importKey, err := gtks.FromBase58(b58Ed25519Key, gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to import key")
 		return "", "", err
 	}
 
-	W.wallet = importKey
-	W.sk = b58Ed25519Key
-	W.Pkh = importKey.PubKey.GetAddress()
+	s.wallet = importKey
+	if err := s.SaveSigner(b58Ed25519Key, importKey.PubKey.GetAddress()); err != nil {
+		return "", "", errors.Wrap(err, "could not save new wallet signer")
+	}
 
-	return W.sk, W.Pkh, nil
+	return s.sk, s.pkh, nil
 }
 
-// SaveSigner Saves Sk/Pkh to DB
-func (s *WalletSigner) SaveSigner() error {
+// SaveSigner Saves Sk/pkh to DB
+func (s *WalletSigner) SaveSigner(sk, pkh string) error {
+	if sk == "" {
+		log.Warn("sk is empty")
+	}
+	if pkh == "" {
+		log.Warn("pkh is empty")
+	}
+	s.sk = sk
+	s.pkh = pkh
 
-	if err := storage.DB.SetDelegate(s.sk, s.Pkh); err != nil {
+	if err := s.Storage.SetDelegate(sk, pkh); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
-	if err := storage.DB.SetSignerType(SignerWallet); err != nil {
+	if err := s.Storage.SetSignerType(SignerWallet); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
+
+	if err := s.Storage.SetSignerSk(sk); err != nil {
+		return errors.Wrap(err, "Unable to save key/wallet")
+	}
+
+	log.Info("Saved wallet signer to DB")
 
 	return nil
 }
@@ -108,5 +122,5 @@ func (s *WalletSigner) SignBytes(opBytes []byte) (string, error) {
 }
 
 func (s *WalletSigner) GetPublicKey() (string, string, error) {
-	return s.wallet.PubKey.GetPublicKey(), s.Pkh, nil
+	return s.wallet.PubKey.GetPublicKey(), s.pkh, nil
 }

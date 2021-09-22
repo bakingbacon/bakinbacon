@@ -7,8 +7,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bakingbacon/go-tezos/v4/rpc"
-
-	"bakinbacon/storage"
 )
 
 // Update BaconStatus with the most recent information from DB. This
@@ -16,7 +14,7 @@ import (
 // not update until next bake/endorse.
 func (s *BakinBaconServer) updateRecentBaconStatus() {
 	// Update baconClient.Status with most recent endorsement
-	recentEndorsementLevel, recentEndorsementHash, err := storage.DB.GetRecentEndorsement()
+	recentEndorsementLevel, recentEndorsementHash, err := s.GetRecentEndorsement()
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent endorsement")
 	}
@@ -24,7 +22,7 @@ func (s *BakinBaconServer) updateRecentBaconStatus() {
 	s.Status.SetRecentEndorsement(recentEndorsementLevel, s.getCycleFromLevel(recentEndorsementLevel), recentEndorsementHash)
 
 	// Update baconClient.Status with most recent bake
-	recentBakeLevel, recentBakeHash, err := storage.DB.GetRecentBake()
+	recentBakeLevel, recentBakeHash, err := s.GetRecentBake()
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent bake")
 	}
@@ -40,7 +38,7 @@ func (s *BakinBaconServer) updateCycleRightsStatus(metadataLevel rpc.Level) {
 	// Update our baconStatus with next endorsement level and next baking right.
 	// If this returns err, it means there was no bucket data which means
 	// we have never fetched current cycle rights and should do so asap
-	nextEndorsingLevel, highestFetchedCycle, err := storage.DB.GetNextEndorsingRight(metadataLevel.Level)
+	nextEndorsingLevel, highestFetchedCycle, err := s.GetNextEndorsingRight(metadataLevel.Level)
 	if err != nil {
 		log.WithError(err).Error("GetNextEndorsingRight")
 	}
@@ -69,7 +67,7 @@ func (s *BakinBaconServer) updateCycleRightsStatus(metadataLevel rpc.Level) {
 	}
 
 	// Next baking right; similar logic to above
-	nextBakeLevel, nextBakePriority, highestFetchedCycle, err := storage.DB.GetNextBakingRight(metadataLevel.Level)
+	nextBakeLevel, nextBakePriority, highestFetchedCycle, err := s.GetNextBakingRight(metadataLevel.Level)
 	if err != nil {
 		log.WithError(err).Error("GetNextEndorsingRight")
 	}
@@ -171,7 +169,7 @@ func (s *BakinBaconServer) fetchEndorsingRights(metadataLevel rpc.Level, cycleTo
 	}).Debug("Prefetched Endorsing Rights")
 
 	// Save rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveEndorsingRightsForCycle(cycleToFetch, allEndorsingRights); err != nil {
+	if err := s.SaveEndorsingRightsForCycle(cycleToFetch, allEndorsingRights); err != nil {
 		log.WithError(err).Error("Unable to save endorsing rights for cycle")
 	}
 }
@@ -224,7 +222,7 @@ func (s *BakinBaconServer) fetchBakingRights(metadataLevel rpc.Level, cycleToFet
 	}).Info("Prefetched Baking Rights")
 
 	// Save filtered rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveBakingRightsForCycle(cycleToFetch, allBakingRights); err != nil {
+	if err := s.SaveBakingRightsForCycle(cycleToFetch, allBakingRights); err != nil {
 		log.WithError(err).Error("Unable to save baking rights for cycle")
 	}
 }

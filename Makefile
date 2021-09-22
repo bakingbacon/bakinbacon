@@ -15,9 +15,13 @@ GIT_COMMIT := $(shell git rev-list -1 HEAD | cut -c 1-6)
 SOURCES := $(shell find ./ -name '*.go')
 PWD=$(shell pwd)
 
+FMT=$(fmt)
+UI=$(ui)
+UI_DEV=$(ui-dev)
+
 all: build
 
-build: $(SOURCES)
+build: $(UI) $(FMT) $(SOURCES)
 	$(GOBUILD) -o $(LINUX_BINARY) -ldflags "-X main.commitHash=$(GIT_COMMIT)"
 
 dist: $(LINUX_BINARY)
@@ -44,5 +48,5 @@ clean:
 ui-dev:
 	npm --prefix webserver/ install
 
-ui:
+ui: $(ui-dev)
 	npm --prefix webserver/ run build

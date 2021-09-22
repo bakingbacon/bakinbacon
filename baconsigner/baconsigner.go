@@ -160,15 +160,18 @@ func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
 	return signer.TestLedger()
 }
 
-// SaveSigner Save signer config to DB
+// SaveSigner For ledger - save to the DB, for wallet - check we have the key (it's already saved)
 func (s *BaconSigner) SaveSigner() error {
 	switch s.signerType {
 	case SignerWallet:
 		signer, err := s.signerAccess.GetWalletSigner()
 		if err != nil {
-			return errors.Wrap(err, "could not save wallet signer")
+			return errors.Wrap(err, "wallet signer was not saved")
 		}
-		return signer.SaveSigner(signer.sk, signer.pkh)
+		if _, _, err = signer.GetPublicKey(); err != nil {
+			return errors.Wrap(err, "wallet signer was not saved")
+		}
+		return nil
 	case SignerLedger:
 		signer, err := s.signerAccess.GetLedgerSigner()
 		if err != nil {

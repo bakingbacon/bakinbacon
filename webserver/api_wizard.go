@@ -142,13 +142,14 @@ func (ws *WebServer) registerBaker(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//
 // Finish wallet wizard
-// This API verifies that the key was saved to the db
+// This API saves the generated, or imported, secret key to the DB and saves the signer method
 func (ws *WebServer) finishWalletWizard(w http.ResponseWriter, r *http.Request) {
 	log.Debug("API - FinishWalletWizard")
 
-	if _, _, err := ws.baconClient.Signer.GetPublicKey(); err != nil {
-		apiError(errors.Wrap(err, "Key was not saved to db"), w)
+	if err := ws.baconClient.Signer.SaveSigner(); err != nil {
+		apiError(errors.Wrap(err, "Cannot save key/wallet to db"), w)
 		return
 	}
 

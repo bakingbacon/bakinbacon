@@ -11,7 +11,7 @@ import (
 
 //
 // Set delegate (from UI config)
-func handleUpvote(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) handleUpvote(w http.ResponseWriter, r *http.Request) {
 	log.Debug("API - handleUpvote")
 
 	// CORS crap; Handle OPTION preflight check
@@ -30,7 +30,7 @@ func handleUpvote(w http.ResponseWriter, r *http.Request) {
 	proposal := k["p"].(string)
 	period := int(k["i"].(float64))
 
-	opHash, err := baconClient.UpvoteProposal(proposal, period)
+	opHash, err := ws.baconClient.UpvoteProposal(proposal, period)
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot cast upvote"), w)
 		return

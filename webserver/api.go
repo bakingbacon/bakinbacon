@@ -16,7 +16,7 @@ import (
 
 //
 // Dummy health check
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - health")
 
@@ -29,8 +29,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 
 //
 // Get current status
-func getStatus(w http.ResponseWriter, r *http.Request) {
-
+func (ws *WebServer) getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Debug("API - GetStatus")
 
 	_, pkh, err := storage.DB.GetDelegate()
@@ -44,7 +43,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		Delegate  string `json:"pkh"`
 		Timestamp int64  `json:"ts"`
 	}{
-		baconClient.Status,
+		ws.baconClient.Status,
 		pkh,
 		time.Now().Unix(),
 	}
@@ -56,8 +55,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 //
 // Set delegate (from UI config)
-func setDelegate(w http.ResponseWriter, r *http.Request) {
-
+func (ws *WebServer) setDelegate(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot read set delegate"), w)

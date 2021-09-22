@@ -49,7 +49,7 @@ func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, 
 	newBaconClient := &BaconClient{
 		NewBlockNotifier:  make(chan *rpc.Block, 1),
 		rpcClients:        make([]*BaconSlice, 0),
-		Status:            &BaconStatus{},
+		Status:            new(BaconStatus),
 		timeBetweenBlocks: tbb,
 		globalShutdown:    shutdown,
 		waitGroup:         wg,
@@ -85,21 +85,21 @@ func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, 
 	return newBaconClient, nil
 }
 
-func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
+func (b *BaconClient) AddRpc(rpcID int, rpcEndpointURL string) {
 
 	active := true
 
-	gtRpc, err := rpc.New(rpcEndpointUrl)
+	gtRpc, err := rpc.New(rpcEndpointURL)
 	if err != nil {
-		log.WithField("Endpoint", rpcEndpointUrl).WithError(err).Error("Error from RPC")
+		log.WithField("Endpoint", rpcEndpointURL).WithError(err).Error("Error from RPC")
 		active = false
 	} else {
-		log.WithField("Endpoint", rpcEndpointUrl).Info("Connected to RPC")
+		log.WithField("Endpoint", rpcEndpointURL).Info("Connected to RPC")
 	}
 
 	newBaconSlice := &BaconSlice{
 		gtRpc,
-		rpcId,
+		rpcID,
 		active,
 		make(chan interface{}, 1), // For shutting down individual BaconSlices
 	}
@@ -117,7 +117,6 @@ func (b *BaconClient) Shutdown() {
 }
 
 func (b *BaconClient) ShutdownRpc(rpcId int) error {
-
 	newClients := make([]*BaconSlice, 0)
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
@@ -137,7 +136,6 @@ func (b *BaconClient) ShutdownRpc(rpcId int) error {
 }
 
 func (b *BaconClient) blockWatch(client *BaconSlice) {
-
 	defer b.waitGroup.Done()
 
 	lostTicks := 0

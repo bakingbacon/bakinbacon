@@ -38,9 +38,10 @@ func main() {
 
 	// Used throughout main
 	var (
-		err error
-		wg  sync.WaitGroup
-		ctx context.Context
+		err  error
+		wg   sync.WaitGroup
+		ctx  context.Context
+		once sync.Once
 	)
 
 	parseArgs()
@@ -90,7 +91,24 @@ func main() {
 		MinBlockTime:   util.NetworkConstants[network].TimeBetweenBlocks,
 		UIBaseURL:      os.Getenv("UI_DEBUG"),
 	}
-	webserver.Start(bc, *webUIAddr, *webUIPort, templateVars, shutdownChannel, &wg)
+
+	var ws *webserver.WebServer
+	args := webserver.WebServerArgs{
+		Network:         network,
+		Client:          bc,
+		BindAddr:        *webUIAddr,
+		BindPort:        *webUIPort,
+		TemplateVars:    templateVars,
+		ShutdownChannel: shutdownChannel,
+		WG:              &wg,
+	}
+	once.Do(func() {
+		ws, err = webserver.Start(args)
+		if err != nil {
+			log.WithError(err).Error()
+			os.Exit(1)
+		}
+	})
 
 	// For canceling when new blocks appear
 	_, ctxCancel := context.WithCancel(context.Background())

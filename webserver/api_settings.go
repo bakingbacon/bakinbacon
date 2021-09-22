@@ -13,8 +13,7 @@ import (
 	"bakinbacon/storage"
 )
 
-func saveTelegram(w http.ResponseWriter, r *http.Request) {
-
+func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - saveTelegram")
 
 	// Read the POST body as a string
@@ -42,11 +41,11 @@ func saveTelegram(w http.ResponseWriter, r *http.Request) {
 	apiReturnOk(w)
 }
 
-func saveEmail(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) saveEmail(w http.ResponseWriter, r *http.Request) {
 	apiReturnOk(w)
 }
 
-func getSettings(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - getSettings")
 
@@ -76,7 +75,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 //
 // Adding, Listing, Deleting endpoints
-func addEndpoint(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - addEndpoint")
 
 	var k map[string]string
@@ -96,14 +95,14 @@ func addEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Init new bacon watcher for this RPC
-	baconClient.AddRpc(id, k["rpc"])
+	ws.baconClient.AddRpc(id, k["rpc"])
 
 	log.WithField("Endpoint", k["rpc"]).Debug("API Added Endpoint")
 
 	apiReturnOk(w)
 }
 
-func listEndpoints(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - listEndpoints")
 
 	endpoints, err := storage.DB.GetRPCEndpoints()
@@ -121,7 +120,7 @@ func listEndpoints(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func deleteEndpoint(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - deleteEndpoint")
 
 	var k map[string]int
@@ -131,10 +130,10 @@ func deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Need to shutdown the RPC client first
-	if err := baconClient.ShutdownRpc(k["rpc"]); err != nil {
+	// Need to shutdown the RPC Client first
+	if err := ws.baconClient.ShutdownRpc(k["rpc"]); err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
-		apiError(errors.Wrap(err, "Cannot shutdown RPC client for deletion"), w)
+		apiError(errors.Wrap(err, "Cannot shutdown RPC Client for deletion"), w)
 
 		return
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	VERSION_URL = "https://bakingbacon.github.io/bakinbacon/version.json"
+	VersionURL = "https://bakingbacon.github.io/bakinbacon/version.json"
 )
 
 var (
@@ -49,7 +49,7 @@ func RunVersionCheck() {
 
 		// Anon func to get defer ability
 		err := func() error {
-			resp, err := client.Get(VERSION_URL)
+			resp, err := client.Get(VersionURL)
 			if err != nil {
 				return errors.Wrap(err, "Unable to get version update")
 			}
@@ -64,15 +64,14 @@ func RunVersionCheck() {
 			log.WithError(err).Error("Error checking version")
 		} else {
 
-			// Assume JSON is in version order, get latest entry
+			// Assume JSON is in version order, get the latest entry
 			latestVersion := versions[0]
 
 			// If newer version available, send notification
 			if semver.Compare(version, latestVersion.Version) == -1 {
 				notifications.N.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
-					latestVersion, version), notifications.VERSION)
+					latestVersion, version), notifications.Version)
 			}
-
 		}
 
 		// wait here for next iteration

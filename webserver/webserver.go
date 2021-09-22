@@ -27,17 +27,17 @@ var (
 
 // Embed all UI objects
 //go:embed build
-var staticUi embed.FS
+var staticUI embed.FS
 
-type ApiError struct {
+type APIError struct {
 	Error string `json:"error"`
 }
 
 type TemplateVars struct {
 	Network        string
 	BlocksPerCycle int
-	MinBlockTime   int
-	UiBaseUrl      string
+	MinBlockTime int
+	UIBaseURL    string
 }
 
 func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int, templateVars TemplateVars, shutdownChannel <-chan interface{}, wg *sync.WaitGroup) {
@@ -46,7 +46,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	baconClient = _baconClient
 
 	// Repoint web ui down one directory
-	contentStatic, _ := fs.Sub(staticUi, "build")
+	contentStatic, _ := fs.Sub(staticUI, "build")
 
 	// index.html
 	indexTemplate, err := template.ParseFS(contentStatic, "index.html")
@@ -71,11 +71,11 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 	// Settings tab
 	settingsRouter := apiRouter.PathPrefix("/settings").Subrouter()
 	settingsRouter.HandleFunc("/", getSettings).Methods("GET")
-	settingsRouter.HandleFunc("/savetelegram", saveTelegram).Methods("POST")
-	settingsRouter.HandleFunc("/saveemail", saveEmail).Methods("POST")
-	settingsRouter.HandleFunc("/addendpoint", addEndpoint).Methods("POST")
-	settingsRouter.HandleFunc("/listendpoints", listEndpoints).Methods("GET")
-	settingsRouter.HandleFunc("/deleteendpoint", deleteEndpoint).Methods("POST")
+	settingsRouter.HandleFunc("/saveTelegram", saveTelegram).Methods("POST")
+	settingsRouter.HandleFunc("/saveEmail", saveEmail).Methods("POST")
+	settingsRouter.HandleFunc("/addEndpoint", addEndpoint).Methods("POST")
+	settingsRouter.HandleFunc("/listEndpoints", listEndpoints).Methods("GET")
+	settingsRouter.HandleFunc("/deleteEndpoint", deleteEndpoint).Methods("POST")
 
 	// Voting tab
 	votingRouter := apiRouter.PathPrefix("/voting").Subrouter()
@@ -139,7 +139,7 @@ func Start(_baconClient *baconclient.BaconClient, bindAddr string, bindPort int,
 }
 
 func apiError(err error, w http.ResponseWriter) {
-	e, _ := json.Marshal(ApiError{err.Error()})
+	e, _ := json.Marshal(APIError{err.Error()})
 	http.Error(w, string(e), http.StatusBadRequest)
 }
 

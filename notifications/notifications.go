@@ -14,13 +14,16 @@ import (
 type Category int
 
 const (
-	BALANCE Category = iota + 1
-	SIGNER
-	BAKING_OK
-	BAKING_FAIL
-	ENDORSE_FAIL
-	VERSION
-	NONCE
+	Balance Category = iota + 1
+	Signer
+	BakingOk
+	BakingFail
+	EndorseFail
+	Version
+	Nonce
+
+	telegram = "telegram"
+	email = "email"
 )
 
 type Notifier interface {
@@ -37,7 +40,7 @@ var N *Notification
 
 func New() error {
 
-	N = &Notification{}
+	N = new(Notification)
 	N.Notifiers = make(map[string]Notifier)
 	N.lastSentCategory = make(map[Category]time.Time)
 
@@ -75,22 +78,22 @@ func (n *Notification) LoadNotifiers() error {
 	return nil
 }
 
-func (n *Notification) Configure(notifier string, config []byte, saveconfig bool) error {
+func (n *Notification) Configure(notifier string, config []byte, saveConfig bool) error {
 
 	switch notifier {
-	case "telegram":
-		nt, err := NewTelegram(config, saveconfig)
+	case telegram:
+		nt, err := NewTelegram(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers["telegram"] = nt
+		n.Notifiers[telegram] = nt
 
-	case "email":
-		ne, err := NewEmail(config, saveconfig)
+	case email:
+		ne, err := NewEmail(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers["email"] = ne
+		n.Notifiers[email] = ne
 
 	default:
 		return errors.New("Unknown notification type")
@@ -100,7 +103,6 @@ func (n *Notification) Configure(notifier string, config []byte, saveconfig bool
 }
 
 func (n *Notification) Send(message string, category Category) {
-
 	// Check that we haven't sent a message from this category
 	// within the past 10 minutes
 	if lastSentTime, ok := n.lastSentCategory[category]; ok {
@@ -123,12 +125,11 @@ func (n *Notification) Send(message string, category Category) {
 }
 
 func (n *Notification) TestSend(notifier string, message string) error {
-
 	switch notifier {
-	case "telegram":
-		n.Notifiers["telegram"].Send(message)
-	case "email":
-		n.Notifiers["email"].Send(message)
+	case telegram:
+		n.Notifiers[telegram].Send(message)
+	case email:
+		n.Notifiers[email].Send(message)
 	default:
 		return errors.New("Unknown notification type")
 	}
@@ -137,7 +138,6 @@ func (n *Notification) TestSend(notifier string, message string) error {
 }
 
 func (n *Notification) GetConfig() (json.RawMessage, error) {
-
 	// Marshal the current Notifiers as the current config
 	// Return RawMessage so as not to double Marshal
 	bts, err := json.Marshal(n.Notifiers)

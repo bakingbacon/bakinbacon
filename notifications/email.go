@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"encoding/json"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 
@@ -11,14 +12,13 @@ import (
 type NotifyEmail struct {
 	Username  string `json:"username"`
 	Password  string `json:"password"`
-	Smtp_host string `json:"smtphost"`
-	Smtp_port int    `json:"smtpport"`
-	Enabled   bool   `json:"enabled"`
+	SMTPHost string `json:"smtphost"`
+	SMTPport int    `json:"smtpport"`
+	Enabled  bool   `json:"enabled"`
 }
 
 func NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
-
-	ne := &NotifyEmail{}
+	ne := new(NotifyEmail)
 	ne.Enabled = true
 
 	return ne, nil
@@ -30,10 +30,10 @@ func (n *NotifyEmail) IsEnabled() bool {
 
 func (n *NotifyEmail) Send(msg string) {
 	// TODO Not implemented yet
+	log.Warn("email notifications not yet implemented")
 }
 
 func (n *NotifyEmail) SaveConfig() error {
-
 	// Marshal ourselves to []byte and send to storage manager
 	config, err := json.Marshal(n)
 	if err != nil {

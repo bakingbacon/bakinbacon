@@ -85,7 +85,7 @@ const Notifications = (props) => {
 		}
 
 		// Validations complete
-		const apiUrl = window.BASE_URL + "/api/settings/savetelegram"
+		const apiUrl = window.BASE_URL + "/api/settings/saveTelegram"
 		const postData = {
 			chatids: chatIds,
 			apikey: botapikey,

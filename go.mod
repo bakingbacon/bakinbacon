@@ -13,7 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	go.etcd.io/bbolt v1.3.5
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/mod v0.5.0 // indirect
+	golang.org/x/mod v0.5.0
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 )

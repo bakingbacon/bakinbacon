@@ -41,8 +41,8 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 	s := struct {
 		*baconclient.BaconStatus
-		Delegate string `json:"pkh"`
-		Ts       int64  `json:"ts"`
+		Delegate  string `json:"pkh"`
+		Timestamp int64  `json:"ts"`
 	}{
 		baconClient.Status,
 		pkh,

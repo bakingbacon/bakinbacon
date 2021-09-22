@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 )
 
 type NotifyTelegram struct {
-	ChatIds []int  `json:"chatids"`
-	ApiKey  string `json:"apikey"`
+	ChatIDs []int  `json:"chatids"`
+	APIKey  string `json:"apikey"`
 	Enabled bool   `json:"enabled"`
 }
 
@@ -29,8 +30,7 @@ type NotifyTelegram struct {
 // do this if we just loaded from DB on app startup, but would want to do this
 // after getting new config from web UI.
 func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
-
-	n := &NotifyTelegram{}
+	n := new(NotifyTelegram)
 	n.Enabled = true
 
 	// empty config from db?
@@ -38,6 +38,8 @@ func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 		if err := json.Unmarshal(config, n); err != nil {
 			return n, errors.Wrap(err, "Unable to unmarshal telegram config")
 		}
+	} else {
+		log.Warn("config from db is empty")
 	}
 
 	if saveConfig {
@@ -54,13 +56,12 @@ func (n *NotifyTelegram) IsEnabled() bool {
 }
 
 func (n *NotifyTelegram) Send(msg string) {
-
 	// curl -G \
 	//  --data-urlencode "chat_id=111112233" \
 	//  --data-urlencode "text=$message" \
 	//  https://api.telegram.org/bot${TOKEN}/sendMessage
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.ApiKey), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.APIKey), nil)
 	if err != nil {
 		log.WithError(err).Error("Unable to make telegram request")
 		return
@@ -78,39 +79,46 @@ func (n *NotifyTelegram) Send(msg string) {
 	}
 
 	// Loop over chatIds, sending message
-	for _, id := range n.ChatIds {
-
-		q.Set("chat_id", strconv.Itoa(id))
-
-		// Encode URL parameters
-		req.URL.RawQuery = q.Encode()
-
-		// Execute
-		resp, err := client.Do(req)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"ChatId": id,
-			}).WithError(err).Error("Unable to send telegram message")
-		}
-
-		defer resp.Body.Close()
-		resp_body, _ := ioutil.ReadAll(resp.Body)
-
-		log.WithField("Resp", string(resp_body)).Debug("Telegram Reply")
+	for _, id := range n.ChatIDs {
+		sendMessage(client, req, q, id)
 	}
 
-	log.WithField("MSG", msg).Info("Sent Telegram Message")
+	log.WithField("MSG", msg).Info("Sent Telegram Message(s)")
+}
+
+func sendMessage(client *http.Client, req *http.Request, queryParams url.Values, chatID int) {
+	queryParams.Set("chat_id", strconv.Itoa(chatID))
+
+	// Encode URL parameters
+	req.URL.RawQuery = queryParams.Encode()
+
+	// Execute
+	resp, err := client.Do(req)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"ChatId": chatID,
+		}).WithError(err).Error("Unable to send telegram message")
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"ChatId": chatID,
+		}).WithError(err).Error("Unable to read telegram message response")
+	}
+
+	log.WithField("Resp", string(body)).Debug("Telegram Reply")
 }
 
 func (n *NotifyTelegram) SaveConfig() error {
-
 	// Marshal ourselves to []byte and send to storage manager
 	config, err := json.Marshal(n)
 	if err != nil {
 		return errors.Wrap(err, "Unable to marshal telegram config")
 	}
 
-	if err := storage.DB.SaveNotifiersConfig("telegram", config); err != nil {
+	if err := storage.DB.SaveNotifiersConfig(telegram, config); err != nil {
 		return errors.Wrap(err, "Unable to save telegram config")
 	}
 

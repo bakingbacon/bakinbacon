@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bakinbacon/util"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
@@ -130,7 +131,7 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	// Instead, we make an insane number of fast RPCs to get rights
 	// per level for the reminder of this cycle, or for the next cycle.
 
-	blocksPerCycle := networkConstants[network].BlocksPerCycle
+	blocksPerCycle := util.NetworkConstants[network].BlocksPerCycle
 
 	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
 	if err != nil {
@@ -185,7 +186,7 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 		return
 	}
 
-	blocksPerCycle := networkConstants[network].BlocksPerCycle
+	blocksPerCycle := util.NetworkConstants[network].BlocksPerCycle
 
 	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
 	if err != nil {
@@ -215,7 +216,7 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
 		// If have rights and priority is < max, append to slice
 		if len(bakingRights) > 0 {
-			if bakingRights[0].Priority < MAX_BAKE_PRIORITY {
+			if bakingRights[0].Priority < MaxBakePriority {
 				allBakingRights = append(allBakingRights, bakingRights[0])
 			}
 		}
@@ -223,7 +224,7 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
 	// Got any rights?
 	log.WithFields(log.Fields{
-		"Cycle": cycleToFetch, "LS": levelToStart, "LE": levelToEnd, "Num": len(allBakingRights), "MaxPriority": MAX_BAKE_PRIORITY,
+		"Cycle": cycleToFetch, "LS": levelToStart, "LE": levelToEnd, "Num": len(allBakingRights), "MaxPriority": MaxBakePriority,
 	}).Info("Prefetched Baking Rights")
 
 	// Save filtered rights to DB, even if len == 0 so that it is noted we queried this cycle
@@ -235,7 +236,7 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 func levelToStartEnd(metadataLevel rpc.Level, blocksPerCycle, cycleToFetch int) (int, int, error) {
 
 	var levelToStart, levelToEnd int
-	levelsRemainingInCycle := (blocksPerCycle - metadataLevel.CyclePosition)
+	levelsRemainingInCycle := blocksPerCycle - metadataLevel.CyclePosition
 
 	// Are we fetching remaining rights in this level?
 	if cycleToFetch == metadataLevel.Cycle {
@@ -260,15 +261,15 @@ func levelToStartEnd(metadataLevel rpc.Level, blocksPerCycle, cycleToFetch int) 
 
 func getCycleFromLevel(l int) int {
 
-	gal := networkConstants[network].GranadaActivationLevel
-	gac := networkConstants[network].GranadaActivationCycle
+	gal := util.NetworkConstants[network].GranadaActivationLevel
+	gac := util.NetworkConstants[network].GranadaActivationCycle
 
 	// If level is before Granada activation, calculation is simple
 	if l <= gal {
-		return int(l / networkConstants[network].BlocksPerCycle)
+		return int(l / util.NetworkConstants[network].BlocksPerCycle)
 	}
 
 	// If level is after Granada activation, must take in to account the
 	// change in number of blocks per cycle
-	return int(((l - gal) / networkConstants[network].BlocksPerCycle) + gac)
+	return int(((l - gal) / util.NetworkConstants[network].BlocksPerCycle) + gac)
 }

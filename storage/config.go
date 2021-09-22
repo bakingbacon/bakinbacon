@@ -9,19 +9,19 @@ import (
 )
 
 const (
-	PUBLIC_KEY_HASH = "pkh"
-	BIP_PATH        = "bippath"
-	SIGNER_TYPE     = "signertype"
-	SIGNER_SK       = "signersk"
+	PublicKeyHash = "pkh"
+	BipPath       = "bippath"
+	SignerType    = "signertype"
+	SignerSK      = "signersk"
 )
 
 func (s *Storage) GetDelegate() (string, string, error) {
 	var sk, pkh string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		sk = string(b.Get([]byte(SIGNER_SK)))
-		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
+		b := tx.Bucket([]byte(ConfigBucket))
+		sk = string(b.Get([]byte(SignerSK)))
+		pkh = string(b.Get([]byte(PublicKeyHash)))
 		return nil
 	})
 
@@ -30,11 +30,11 @@ func (s *Storage) GetDelegate() (string, string, error) {
 
 func (s *Storage) SetDelegate(sk, pkh string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		if err := b.Put([]byte(SIGNER_SK), []byte(sk)); err != nil {
+		b := tx.Bucket([]byte(ConfigBucket))
+		if err := b.Put([]byte(SignerSK), []byte(sk)); err != nil {
 			return err
 		}
-		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
+		if err := b.Put([]byte(PublicKeyHash), []byte(pkh)); err != nil {
 			return err
 		}
 		return nil
@@ -42,43 +42,40 @@ func (s *Storage) SetDelegate(sk, pkh string) error {
 }
 
 func (s *Storage) GetSignerType() (int, error) {
-	var st int = 0
+	var signerType int = 0
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		_st := b.Get([]byte(SIGNER_TYPE))
-		if _st != nil {
-			st = btoi(_st)
+		bucket := tx.Bucket([]byte(ConfigBucket))
+		signerTypeBytes := bucket.Get([]byte(SignerType))
+		if signerTypeBytes != nil {
+			signerType = btoi(signerTypeBytes)
 		}
 		return nil
 	})
 
-	return st, err
+	return signerType, err
 }
 
 func (s *Storage) SetSignerType(d int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		return b.Put([]byte(SIGNER_TYPE), itob(d))
+		bucket := tx.Bucket([]byte(ConfigBucket))
+		return bucket.Put([]byte(SignerType), itob(d))
 	})
 }
 
-func (s *Storage) GetSignerSk() (string, error) {
-	var sk string
-
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		sk = string(b.Get([]byte(SIGNER_SK)))
-		return nil
+func (s *Storage) GetSignerSk() (signedSK string, err error) {
+	err = s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(ConfigBucket))
+		signedSK = string(bucket.Get([]byte(SignerSK)))
+		return err
 	})
-
-	return sk, err
+	return
 }
 
 func (s *Storage) SetSignerSk(sk string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		return b.Put([]byte(SIGNER_SK), []byte(sk))
+		b := tx.Bucket([]byte(ConfigBucket))
+		return b.Put([]byte(SignerSK), []byte(sk))
 	})
 }
 
@@ -86,20 +83,20 @@ func (s *Storage) SetSignerSk(sk string) error {
 func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
+		b := tx.Bucket([]byte(ConfigBucket))
 
 		// Save signer type as ledger
-		if err := b.Put([]byte(SIGNER_TYPE), itob(ledgerType)); err != nil {
+		if err := b.Put([]byte(SignerType), itob(ledgerType)); err != nil {
 			return err
 		}
 
 		// Save PKH
-		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
+		if err := b.Put([]byte(PublicKeyHash), []byte(pkh)); err != nil {
 			return err
 		}
 
-		// Save BipPath
-		if err := b.Put([]byte(BIP_PATH), []byte(bipPath)); err != nil {
+		// Save BIPPath
+		if err := b.Put([]byte(BipPath), []byte(bipPath)); err != nil {
 			return err
 		}
 
@@ -112,9 +109,9 @@ func (s *Storage) GetLedgerConfig() (string, string, error) {
 	var pkh, bipPath string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
-		bipPath = string(b.Get([]byte(BIP_PATH)))
+		b := tx.Bucket([]byte(ConfigBucket))
+		pkh = string(b.Get([]byte(PublicKeyHash)))
+		bipPath = string(b.Get([]byte(BipPath)))
 		return nil
 	})
 
@@ -126,7 +123,7 @@ func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 	var rpcId int = 0
 
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		b := tx.Bucket([]byte(ConfigBucket)).Bucket([]byte(EndpointsBucket))
 		if b == nil {
 			return errors.New("AddRPC - Unable to locate endpoints bucket")
 		}
@@ -162,7 +159,7 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 	endpoints := make(map[int]string)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		b := tx.Bucket([]byte(ConfigBucket)).Bucket([]byte(EndpointsBucket))
 		if b == nil {
 			return errors.New("GetRPC - Unable to locate endpoints bucket")
 		}
@@ -183,7 +180,7 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 
 func (s *Storage) DeleteRPCEndpoint(endpointId int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		b := tx.Bucket([]byte(ConfigBucket)).Bucket([]byte(EndpointsBucket))
 		if b == nil {
 			return errors.New("Unable to locate endpoints bucket")
 		}
@@ -200,7 +197,7 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 	var currentSeq uint64
 
 	if err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
+		b := tx.Bucket([]byte(ConfigBucket)).Bucket([]byte(EndpointsBucket))
 		if b == nil {
 			return errors.New("AddDefaultRPCs - Unable to locate endpoints bucket")
 		}

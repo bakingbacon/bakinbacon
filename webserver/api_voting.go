@@ -12,7 +12,6 @@ import (
 //
 // Set delegate (from UI config)
 func handleUpvote(w http.ResponseWriter, r *http.Request) {
-
 	log.Debug("API - handleUpvote")
 
 	// CORS crap; Handle OPTION preflight check

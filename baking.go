@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	PROTOCOL_BB10     string = "42423130"
-	MAX_BAKE_PRIORITY int    = 4
+	ProtocolBb10    string = "42423130"
+	MaxBakePriority int    = 4
 
-	PRIORITY_LENGTH   int = 2
-	POW_HEADER_LENGTH int = 4
-	POW_LENGTH        int = 4
+	PriorityLength  int = 2
+	PowHeaderLength int = 4
+	PowLength       int = 4
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -55,7 +55,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// ie: implement internal watermark
 
 	// TODO
-	//  error="failed to preapply new block: response returned code 500 with body
+	//  error="failed to pre-apply new block: response returned code 500 with body
 	//  "kind":"permanent", "id":"proto.006-PsCARTHA.baking.timestamp_too_early",
 	//  "minimum":"2020-09-20T22:17:28Z","provided":"2020-09-20T22:16:58Z"
 
@@ -96,7 +96,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		BlockID:     &hashBlockID,
 		Level:       nextLevelToBake,
 		Delegate:    bc.Signer.BakerPkh,
-		MaxPriority: MAX_BAKE_PRIORITY,
+		MaxPriority: MaxBakePriority,
 	}
 
 	resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
@@ -111,7 +111,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Got any rights?
 	if len(bakingRights) == 0 {
 		log.WithFields(log.Fields{
-			"Level": nextLevelToBake, "MaxPriority": MAX_BAKE_PRIORITY,
+			"Level": nextLevelToBake, "MaxPriority": MaxBakePriority,
 		}).Info("No baking rights for level")
 
 		return
@@ -132,8 +132,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := networkConstants[network].TimeBetweenBlocks
-	blocksPerCommitment := networkConstants[network].BlocksPerCommitment
+	timeBetweenBlocks := util.NetworkConstants[network].TimeBetweenBlocks
+	blocksPerCommitment := util.NetworkConstants[network].BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -142,13 +142,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}).Info("Baking slot found")
 
 	// Ignore baking rights of priority higher than what we care about
-	if bakingRight.Priority > MAX_BAKE_PRIORITY {
-		log.Infof("Priority higher than %d; Ignoring", MAX_BAKE_PRIORITY)
+	if bakingRight.Priority > MaxBakePriority {
+		log.Infof("Priority higher than %d; Ignoring", MaxBakePriority)
 		return
 	}
 
 	// Check if we have enough bond to cover the bake
-	requiredBond := networkConstants[network].BlockSecurityDeposit
+	requiredBond := util.NetworkConstants[network].BlockSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -167,7 +167,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			}).Error(msg)
 
 			bc.Status.SetError(errors.New(msg))
-			notifications.N.Send(msg, notifications.BALANCE)
+			notifications.N.Send(msg, notifications.Balance)
 
 			return
 		}
@@ -180,14 +180,14 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// will abort our processing.
 
 	if priority > 0 {
-		priorityDiffSeconds := time.Duration(timeBetweenBlocks * priority)
-		log.Infof("Priority greater than 0; Sleeping for %ds", priorityDiffSeconds)
+		priorityDiff := time.Duration(timeBetweenBlocks * priority)
+		log.Infof("Priority greater than 0; Sleeping for %ds", priorityDiff)
 
 		select {
 		case <-ctx.Done():
 			log.Info("New block arrived; Canceling current bake")
 			return
-		case <-time.After(priorityDiffSeconds * time.Second):
+		case <-time.After(priorityDiff * time.Second):
 			break
 		}
 	}
@@ -215,7 +215,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// so we will keep fetching from the mempool until we get at least 192, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	minEndorsingPower := networkConstants[network].InitialEndorsers
+	minEndorsingPower := util.NetworkConstants[network].InitialEndorsers
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -295,17 +295,17 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		return
 	}
 
-	nowTimestamp := time.Now().UTC().Round(time.Second)
+	now := time.Now().UTC().Round(time.Second)
 	minimalInjectionTime = minimalInjectionTime.Add(1 * time.Second).Round(time.Second) // Just a 1s buffer
 
 	log.WithFields(log.Fields{
-		"MinimalTS": minimalInjectionTime.Format(time.RFC3339Nano), "CurrentTS": nowTimestamp.Format(time.RFC3339Nano),
+		"MinimalTS": minimalInjectionTime.Format(time.RFC3339Nano), "CurrentTS": now.Format(time.RFC3339Nano),
 	}).Debug("Minimal Injection Timestamp")
 
 	// Need to sleep until minimal injection timestamp
 	// TODO If we need to sleep, there could be some more endorsements in mempool to grab
-	if nowTimestamp.Before(minimalInjectionTime) {
-		sleepDuration := time.Duration(minimalInjectionTime.Sub(nowTimestamp).Seconds())
+	if now.Before(minimalInjectionTime) {
+		sleepDuration := time.Duration(minimalInjectionTime.Sub(now).Seconds())
 		log.Infof("Sleeping for %ds, based on endorsing power", sleepDuration)
 		select {
 		case <-ctx.Done():
@@ -344,18 +344,18 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
-		}).Error("Unable to preapply block")
+		}).Error("Unable to pre-apply block")
 
 		return
 	}
 
-	log.WithField("Resp", preapplyBlockResp).Trace("Preapply Response")
+	log.WithField("Resp", preapplyBlockResp).Trace("Pre-apply Response")
 
 	// Re-filter the applied operations that came back from pre-apply
 	appliedOperations := parsePreapplyOperations(preapplyBlockResp.Operations)
-	log.WithField("Operations", appliedOperations).Trace("Preapply Operations")
+	log.WithField("Operations", appliedOperations).Trace("Pre-apply Operations")
 
-	// Start constructing the actual block with info that comes back from the preapply
+	// Start constructing the actual block with info that comes back from the pre-apply
 	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
@@ -440,7 +440,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if signedErr != nil {
 		msg := "Unable to sign block bytes; Cannot inject block"
 		log.Error(msg)
-		notifications.N.Send(msg, notifications.BAKING_FAIL)
+		notifications.N.Send(msg, notifications.BakingFail)
 		return
 	}
 
@@ -498,7 +498,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 
 	// Send notification
-	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BAKING_OK)
+	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BakingOk)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {
@@ -523,7 +523,7 @@ func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{
 	return operations
 }
 
-func stampcheck(buf []byte) uint64 {
+func stampCheck(buf []byte) uint64 {
 	var value uint64 = 0
 	for i := 0; i < 8; i++ {
 		value = (value * 256) + uint64(buf[i])
@@ -543,8 +543,8 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 	// against the network constant's proof of work threshold
 
 	hashBuffer, _ := hex.DecodeString(forgedBlock + strings.Repeat("0", 128))
-	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
-	powThreshold := networkConstants[network].ProofOfWorkThreshold
+	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PriorityLength + PowHeaderLength
+	powThreshold := util.NetworkConstants[network].ProofOfWorkThreshold
 
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
@@ -553,7 +553,7 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 	attempts := 0
 	for ; attempts < 1e7; attempts++ {
 
-		for i := POW_LENGTH - 1; i >= 0; i-- {
+		for i := PowLength - 1; i >= 0; i-- {
 			if hashBuffer[protocolOffset+i] == 255 {
 				hashBuffer[protocolOffset+i] = 0
 			} else {
@@ -569,7 +569,7 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 		}
 
 		// Did we reach our mark?
-		if stampcheck(rr) <= powThreshold {
+		if stampCheck(rr) <= powThreshold {
 			mhex := hex.EncodeToString(hashBuffer)
 			mhex = mhex[:len(mhex)-128]
 
@@ -601,10 +601,10 @@ func createProtocolData(priority int, nonceHex string) string {
 	}
 
 	return fmt.Sprintf("%04x%s%s%s%s",
-		priority,                 // 2-byte priority
-		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
-		padEnd("0", 8),           // 4-byte proof of work
-		newNonce,                 // nonce presence flag + nonce
+		priority,                // 2-byte priority
+		padEnd(ProtocolBb10, 8), // 4-byte commit hash
+		padEnd("0", 8),          // 4-byte proof of work
+		newNonce,                // nonce presence flag + nonce
 		"00")                     // 1-byte LB escape vote
 }
 

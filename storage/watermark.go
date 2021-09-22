@@ -5,11 +5,11 @@ import (
 )
 
 func (s *Storage) GetBakingWatermark() (int, error) {
-	return s.getWatermark(BAKING_BUCKET)
+	return s.getWatermark(BakingBucket)
 }
 
 func (s *Storage) GetEndorsingWatermark() (int, error) {
-	return s.getWatermark(ENDORSING_BUCKET)
+	return s.getWatermark(EndorsingBucket)
 }
 
 func (s *Storage) getWatermark(wBucket string) (int, error) {
@@ -25,11 +25,11 @@ func (s *Storage) getWatermark(wBucket string) (int, error) {
 }
 
 func (s *Storage) RecordBakedBlock(level int, blockHash string) error {
-	return s.recordOperation(BAKING_BUCKET, level, blockHash)
+	return s.recordOperation(BakingBucket, level, blockHash)
 }
 
 func (s *Storage) RecordEndorsement(level int, endorsementHash string) error {
-	return s.recordOperation(ENDORSING_BUCKET, level, endorsementHash)
+	return s.recordOperation(EndorsingBucket, level, endorsementHash)
 }
 
 func (s *Storage) recordOperation(opBucket string, level int, opHash string) error {

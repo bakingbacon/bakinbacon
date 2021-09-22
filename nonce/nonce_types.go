@@ -1,6 +1,8 @@
 package nonce
 
-var Prefix_nonce []byte = []byte{69, 220, 169}
+var (
+	PrefixNonce = []byte{69, 220, 169}
+)
 
 type Nonce struct {
 	Seed          string `json:"seed"`

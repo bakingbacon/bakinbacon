@@ -11,15 +11,15 @@ import (
 )
 
 const (
-	DATABASE_FILE = "bakinbacon.db"
+	DatabaseFile = "bakinbacon.db"
 
-	BAKING_BUCKET        = "bakes"
-	ENDORSING_BUCKET     = "endorses"
-	NONCE_BUCKET         = "nonces"
-	CONFIG_BUCKET        = "config"
-	RIGHTS_BUCKET        = "rights"
-	ENDPOINTS_BUCKET     = "endpoints"
-	NOTIFICATIONS_BUCKET = "notifs"
+	BakingBucket        = "bakes"
+	EndorsingBucket     = "endorses"
+	NonceBucket         = "nonces"
+	ConfigBucket        = "config"
+	RightsBucket        = "rights"
+	EndpointsBucket     = "endpoints"
+	NotificationsBucket = "notifs"
 )
 
 type Storage struct {
@@ -28,9 +28,9 @@ type Storage struct {
 
 var DB Storage
 
-func InitStorage(datadir, network string) error {
+func InitStorage(dataDir, network string) error {
 
-	db, err := bolt.Open(datadir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(dataDir+DatabaseFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return errors.Wrap(err, "Failed to init db")
 	}
@@ -39,36 +39,36 @@ func InitStorage(datadir, network string) error {
 	err = db.Update(func(tx *bolt.Tx) error {
 
 		// Config bucket
-		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET))
+		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(ConfigBucket))
 		if err != nil {
 			return errors.Wrap(err, "Cannot create config bucket")
 		}
 
 		// Nested bucket inside config
-		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET)); err != nil {
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(EndpointsBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create endpoints bucket")
 		}
 
 		// Nested bucket inside config
-		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NOTIFICATIONS_BUCKET)); err != nil {
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NotificationsBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create notifications bucket")
 		}
 
 		//
 		// Root buckets
-		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(EndorsingBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create endorsing bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(BAKING_BUCKET)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(BakingBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create baking bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(NONCE_BUCKET)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(NonceBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create nonce bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(RIGHTS_BUCKET)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(RightsBucket)); err != nil {
 			return errors.Wrap(err, "Cannot create rights bucket")
 		}
 
@@ -83,7 +83,7 @@ func InitStorage(datadir, network string) error {
 		db: db,
 	}
 
-	// Add the default endpoints only on brand new setup
+	// Add the default endpoints only on brand-new setup
 	return DB.AddDefaultEndpoints(network)
 }
 

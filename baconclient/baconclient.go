@@ -18,12 +18,12 @@ import (
 )
 
 const (
-	MIN_BAKE_BALANCE = 8001
+	MinBakeBalance = 8001
 )
 
 type BaconSlice struct {
 	*rpc.Client
-	clientId int
+	clientID int
 	isActive bool
 	shutdown chan interface{}
 }
@@ -38,26 +38,21 @@ type BaconClient struct {
 	Signer *baconsigner.BaconSigner
 
 	lock sync.Mutex
-}
 
-// Set from main at startup
-var (
 	timeBetweenBlocks int
 	globalShutdown    chan interface{}
 	waitGroup         *sync.WaitGroup
-)
+}
 
 func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
-
-	timeBetweenBlocks = tbb
-	globalShutdown = shutdown
-	waitGroup = wg
-
 	// Make new client manager
 	newBaconClient := &BaconClient{
-		NewBlockNotifier: make(chan *rpc.Block, 1),
-		rpcClients:       make([]*BaconSlice, 0),
-		Status:           &BaconStatus{},
+		NewBlockNotifier:  make(chan *rpc.Block, 1),
+		rpcClients:        make([]*BaconSlice, 0),
+		Status:            &BaconStatus{},
+		timeBetweenBlocks: tbb,
+		globalShutdown:    shutdown,
+		waitGroup:         wg,
 	}
 
 	// Init bacon signer
@@ -113,7 +108,7 @@ func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
 	b.rpcClients = append(b.rpcClients, newBaconSlice)
 
 	// Launch client
-	waitGroup.Add(1)
+	b.waitGroup.Add(1)
 	go b.blockWatch(newBaconSlice)
 }
 
@@ -127,7 +122,7 @@ func (b *BaconClient) ShutdownRpc(rpcId int) error {
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
 	for _, bslice := range b.rpcClients {
-		if bslice.clientId == rpcId {
+		if bslice.clientID == rpcId {
 			close(bslice.shutdown)
 		} else {
 			newClients = append(newClients, bslice) // save those that did not match
@@ -143,12 +138,12 @@ func (b *BaconClient) ShutdownRpc(rpcId int) error {
 
 func (b *BaconClient) blockWatch(client *BaconSlice) {
 
-	defer waitGroup.Done()
+	defer b.waitGroup.Done()
 
 	lostTicks := 0
 
 	// Get network constant time_between_blocks and set sleep-ticker to 50%
-	sleepTime := time.Duration(timeBetweenBlocks / 2)
+	sleepTime := time.Duration(b.timeBetweenBlocks / 2)
 	ticker := time.NewTicker(sleepTime * time.Second)
 
 	log.WithField("Endpoint", client.Host).Info("Blockwatch running...")
@@ -223,11 +218,11 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 		// wait here for timer, or shutdown
 		select {
 		case <-ticker.C:
-			log.WithField("Id", client.clientId).Debug("tick...")
+			log.WithField("Id", client.clientID).Debug("tick...")
 		case <-client.shutdown:
 			log.WithField("Endpoint", client.Host).Info("Shutting down RPC client")
 			return
-		case <-globalShutdown:
+		case <-b.globalShutdown:
 			log.WithField("Endpoint", client.Host).Info("(Global) Shutting down RPC client")
 			return
 		}
@@ -238,22 +233,22 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 
 	// Always check status of signer, especially important for Ledger
 	if err := b.Signer.SignerStatus(silentChecks); err != nil {
-		b.Status.SetState(NO_SIGNER)
+		b.Status.SetState(NoSigner)
 		b.Status.SetError(err)
-		notifications.N.Send(err.Error(), notifications.SIGNER)
+		notifications.N.Send(err.Error(), notifications.Signer)
 		log.WithError(err).Error("Checking signer status")
 		return false
 	}
 
 	// The remaining checks of being registered with Tezos network, and having
 	// an appropriate balance happen on startup and can be cached
-	if b.Status.State == CAN_BAKE {
+	if b.Status.State == CanBake {
 		return true
 	}
 
 	// Registered as baker?
 	if err := b.CheckBakerRegistered(); err != nil {
-		b.Status.SetState(NOT_REGISTERED)
+		b.Status.SetState(NotRegistered)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking baker registration")
 		return false
@@ -261,7 +256,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 
 	// If revealed, balance too low?
 	if err := b.CheckDelegateBalance(); err != nil {
-		b.Status.SetState(LOW_BALANCE)
+		b.Status.SetState(LowBalance)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking baker balance")
 		return false
@@ -270,15 +265,14 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	// TODO: Other checks?
 
 	// If you've passed all the checks, you should be good to bake
-	b.Status.SetState(CAN_BAKE)
+	b.Status.SetState(CanBake)
 	b.Status.ClearError()
 
 	return true
 }
 
-// Check if the baker is registered as a baker
+// CheckBakerRegistered Check if the baker is registered as a baker
 func (b *BaconClient) CheckBakerRegistered() error {
-
 	pkh := b.Signer.BakerPkh
 
 	cdi := rpc.ContractInput{
@@ -308,42 +302,42 @@ func (b *BaconClient) CheckBakerRegistered() error {
 	return errors.New("Unknown error in determining baker status")
 }
 
-// Check if the balance of the baker is > 8001 Tez; Extra 1 Tez is for submitting reveal, if necessary
+// CheckDelegateBalance Check if the balance of the baker is > 8001 Tez; Extra 1 Tez is for submitting reveal, if necessary
 func (b *BaconClient) CheckDelegateBalance() error {
-
 	dbi := rpc.DelegateBalanceInput{
-		BlockID:  &rpc.BlockIDHead{},
+		BlockID:  new(rpc.BlockIDHead),
 		Delegate: b.Signer.BakerPkh,
 	}
 
 	resp, delegateBalance, err := b.Current.DelegateBalance(dbi)
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Trace("Fetching delegate balance")
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Trace("Fetching delegate balance")
+	}
 
 	if err != nil {
 		return errors.Wrap(err, "Unable to fetch delegate balance")
 	}
 
 	// Convert string to number
-	balance, _ := strconv.Atoi(delegateBalance)
+	balance, err := strconv.Atoi(delegateBalance)
 	if err != nil {
 		return errors.Wrap(err, "Unable to parse delegate balance")
 	}
 
-	if balance < MIN_BAKE_BALANCE {
+	if balance < MinBakeBalance {
 		return errors.Errorf("Balance, %d XTZ, is too low", balance/1e6)
 	}
 
 	return nil
 }
 
-// Returns spendable balance to determine if we can post bond
+// GetSpendableBalance Returns spendable balance to determine if we can post bond
 func (b *BaconClient) GetSpendableBalance() (int, error) {
-
 	di := rpc.DelegateInput{
-		BlockID:  &rpc.BlockIDHead{},
+		BlockID:  new(rpc.BlockIDHead),
 		Delegate: b.Signer.BakerPkh,
 	}
 
@@ -363,7 +357,7 @@ func (b *BaconClient) GetSpendableBalance() (int, error) {
 		return 0, errors.Wrap(err, "Unable to parse balance")
 	}
 
-	frozen, _ := strconv.Atoi(delegateInfo.FrozenBalance)
+	frozen, err := strconv.Atoi(delegateInfo.FrozenBalance)
 	if err != nil {
 		return 0, errors.Wrap(err, "Unable to parse frozen balance")
 	}
@@ -371,19 +365,21 @@ func (b *BaconClient) GetSpendableBalance() (int, error) {
 	return balance - frozen, nil
 }
 
-// Check if the baker has revealed their public key. If not, display UI message indicating the need to do this step.
+// IsRevealed Check if the baker has revealed their public key. If not, display UI message indicating the need to do this step.
 func (b *BaconClient) IsRevealed() (bool, error) {
 
 	cmki := rpc.ContractManagerKeyInput{
-		BlockID:    &rpc.BlockIDHead{},
+		BlockID:    new(rpc.BlockIDHead),
 		ContractID: b.Signer.BakerPkh,
 	}
 
 	resp, manager, err := b.Current.ContractManagerKey(cmki)
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()), "Manager": manager,
-	}).Debug("Fetching manager key")
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()), "Manager": manager,
+		}).Debug("Fetching manager key")
+	}
 
 	if err != nil {
 		return false, errors.Wrap(err, "Unable to fetch manager key")
@@ -405,7 +401,6 @@ func (b *BaconClient) IsRevealed() (bool, error) {
 }
 
 func (b *BaconClient) RegisterBaker() (string, error) {
-
 	var registrationContents []rpc.Content
 
 	pkh := b.Signer.BakerPkh
@@ -416,15 +411,16 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		ContractID: pkh,
 	})
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Debug("Fetching contract metadata")
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Debug("Fetching contract metadata")
+	}
 
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to fetch contract metadata")
 	}
 
-	//
 	// Revelation of PK
 	// If needed, this operation needs to come first in a multi-op injection
 
@@ -459,9 +455,7 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		registrationContents = append(registrationContents, revealOp)
 	}
 
-	//
 	// Registration operation
-	//
 
 	// Increment counter
 	counter += 1
@@ -479,24 +473,21 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 
 	registrationContents = append(registrationContents, registrationOp)
 
-	//
 	// Forge the operation(s)
-	//
-	encodedOperation, err := forge.Encode(b.Status.Hash, registrationContents...) // Returns string hex-encoded operation
+	// Returns string hex-encoded operation
+	encodedOperation, err := forge.Encode(b.Status.Hash, registrationContents...)
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to register baker")
 	}
 
-	//
 	// Sign the operation
 	signerResult, err := b.Signer.SignSetDelegate(encodedOperation)
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to sign registration")
 	}
 
-	//
 	// Inject operation
-	_, ophash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
+	_, opHash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
 		Operation: signerResult.SignedOperation,
 	})
 	if err != nil {
@@ -504,11 +495,10 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 	}
 
 	// Success
-	return ophash, nil
+	return opHash, nil
 }
 
 func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error) {
-
 	pkh := b.Signer.BakerPkh
 
 	proposalVote := rpc.Content{
@@ -531,9 +521,8 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 		return "", errors.Wrap(err, "Unable to sign upvote")
 	}
 
-	//
 	// Inject operation
-	_, ophash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
+	_, opHash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
 		Operation: signerResult.SignedOperation,
 	})
 	if err != nil {
@@ -541,5 +530,5 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 	}
 
 	// Success
-	return ophash, nil
+	return opHash, nil
 }

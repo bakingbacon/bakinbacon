@@ -22,7 +22,6 @@ import (
 var previouslyInjectedErr = regexp.MustCompile(`while applying operation (o[a-zA-Z0-9]{50}).*previously revealed`)
 
 func generateNonce() (nonce.Nonce, error) {
-
 	// Generate a 64 char hexadecimal seed from random 32 bytes
 	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {
@@ -37,7 +36,7 @@ func generateNonce() (nonce.Nonce, error) {
 	}
 
 	// B58 encode seed hash with nonce prefix
-	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
+	encodedNonce := crypto.B58cencode(nonceHash, nonce.PrefixNonce)
 
 	n := nonce.Nonce{
 		Seed:          hex.EncodeToString(randBytes),

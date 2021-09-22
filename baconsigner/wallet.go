@@ -19,7 +19,7 @@ var W *WalletSigner
 
 func InitWalletSigner() error {
 
-	W = &WalletSigner{}
+	W = new(WalletSigner)
 
 	walletSk, err := storage.DB.GetSignerSk()
 	if err != nil {
@@ -46,11 +46,11 @@ func InitWalletSigner() error {
 	return nil
 }
 
-// Generates a new ED25519 keypair; Only used on first setup through
+// GenerateNewKey Generates a new ED25519 keypair; Only used on first setup through
 // UI wizard so init the signer here
 func GenerateNewKey() (string, string, error) {
 
-	W = &WalletSigner{}
+	W = new(WalletSigner)
 
 	newKey, err := gtks.Generate(gtks.Ed25519)
 	if err != nil {
@@ -65,32 +65,32 @@ func GenerateNewKey() (string, string, error) {
 	return W.sk, W.Pkh, nil
 }
 
-// Imports a secret key, saves to DB, and sets signer type to wallet
-func ImportSecretKey(iEdsk string) (string, string, error) {
+// ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
+func ImportSecretKey(b58Ed25519Key string) (string, string, error) {
 
-	W = &WalletSigner{}
+	W = new(WalletSigner)
 
-	importKey, err := gtks.FromBase58(iEdsk, gtks.Ed25519)
+	importKey, err := gtks.FromBase58(b58Ed25519Key, gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to import key")
 		return "", "", err
 	}
 
 	W.wallet = importKey
-	W.sk = iEdsk
+	W.sk = b58Ed25519Key
 	W.Pkh = importKey.PubKey.GetAddress()
 
 	return W.sk, W.Pkh, nil
 }
 
-// Saves Sk/Pkh to DB
+// SaveSigner Saves Sk/Pkh to DB
 func (s *WalletSigner) SaveSigner() error {
 
 	if err := storage.DB.SetDelegate(s.sk, s.Pkh); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
-	if err := storage.DB.SetSignerType(SIGNER_WALLET); err != nil {
+	if err := storage.DB.SetSignerType(SignerWallet); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
@@ -98,8 +98,8 @@ func (s *WalletSigner) SaveSigner() error {
 }
 
 func (s *WalletSigner) SignBytes(opBytes []byte) (string, error) {
-
-	sig, err := s.wallet.SignRawBytes(opBytes) // Returns 'Signature' object
+	// Returns 'Signature' object
+	sig, err := s.wallet.SignRawBytes(opBytes)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed wallet signer")
 	}

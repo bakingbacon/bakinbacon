@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bakinbacon/util"
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -25,8 +27,8 @@ var (
 	logTrace          *bool
 	dryRunEndorsement *bool
 	dryRunBake        *bool
-	webUiAddr         *string
-	webUiPort         *int
+	webUIAddr         *string
+	webUIPort         *int
 	dataDir           *string
 )
 
@@ -68,13 +70,13 @@ func main() {
 
 	// Network constants
 	log.WithFields(log.Fields{ //nolint:wsl
-		"BlocksPerCycle":      networkConstants[network].BlocksPerCycle,
-		"BlocksPerCommitment": networkConstants[network].BlocksPerCommitment,
-		"TimeBetweenBlocks":   networkConstants[network].TimeBetweenBlocks,
+		"BlocksPerCycle":      util.NetworkConstants[network].BlocksPerCycle,
+		"BlocksPerCommitment": util.NetworkConstants[network].BlocksPerCommitment,
+		"TimeBetweenBlocks":   util.NetworkConstants[network].TimeBetweenBlocks,
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
-	bc, err = baconclient.New(networkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
+	bc, err = baconclient.New(util.NetworkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
 	}
@@ -84,11 +86,11 @@ func main() {
 	wg.Add(1)
 	templateVars := webserver.TemplateVars{
 		Network:        network,
-		BlocksPerCycle: networkConstants[network].BlocksPerCycle,
-		MinBlockTime:   networkConstants[network].TimeBetweenBlocks,
-		UiBaseUrl:      os.Getenv("UI_DEBUG"),
+		BlocksPerCycle: util.NetworkConstants[network].BlocksPerCycle,
+		MinBlockTime:   util.NetworkConstants[network].TimeBetweenBlocks,
+		UIBaseURL:      os.Getenv("UI_DEBUG"),
 	}
-	webserver.Start(bc, *webUiAddr, *webUiPort, templateVars, shutdownChannel, &wg)
+	webserver.Start(bc, *webUIAddr, *webUIPort, templateVars, shutdownChannel, &wg)
 
 	// For canceling when new blocks appear
 	_, ctxCancel := context.WithCancel(context.Background())
@@ -100,7 +102,7 @@ func main() {
 	updateRecentBaconStatus()
 
 	// loop forever, waiting for new blocks coming from the RPC monitors
-	Main:
+Main:
 	for {
 
 		select {
@@ -175,7 +177,7 @@ func setupCloseChannel() chan interface{} {
 func parseArgs() {
 
 	// Args
-	flag.StringVar(&network, "network", "granadanet", "Which network to use: mainnet, granadanet")
+	flag.StringVar(&network, "network", util.Granadanet, fmt.Sprintf("Which network to use: %s", util.AvailableNetworks()))
 
 	logDebug = flag.Bool("debug", false, "Enable debug-level logging")
 	logTrace = flag.Bool("trace", false, "Enable trace-level logging")
@@ -183,8 +185,8 @@ func parseArgs() {
 	dryRunEndorsement = flag.Bool("dry-run-endorse", false, "Compute, but don't inject endorsements")
 	dryRunBake = flag.Bool("dry-run-bake", false, "Compute, but don't inject blocks")
 
-	webUiAddr = flag.String("webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
-	webUiPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
+	webUIAddr = flag.String("webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
+	webUIPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
 
 	dataDir = flag.String("datadir", "./", "Location of database")
 
@@ -193,7 +195,8 @@ func parseArgs() {
 	flag.Parse()
 
 	// Sanity
-	if network != NETWORK_MAINNET && network != NETWORK_GRANADANET {
+	if !util.IsValidNetwork(network) {
+		log.Errorf("unknown network: %s", network)
 		flag.Usage()
 		os.Exit(1)
 	}

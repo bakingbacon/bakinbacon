@@ -77,13 +77,11 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 //
 // Adding, Listing, Deleting endpoints
 func addEndpoint(w http.ResponseWriter, r *http.Request) {
-
 	log.Trace("API - addEndpoint")
 
 	var k map[string]string
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc add"), w)
 		return
 	}
@@ -106,7 +104,6 @@ func addEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func listEndpoints(w http.ResponseWriter, r *http.Request) {
-
 	log.Trace("API - listEndpoints")
 
 	endpoints, err := storage.DB.GetRPCEndpoints()
@@ -125,28 +122,26 @@ func listEndpoints(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteEndpoint(w http.ResponseWriter, r *http.Request) {
-
 	log.Trace("API - deleteEndpoint")
 
 	var k map[string]int
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if 	err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
 		return
 	}
 
 	// Need to shutdown the RPC client first
-	if e := baconClient.ShutdownRpc(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
+	if err := baconClient.ShutdownRpc(k["rpc"]); err != nil {
+		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot shutdown RPC client for deletion"), w)
 
 		return
 	}
 
 	// Then delete from storage
-	if e := storage.DB.DeleteRPCEndpoint(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
+	if err := storage.DB.DeleteRPCEndpoint(k["rpc"]); err != nil {
+		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot delete endpoint from DB"), w)
 
 		return

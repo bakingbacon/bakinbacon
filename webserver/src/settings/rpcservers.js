@@ -53,7 +53,7 @@ const Rpcservers = (props) => {
 			}
 
 			// RPC is good! Add it via API.
-			const apiUrl = window.BASE_URL + "/api/settings/addendpoint"
+			const apiUrl = window.BASE_URL + "/api/settings/addEndpoint"
 			const postData = {rpc: rpcToAdd}
 			handlePostAPI(apiUrl, postData).then(() => {
 				addToast({
@@ -78,7 +78,7 @@ const Rpcservers = (props) => {
 	}
 
 	const delRpc = (rpc) => {
-		const apiUrl = window.BASE_URL + "/api/settings/deleteendpoint"
+		const apiUrl = window.BASE_URL + "/api/settings/deleteEndpoint"
 		const postData = {rpc: Number(rpc)}
 		handlePostAPI(apiUrl, postData).then(() => {
 			addToast({

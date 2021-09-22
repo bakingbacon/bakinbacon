@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bakinbacon/util"
 	"context"
 	"fmt"
 	"sort"
@@ -111,7 +112,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Continue since we have at least 1 endorsing right
 	// Check if we can pay bond
-	requiredBond := networkConstants[network].EndorsementSecurityDeposit
+	requiredBond := util.NetworkConstants[network].EndorsementSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -130,7 +131,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 			}).Error(msg)
 
 			bc.Status.SetError(errors.New(msg))
-			notifications.N.Send(msg, notifications.BALANCE)
+			notifications.N.Send(msg, notifications.Balance)
 
 			return
 		}

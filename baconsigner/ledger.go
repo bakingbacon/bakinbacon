@@ -14,30 +14,30 @@ import (
 )
 
 const (
-	DEFAULT_BIP_PATH = "/44'/1729'/0'/1'"
+	DefaultBIPPath = "/44'/1729'/0'/1'"
 )
 
 type LedgerInfo struct {
 	Version  string `json:"version"`
 	PrevAuth bool   `json:"prevAuth"`
 	Pkh      string `json:"pkh"`
-	BipPath  string `json:"bipPath"`
+	BIPPath  string `json:"bipPath"`
 }
 
 type LedgerSigner struct {
-	Info   *LedgerInfo
+	Info *LedgerInfo
 
 	// Actual object of the ledger
 	ledger *ledger.TezosLedger
-	lock sync.Mutex
+	lock   sync.Mutex
 }
 
 var L *LedgerSigner
 
 func InitLedgerSigner() error {
 
-	L = &LedgerSigner{}
-	L.Info = &LedgerInfo{}
+	L = new(LedgerSigner)
+	L.Info = new(LedgerInfo)
 
 	// Get device
 	dev, err := ledger.Get()
@@ -48,13 +48,13 @@ func InitLedgerSigner() error {
 	L.ledger = dev
 
 	// Get bipPath and PKH from DB
-	pkh, dbBipPath, err := storage.DB.GetLedgerConfig()
+	pkh, dbBIPPath, err := storage.DB.GetLedgerConfig()
 	if err != nil {
 		return errors.Wrap(err, "Cannot load ledger config from DB")
 	}
 
 	// Sanity
-	if dbBipPath == "" {
+	if dbBIPPath == "" {
 		return errors.New("No BIP path found in DB. Cannot configure ledger.")
 	}
 
@@ -64,22 +64,22 @@ func InitLedgerSigner() error {
 	}
 
 	// Get the bipPath that is authorized to bake
-	authBipPath, err := L.GetAuthorizedKeyPath()
+	authBIPPath, err := L.GetAuthorizedKeyPath()
 	if err != nil {
 		return errors.Wrap(err, "Cannot get auth BIP path from ledger")
 	}
 
 	// Compare to DB config for sanity
-	if dbBipPath != authBipPath {
-		return errors.New(fmt.Sprintf("Authorized BipPath, %s, does not match DB Config, %s", authBipPath, dbBipPath))
+	if dbBIPPath != authBIPPath {
+		return errors.New(fmt.Sprintf("Authorized BIPPath, %s, does not match DB Config, %s", authBIPPath, dbBIPPath))
 	}
 
-	// Set dbBipPath from DB config
-	if err := L.SetBipPath(dbBipPath); err != nil {
+	// Set dbBIPPath from DB config
+	if err := L.SetBipPath(dbBIPPath); err != nil {
 		return errors.Wrap(err, "Cannot set BIP path on ledger device")
 	}
 
-	// Get the pkh from dbBipPath from DB config
+	// Get the pkh from dbBIPPath from DB config
 	_, compPkh, err := L.GetPublicKey()
 	if err != nil {
 		return errors.Wrap(err, "Cannot fetch pkh from ledger")
@@ -90,22 +90,21 @@ func InitLedgerSigner() error {
 	}
 
 	L.Info.Pkh = pkh
-	L.Info.BipPath = authBipPath
+	L.Info.BIPPath = authBIPPath
 
-	log.WithFields(log.Fields{"KeyPath": authBipPath, "PKH": pkh}).Debug("Ledger Baking Config")
+	log.WithFields(log.Fields{"KeyPath": authBIPPath, "PKH": pkh}).Debug("Ledger Baking Config")
 
 	return nil
 }
 
 func (s *LedgerSigner) Close() {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.ledger.Close()
 }
 
-// Gets the public key from ledger device
+// GetPublicKey Gets the public key from ledger device
 func (s *LedgerSigner) GetPublicKey() (string, string, error) {
 
 	s.lock.Lock()
@@ -118,7 +117,6 @@ func (s *LedgerSigner) GetPublicKey() (string, string, error) {
 }
 
 func (s *LedgerSigner) SignBytes(opBytes []byte) (string, error) {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -126,7 +124,6 @@ func (s *LedgerSigner) SignBytes(opBytes []byte) (string, error) {
 }
 
 func (s *LedgerSigner) IsBakingApp() (string, error) {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -145,7 +142,6 @@ func (s *LedgerSigner) IsBakingApp() (string, error) {
 }
 
 func (s *LedgerSigner) GetAuthorizedKeyPath() (string, error) {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -153,21 +149,20 @@ func (s *LedgerSigner) GetAuthorizedKeyPath() (string, error) {
 }
 
 func (s *LedgerSigner) SetBipPath(p string) error {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	return s.ledger.SetBipPath(p)
 }
 
-//
+// TestLedger
 // This function is only called from web UI during initial setup.
 // It will open the ledger, get the version string of the running app, and
 // fetch either the currently auth'd baking key, or fetch the default BIP path key
 func TestLedger() (*LedgerInfo, error) {
 
-	L = &LedgerSigner{}
-	L.Info = &LedgerInfo{}
+	L = new(LedgerSigner)
+	L.Info = new(LedgerInfo)
 
 	// Get device
 	dev, err := ledger.Get()
@@ -185,7 +180,7 @@ func TestLedger() (*LedgerInfo, error) {
 	log.WithField("Version", L.Info.Version).Info("Ledger Version")
 
 	// Check if ledger is already configured for baking
-	L.Info.BipPath = DEFAULT_BIP_PATH
+	L.Info.BIPPath = DefaultBIPPath
 
 	bipPath, err := L.GetAuthorizedKeyPath()
 	if err != nil {
@@ -198,11 +193,11 @@ func TestLedger() (*LedgerInfo, error) {
 		// Ledger is already setup for baking
 		log.WithField("Path", bipPath).Info("Ledger previously configured for baking")
 		L.Info.PrevAuth = true
-		L.Info.BipPath = bipPath
+		L.Info.BIPPath = bipPath
 	}
 
 	// Get the key from the path
-	if err := L.SetBipPath(L.Info.BipPath); err != nil {
+	if err := L.SetBipPath(L.Info.BIPPath); err != nil {
 		log.WithError(err).Error("Unable to SetBipPath")
 		return L.Info, errors.Wrap(err, "Unable to set bip path")
 	}
@@ -218,8 +213,7 @@ func TestLedger() (*LedgerInfo, error) {
 	return L.Info, nil
 }
 
-//
-// Ask ledger to display request for public key. User must press button to confirm.
+// ConfirmBakingPkh Ask ledger to display request for public key. User must press button to confirm.
 func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 
 	log.WithFields(log.Fields{
@@ -248,26 +242,25 @@ func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 	}
 
 	// Save config to DB
-	if err := storage.DB.SaveLedgerToDB(authPkh, bipPath, SIGNER_LEDGER); err != nil {
+	if err := storage.DB.SaveLedgerToDB(authPkh, bipPath, SignerLedger); err != nil {
 		log.WithError(err).Error("Cannot save key/wallet to db")
 		return err
 	}
 
 	s.Info.Pkh = authPkh
-	s.Info.BipPath = bipPath
+	s.Info.BIPPath = bipPath
 
 	log.WithFields(log.Fields{
-		"BakerPKH": authPkh, "BipPath": bipPath,
+		"BakerPKH": authPkh, "BIPPath": bipPath,
 	}).Info("Saved authorized baking on ledger")
 
 	// No errors; User confirmed key on device. All is good.
 	return nil
 }
 
-// Saves Sk/Pkh to DB
+// SaveSigner Saves Sk/Pkh to DB
 func (s *LedgerSigner) SaveSigner() error {
-
-	if err := storage.DB.SaveLedgerToDB(s.Info.Pkh, s.Info.BipPath, SIGNER_LEDGER); err != nil {
+	if err := storage.DB.SaveLedgerToDB(s.Info.Pkh, s.Info.BIPPath, SignerLedger); err != nil {
 		log.WithError(err).Error("Cannot save key/wallet to db")
 		return err
 	}

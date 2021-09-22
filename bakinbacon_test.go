@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 
 	log.SetLevel(log.DebugLevel)
 
-	network = "granadanet"
+	network = util.Granadanet
 
 	os.Exit(m.Run())
 }
@@ -71,7 +71,7 @@ func TestGenericHash(t *testing.T) {
 	}
 
 	// B58 encode seed hash with nonce prefix
-	encodedNonce := crypto.B58cencode(nonceHash, nonce.Prefix_nonce)
+	encodedNonce := crypto.B58cencode(nonceHash, nonce.PrefixNonce)
 
 	t.Logf("Seed: %s\n", seed)
 	t.Logf("Nonce: %s\n", encodedNonce)
@@ -102,8 +102,8 @@ func TestNonce(t *testing.T) {
 	}
 
 	// B58 encode seed hash with nonce prefix
-	encodedRandBytes := crypto.B58cencode(randBytesHash, nonce.Prefix_nonce)
-	encodedSeedBytes := crypto.B58cencode(seedBytesHash, nonce.Prefix_nonce)
+	encodedRandBytes := crypto.B58cencode(randBytesHash, nonce.PrefixNonce)
+	encodedSeedBytes := crypto.B58cencode(seedBytesHash, nonce.PrefixNonce)
 
 	t.Logf("Seed: %s\n", seed)
 	t.Logf("ERB:  %s\n", encodedRandBytes)

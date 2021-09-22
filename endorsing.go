@@ -34,7 +34,7 @@ $ ~/.opam/for_tezos/bin/tezos-codec decode 009-PsFLoren.operation from 5b3c0553c
     "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q" }
 */
 
-func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -68,10 +68,10 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	endorsingRightsFilter := rpc.EndorsingRightsInput{
 		BlockID:  &hashBlockID,
 		Level:    endorsingLevel,
-		Delegate: bc.Signer.BakerPkh,
+		Delegate: s.Signer.BakerPkh,
 	}
 
-	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+	resp, endorsingRights, err := s.Current.EndorsingRights(endorsingRightsFilter)
 
 	log.WithFields(log.Fields{
 		"Level": endorsingLevel, "Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -90,7 +90,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	// Check for new block
 	select {
 	case <-ctx.Done():
-		log.Warn("New block arrived; Canceling endorsement")
+		log.Warn("NewHandler block arrived; Canceling endorsement")
 		return
 	default:
 		break
@@ -112,16 +112,15 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Continue since we have at least 1 endorsing right
 	// Check if we can pay bond
-	requiredBond := util.NetworkConstants[network].EndorsementSecurityDeposit
+	requiredBond := util.NetworkConstants[s.networkName].EndorsementSecurityDeposit
 
-	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
+	if spendableBalance, err := s.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
 
 		// Even if error here, we can still proceed.
 		// Might have enough to post bond, might not.
 
 	} else {
-
 		// If not enough bond, exit early
 		if requiredBond > spendableBalance {
 
@@ -130,8 +129,8 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 				"Spendable": spendableBalance, "ReqBond": requiredBond,
 			}).Error(msg)
 
-			bc.Status.SetError(errors.New(msg))
-			notifications.N.Send(msg, notifications.Balance)
+			s.Status.SetError(errors.New(msg))
+			s.Send(msg, notifications.Balance)
 
 			return
 		}
@@ -155,7 +154,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	log.WithField("Bytes", endorsementBytes).Debug("Forged Inlined Endorsement")
 
 	// sign inner endorsement
-	signedInnerEndorsement, err := bc.Signer.SignEndorsement(endorsementBytes, block.ChainID)
+	signedInnerEndorsement, err := s.Signer.SignEndorsement(endorsementBytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Signer endorsement failure")
 		return
@@ -195,20 +194,20 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Warn("New block arrived; Canceling endorsement")
+		log.Warn("NewHandler block arrived; Canceling endorsement")
 		return
 	default:
 		break
 	}
 
 	// Dry-run check
-	if *dryRunEndorsement {
+	if s.dryRunEndorsement {
 		log.Warn("Not Injecting Endorsement; Dry-Run Mode")
 		return
 	}
 
 	// Inject endorsement
-	resp, opHash, err := bc.Current.InjectionOperation(injectionInput)
+	resp, opHash, err := s.Current.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -225,5 +224,5 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Update status for UI
-	bc.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
+	s.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
 }

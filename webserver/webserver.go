@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"bakinbacon/notifications"
 	"bakinbacon/util"
 	"context"
 	"embed"
@@ -27,7 +28,7 @@ var (
 	staticUI embed.FS
 )
 
-type APIError struct {
+type errorWrapper struct {
 	Error string `json:"error"`
 }
 
@@ -40,14 +41,17 @@ type TemplateVars struct {
 
 type WebServer struct {
 	// Global vars for the webserver package
-	httpSvr     *http.Server
-	baconClient *baconclient.BaconClient
-	network     string
+	httpSvr             *http.Server
+	baconClient         *baconclient.BaconClient
+	network             string
+	notificationHandler *notifications.NotificationHandler
 }
 
 type WebServerArgs struct {
-	Network         string
-	Client          *baconclient.BaconClient
+	Network             string
+	Client              *baconclient.BaconClient
+	NotificationHandler *notifications.NotificationHandler
+
 	BindAddr        string
 	BindPort        int
 	TemplateVars    TemplateVars
@@ -56,7 +60,7 @@ type WebServerArgs struct {
 }
 
 func (a *WebServerArgs) Validate() error {
-	if util.IsValidNetwork(a.Network) {
+	if !util.IsValidNetwork(a.Network) {
 		return errors.Errorf("Network not recognized: %s", a.Network)
 	}
 	if a.Client == nil {
@@ -71,6 +75,9 @@ func (a *WebServerArgs) Validate() error {
 	if a.WG == nil {
 		return errors.New("wait group not instantiated")
 	}
+	if a.NotificationHandler == nil {
+		log.Warn("no notification handler set")
+	}
 	return nil
 }
 
@@ -78,7 +85,7 @@ func Start(args WebServerArgs) (*WebServer, error) {
 	if err := args.Validate(); err != nil {
 		return nil, errors.Wrap(err, "could not start web server")
 	}
-	ws := &WebServer{baconClient: args.Client}
+	ws := &WebServer{baconClient: args.Client, notificationHandler: args.NotificationHandler}
 
 	// Repoint web ui down one directory
 	staticContent, err := fs.Sub(staticUI, "build")
@@ -178,7 +185,7 @@ func Start(args WebServerArgs) (*WebServer, error) {
 }
 
 func apiError(err error, w http.ResponseWriter) {
-	e, _ := json.Marshal(APIError{err.Error()})
+	e, _ := json.Marshal(errorWrapper{err.Error()})
 	http.Error(w, string(e), http.StatusBadRequest)
 }
 

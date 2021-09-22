@@ -21,7 +21,7 @@ import (
 
 var previouslyInjectedErr = regexp.MustCompile(`while applying operation (o[a-zA-Z0-9]{50}).*previously revealed`)
 
-func generateNonce() (nonce.Nonce, error) {
+func (s *BakinBaconServer) generateNonce() (nonce.Nonce, error) {
 	// Generate a 64 char hexadecimal seed from random 32 bytes
 	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {
@@ -48,7 +48,7 @@ func generateNonce() (nonce.Nonce, error) {
 	return n, nil
 }
 
-func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (s *BakinBaconServer) revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -139,7 +139,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 
 		// Validate the operation against the node for any errors
-		resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
+		resp, preApplyResp, err := s.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
 
 			// If somehow the nonce reveal was already injected, but we have no record of the opHash,
@@ -180,7 +180,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operation: nonceRevelationBytes,
 		}
 
-		resp, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
+		resp, revealOpHash, err := s.Current.InjectionOperation(injectionInput)
 		if err != nil {
 
 			// Check error message for possible previous injection. If notice not present

@@ -30,7 +30,7 @@ const (
 	PowLength       int = 4
 )
 
-func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -95,11 +95,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	bakingRightsFilter := rpc.BakingRightsInput{
 		BlockID:     &hashBlockID,
 		Level:       nextLevelToBake,
-		Delegate:    bc.Signer.BakerPkh,
+		Delegate:    s.Signer.BakerPkh,
 		MaxPriority: MaxBakePriority,
 	}
 
-	resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
+	resp, bakingRights, err := s.Current.BakingRights(bakingRightsFilter)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": resp.Body(),
@@ -132,8 +132,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := util.NetworkConstants[network].TimeBetweenBlocks
-	blocksPerCommitment := util.NetworkConstants[network].BlocksPerCommitment
+	timeBetweenBlocks := util.NetworkConstants[s.networkName].TimeBetweenBlocks
+	blocksPerCommitment := util.NetworkConstants[s.networkName].BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -148,9 +148,9 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Check if we have enough bond to cover the bake
-	requiredBond := util.NetworkConstants[network].BlockSecurityDeposit
+	requiredBond := util.NetworkConstants[s.networkName].BlockSecurityDeposit
 
-	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
+	if spendableBalance, err := s.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
 
 		// Even if error here, we can still proceed.
@@ -160,14 +160,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// If not enough bond, exit early
 		if requiredBond > spendableBalance {
-
 			msg := "Bond balance too low for baking"
 			log.WithFields(log.Fields{
 				"Spendable": spendableBalance, "ReqBond": requiredBond,
 			}).Error(msg)
 
-			bc.Status.SetError(errors.New(msg))
-			notifications.N.Send(msg, notifications.Balance)
+			s.Status.SetError(errors.New(msg))
+			s.Send(msg, notifications.Balance)
 
 			return
 		}
@@ -185,7 +184,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		select {
 		case <-ctx.Done():
-			log.Info("New block arrived; Canceling current bake")
+			log.Info("NewHandler block arrived; Canceling current bake")
 			return
 		case <-time.After(priorityDiff * time.Second):
 			break
@@ -198,7 +197,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	var n nonce.Nonce
 	if nextLevelToBake % blocksPerCommitment == 0 {
 
-		n, err = generateNonce()
+		n, err = s.generateNonce()
 		if err != nil {
 			log.WithError(err)
 		}
@@ -215,7 +214,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// so we will keep fetching from the mempool until we get at least 192, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	minEndorsingPower := util.NetworkConstants[network].InitialEndorsers
+	minEndorsingPower := util.NetworkConstants[s.networkName].InitialEndorsers
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -233,14 +232,14 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		// Sleep, but also check if new block arrived
 		select {
 		case <-ctx.Done():
-			log.Info("New block arrived; Canceling current bake")
+			log.Info("NewHandler block arrived; Canceling current bake")
 			return
 		case <-time.After(10 * time.Second):
 			break
 		}
 
 		// Get mempool contents
-		_, mempoolOps, err := bc.Current.Mempool(mempoolInput)
+		_, mempoolOps, err := s.Current.Mempool(mempoolInput)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch mempool ops")
 			return
@@ -258,7 +257,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// compute_endorsing_power with current endorsements
 		// Send all operations in the first slot, which are endorsements
-		endorsingPower, err = computeEndorsingPower(&hashBlockID, block.Header.Level, operations[0])
+		endorsingPower, err = s.computeEndorsingPower(&hashBlockID, block.Header.Level, operations[0])
 		if err != nil {
 			log.WithError(err).Error("Unable to compute endorsing power; Using 90% of minimum power")
 
@@ -271,7 +270,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("New block arrived; Canceling current bake")
+		log.Info("NewHandler block arrived; Canceling current bake")
 		return
 	default:
 		break
@@ -283,7 +282,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Timestamp of previous block + 30s = minimal timestamp
 
 	// With endorsing power and priority, compute earliest timestamp to inject block
-	resp, minimalInjectionTime, err := bc.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
+	resp, minimalInjectionTime, err := s.Current.MinimalValidTime(rpc.MinimalValidTimeInput{
 		BlockID:        &hashBlockID,
 		Priority:       priority,
 		EndorsingPower: endorsingPower,
@@ -309,7 +308,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		log.Infof("Sleeping for %ds, based on endorsing power", sleepDuration)
 		select {
 		case <-ctx.Done():
-			log.Info("New block arrived; Canceling current bake")
+			log.Info("NewHandler block arrived; Canceling current bake")
 			return
 		case <-time.After(sleepDuration * time.Second):
 			break
@@ -340,7 +339,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	//
 	// If the initial preapply fails, attempt again using an empty list of operations
 	//
-	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
+	resp, preapplyBlockResp, err := s.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -412,7 +411,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	protocolDataLength := len(protocolData)
 
 	// Perform a lame proof-of-work computation
-	blockBytes, attempts, err := powLoop(localForgedBlockHex, protocolDataLength)
+	blockBytes, attempts, err := s.powLoop(localForgedBlockHex, protocolDataLength)
 	if err != nil {
 		log.WithError(err).Error("Unable to POW!")
 		return
@@ -428,7 +427,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	var signedErr error
 
 	for i := 1; i < 3; i++ {
-		signedBlock, signedErr = bc.Signer.SignBlock(blockBytes, block.ChainID)
+		signedBlock, signedErr = s.Signer.SignBlock(blockBytes, block.ChainID)
 		if err != nil {
 			log.WithField("Attempt", i).WithError(err).Error("Failed to sign block")
 			time.Sleep(1 * time.Second)
@@ -440,11 +439,11 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	if signedErr != nil {
 		msg := "Unable to sign block bytes; Cannot inject block"
 		log.Error(msg)
-		notifications.N.Send(msg, notifications.BakingFail)
+		s.Send(msg, notifications.BakingFail)
 		return
 	}
 
-	log.WithField("Signature", signedBlock.EDSig).Debug("Signed New Block")
+	log.WithField("Signature", signedBlock.EDSig).Debug("Signed NewHandler Block")
 
 	// The data of the block
 	ibi := rpc.InjectionBlockInput{
@@ -455,20 +454,20 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("New block arrived; Canceling current bake")
+		log.Info("NewHandler block arrived; Canceling current bake")
 		return
 	default:
 		break
 	}
 
 	// Dry-run check
-	if *dryRunBake {
+	if s.dryRunBake {
 		log.Warn("Not Injecting Block; Dry-Run Mode")
 		return
 	}
 
 	// Inject block
-	resp, blockHash, err := bc.Current.InjectionBlock(ibi)
+	resp, blockHash, err := s.Current.InjectionBlock(ibi)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -495,10 +494,10 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Update status for UI
-	bc.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
+	s.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 
 	// Send notification
-	notifications.N.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BakingOk)
+	s.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BakingOk)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {
@@ -532,19 +531,18 @@ func stampCheck(buf []byte) uint64 {
 	return value
 }
 
-func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
-
+func (s *BakinBaconServer) powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 	// The hash buffer is the byte-decoded forged block, including shell and protocol data.
 	// Protocol data should include a 64 byte signature but at this point, we have not
 	// signed anything because we need to sign the proof-of-work result which is generated below.
 	//
 	// Since we can't sign something that we have not created, we append a dummy signature of
 	// all 0's so that the checksum of the entire block with PoW can be correctly compared
-	// against the network constant's proof of work threshold
+	// against the networkName constant's proof of work threshold
 
 	hashBuffer, _ := hex.DecodeString(forgedBlock + strings.Repeat("0", 128))
 	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PriorityLength + PowHeaderLength
-	powThreshold := util.NetworkConstants[network].ProofOfWorkThreshold
+	powThreshold := util.NetworkConstants[s.networkName].ProofOfWorkThreshold
 
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
@@ -708,7 +706,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	return operations, nil
 }
 
-func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rpc.Operations) (int, error) {
+func (s *BakinBaconServer) computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rpc.Operations) (int, error) {
 
 	// Endorsing power is just the total number of endorsing slots for a delegate.
 	// We fetch endorsing rights for this level, validate entry, increment power.
@@ -720,7 +718,7 @@ func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rp
 		BlockID: blockId,
 		Level:   bakingLevel,
 	}
-	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsInput)
+	resp, endorsingRights, err := s.Current.EndorsingRights(endorsingRightsInput)
 	if err != nil {
 		return endorsingPower, err
 	}

@@ -31,27 +31,25 @@ type Notifier interface {
 	IsEnabled() bool
 }
 
-type Notification struct {
+type NotificationHandler struct {
 	Notifiers        map[string]Notifier
 	lastSentCategory map[Category]time.Time
 }
 
-var N *Notification
 
-func New() error {
+func NewHandler() (*NotificationHandler, error) {
+	n := new(NotificationHandler)
+	n.Notifiers = make(map[string]Notifier)
+	n.lastSentCategory = make(map[Category]time.Time)
 
-	N = new(Notification)
-	N.Notifiers = make(map[string]Notifier)
-	N.lastSentCategory = make(map[Category]time.Time)
-
-	if err := N.LoadNotifiers(); err != nil {
-		return errors.Wrap(err, "Failed New Notification")
+	if err := n.LoadNotifiers(); err != nil {
+		return nil, errors.Wrap(err, "Failed to instantiate notification handler")
 	}
 
-	return nil
+	return n, nil
 }
 
-func (n *Notification) LoadNotifiers() error {
+func (n *NotificationHandler) LoadNotifiers() error {
 
 	// Get telegram notifications config from DB, as []byte string
 	tConfig, err := storage.DB.GetNotifiersConfig("telegram")
@@ -78,8 +76,7 @@ func (n *Notification) LoadNotifiers() error {
 	return nil
 }
 
-func (n *Notification) Configure(notifier string, config []byte, saveConfig bool) error {
-
+func (n *NotificationHandler) Configure(notifier string, config []byte, saveConfig bool) error {
 	switch notifier {
 	case telegram:
 		nt, err := NewTelegram(config, saveConfig)
@@ -102,12 +99,12 @@ func (n *Notification) Configure(notifier string, config []byte, saveConfig bool
 	return nil
 }
 
-func (n *Notification) Send(message string, category Category) {
+func (n *NotificationHandler) Send(message string, category Category) {
 	// Check that we haven't sent a message from this category
 	// within the past 10 minutes
 	if lastSentTime, ok := n.lastSentCategory[category]; ok {
 		if lastSentTime.After(time.Now().UTC().Add(time.Minute * -10)) {
-			log.Info("Notification last sent within 10 minutes")
+			log.Info("NotificationHandler last sent within 10 minutes")
 			return
 		}
 	}
@@ -124,7 +121,7 @@ func (n *Notification) Send(message string, category Category) {
 	}
 }
 
-func (n *Notification) TestSend(notifier string, message string) error {
+func (n *NotificationHandler) TestSend(notifier string, message string) error {
 	switch notifier {
 	case telegram:
 		n.Notifiers[telegram].Send(message)
@@ -137,7 +134,7 @@ func (n *Notification) TestSend(notifier string, message string) error {
 	return nil
 }
 
-func (n *Notification) GetConfig() (json.RawMessage, error) {
+func (n *NotificationHandler) GetConfig() (json.RawMessage, error) {
 	// Marshal the current Notifiers as the current config
 	// Return RawMessage so as not to double Marshal
 	bts, err := json.Marshal(n.Notifiers)

@@ -9,7 +9,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"bakinbacon/notifications"
 	"bakinbacon/storage"
 )
 
@@ -25,13 +24,13 @@ func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send string to configure for JSON unmarshaling; make sure to save config to db
-	if err := notifications.N.Configure("telegram", body, true); err != nil {
+	if err := ws.notificationHandler.Configure("telegram", body, true); err != nil {
 		log.WithError(err).Error("API saveTelegram")
 		apiError(errors.Wrap(err, "Failed to configure telegram"), w)
 		return
 	}
 
-	if err := notifications.N.TestSend("telegram", "Test message from BakinBacon"); err != nil {
+	if err := ws.notificationHandler.TestSend("telegram", "Test message from BakinBacon"); err != nil {
 		log.WithError(err).Error("API saveTelegram")
 		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
 
@@ -57,8 +56,8 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	log.WithField("Endpoints", endpoints).Debug("API Settings Endpoints")
 
-	// Get Notification settings
-	notifications, err := notifications.N.GetConfig() // Returns json.RawMessage
+	// Get NotificationHandler settings
+	notifications, err := ws.notificationHandler.GetConfig() // Returns json.RawMessage
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
 		return
@@ -125,7 +124,7 @@ func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	var k map[string]int
 
-	if 	err := json.NewDecoder(r.Body).Decode(&k); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
 		return
 	}

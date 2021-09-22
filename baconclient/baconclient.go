@@ -29,10 +29,10 @@ type BaconSlice struct {
 }
 
 type BaconClient struct {
-	NewBlockNotifier chan *rpc.Block
-
-	Current    *BaconSlice
-	rpcClients []*BaconSlice
+	NewBlockNotifier    chan *rpc.Block
+	NotificationHandler *notifications.NotificationHandler
+	Current             *BaconSlice
+	rpcClients          []*BaconSlice
 
 	Status *BaconStatus
 	Signer *baconsigner.BaconSigner
@@ -44,10 +44,11 @@ type BaconClient struct {
 	waitGroup         *sync.WaitGroup
 }
 
-func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+func New(notificationHandler *notifications.NotificationHandler, tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
 	// Make new client manager
 	newBaconClient := &BaconClient{
 		NewBlockNotifier:  make(chan *rpc.Block, 1),
+		NotificationHandler: notificationHandler,
 		rpcClients:        make([]*BaconSlice, 0),
 		Status:            new(BaconStatus),
 		timeBetweenBlocks: tbb,
@@ -202,7 +203,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 						"Level":   block.Metadata.Level.Level,
 						"Hash":    block.Hash,
 						"ChainID": block.ChainID,
-					}).Info("New Block")
+					}).Info("NewHandler Block")
 				}
 
 			} else {
@@ -233,7 +234,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	if err := b.Signer.SignerStatus(silentChecks); err != nil {
 		b.Status.SetState(NoSigner)
 		b.Status.SetError(err)
-		notifications.N.Send(err.Error(), notifications.Signer)
+		b.NotificationHandler.Send(err.Error(), notifications.Signer)
 		log.WithError(err).Error("Checking signer status")
 		return false
 	}

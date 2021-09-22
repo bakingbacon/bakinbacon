@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 	// Connect to node for tests
 	// gt, err = gotezos.New("127.0.0.1:18732")
 	// if err != nil {
-	// 	panic(fmt.Sprintf("Unable to connect to network: %s\n", err))
+	// 	panic(fmt.Sprintf("Unable to connect to networkName: %s\n", err))
 	// }
 
 	log.SetLevel(log.DebugLevel)

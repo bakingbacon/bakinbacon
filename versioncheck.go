@@ -31,7 +31,7 @@ type Version struct {
 	Notes   string    `json:"notes"`
 }
 
-func RunVersionCheck() {
+func (s *BakinBaconServer) RunVersionCheck() {
 
 	// Check every 12hrs
 	ticker := time.NewTicker(24 * time.Hour)
@@ -69,7 +69,7 @@ func RunVersionCheck() {
 
 			// If newer version available, send notification
 			if semver.Compare(version, latestVersion.Version) == -1 {
-				notifications.N.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
+				s.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
 					latestVersion, version), notifications.Version)
 			}
 		}

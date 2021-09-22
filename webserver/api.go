@@ -14,10 +14,8 @@ import (
 	"bakinbacon/storage"
 )
 
-//
 // Dummy health check
 func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
-
 	log.Debug("API - health")
 
 	if err := json.NewEncoder(w).Encode(map[string]bool{

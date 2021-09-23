@@ -11,15 +11,15 @@ import (
 )
 
 const (
-	DatabaseFile = "bakinbacon.db"
+	DATABASE_FILE = "bakinbacon.db"
 
-	BakingBucket        = "bakes"
-	EndorsingBucket     = "endorses"
-	NonceBucket         = "nonces"
-	ConfigBucket        = "config"
-	RightsBucket        = "rights"
-	EndpointsBucket     = "endpoints"
-	NotificationsBucket = "notifs"
+	BAKING_BUCKET        = "bakes"
+	ENDORSING_BUCKET     = "endorses"
+	NONCE_BUCKET         = "nonces"
+	CONFIG_BUCKET        = "config"
+	RIGHTS_BUCKET        = "rights"
+	ENDPOINTS_BUCKET     = "endpoints"
+	NOTIFICATIONS_BUCKET = "notifs"
 )
 
 type Storage struct {
@@ -27,7 +27,7 @@ type Storage struct {
 }
 
 func InitStorage(dataDir, network string) (*Storage, error) {
-	db, err := bolt.Open(dataDir+DatabaseFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(dataDir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to init db")
 	}
@@ -35,36 +35,36 @@ func InitStorage(dataDir, network string) (*Storage, error) {
 	// Ensure some buckets exist, and migrations
 	err = db.Update(func(tx *bolt.Tx) error {
 		// Config bucket
-		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(ConfigBucket))
+		cfgBkt, err := tx.CreateBucketIfNotExists([]byte(CONFIG_BUCKET))
 		if err != nil {
 			return errors.Wrap(err, "Cannot create config bucket")
 		}
 
 		// Nested bucket inside config
-		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(EndpointsBucket)); err != nil {
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(ENDPOINTS_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create endpoints bucket")
 		}
 
 		// Nested bucket inside config
-		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NotificationsBucket)); err != nil {
+		if _, err := cfgBkt.CreateBucketIfNotExists([]byte(NOTIFICATIONS_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create notifications bucket")
 		}
 
 		//
 		// Root buckets
-		if _, err := tx.CreateBucketIfNotExists([]byte(EndorsingBucket)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(ENDORSING_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create endorsing bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(BakingBucket)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(BAKING_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create baking bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(NonceBucket)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(NONCE_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create nonce bucket")
 		}
 
-		if _, err := tx.CreateBucketIfNotExists([]byte(RightsBucket)); err != nil {
+		if _, err := tx.CreateBucketIfNotExists([]byte(RIGHTS_BUCKET)); err != nil {
 			return errors.Wrap(err, "Cannot create rights bucket")
 		}
 
@@ -88,12 +88,14 @@ func InitStorage(dataDir, network string) (*Storage, error) {
 }
 
 func (s *Storage) Close() {
+
 	s.db.Close()
 	log.Info("Database closed")
 }
 
 // itob returns an 8-byte big endian representation of v.
 func itob(v int) []byte {
+
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(v))
 

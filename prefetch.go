@@ -13,6 +13,7 @@ import (
 // is done to initialize BaconStatus with values, otherwise status does
 // not update until next bake/endorse.
 func (s *BakinBaconServer) updateRecentBaconStatus() {
+
 	// Update baconClient.Status with most recent endorsement
 	recentEndorsementLevel, recentEndorsementHash, err := s.GetRecentEndorsement()
 	if err != nil {
@@ -100,7 +101,7 @@ func (s *BakinBaconServer) updateCycleRightsStatus(metadataLevel rpc.Level) {
 func (s *BakinBaconServer) prefetchCycleRights(metadataLevel rpc.Level) {
 
 	// We only prefetch every 1024 levels
-	if metadataLevel.Level % 1024 != 0 {
+	if metadataLevel.Level%1024 != 0 {
 		return
 	}
 
@@ -194,7 +195,7 @@ func (s *BakinBaconServer) fetchBakingRights(metadataLevel rpc.Level, cycleToFet
 	for level := levelToStart; level < levelToEnd; level++ {
 
 		bakingRightsFilter := rpc.BakingRightsInput{
-			BlockID:  &rpc.BlockIDHead{},
+			BlockID:  new(rpc.BlockIDHead),
 			Level:    level,
 			Delegate: s.Signer.BakerPkh,
 		}
@@ -209,10 +210,8 @@ func (s *BakinBaconServer) fetchBakingRights(metadataLevel rpc.Level, cycleToFet
 		}
 
 		// If we have rights and priority is < max, append to slice
-		if len(bakingRights) > 0 {
-			if bakingRights[0].Priority < MaxBakePriority {
-				allBakingRights = append(allBakingRights, bakingRights[0])
-			}
+		if len(bakingRights) > 0 && bakingRights[0].Priority < MaxBakePriority {
+			allBakingRights = append(allBakingRights, bakingRights[0])
 		}
 	}
 

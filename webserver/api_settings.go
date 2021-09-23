@@ -11,25 +11,28 @@ import (
 )
 
 func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
-	log.Trace("API - saveTelegram")
+
+	log.Trace("API - Save Telegram")
 
 	// Read the POST body as a string
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API Save Telegram")
 		apiError(errors.Wrap(err, "Failed to parse body"), w)
+
 		return
 	}
 
 	// Send string to configure for JSON unmarshaling; make sure to save config to db
 	if err := ws.notificationHandler.Configure("telegram", body, true); err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API Save Telegram")
 		apiError(errors.Wrap(err, "Failed to configure telegram"), w)
+
 		return
 	}
 
 	if err := ws.notificationHandler.TestSend("telegram", "Test message from BakinBacon"); err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API Save Telegram")
 		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
 
 		return
@@ -43,6 +46,7 @@ func (ws *WebServer) saveEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
+
 	log.Trace("API - getSettings")
 
 	// Get RPC endpoints
@@ -51,6 +55,7 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
 		return
 	}
+
 	log.WithField("Endpoints", endpoints).Debug("API Settings Endpoints")
 
 	// Get NotificationHandler settings
@@ -59,6 +64,7 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
 		return
 	}
+
 	log.WithField("Notifications", string(notifications)).Debug("API Settings Notifications")
 
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
@@ -72,7 +78,8 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 //
 // Adding, Listing, Deleting endpoints
 func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
-	log.Trace("API - addEndpoint")
+
+	log.Trace("API - Add Endpoint")
 
 	var k map[string]string
 
@@ -99,7 +106,8 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
-	log.Trace("API - listEndpoints")
+
+	log.Trace("API - List Endpoints")
 
 	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
@@ -117,17 +125,18 @@ func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
-	log.Trace("API - deleteEndpoint")
 
-	var k map[string]int
+	log.Trace("API - Delete Endpoint")
+
+	k := make(map[string]int)
 
 	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
 		return
 	}
 
-	// Need to shutdown the RPC Client first
-	if err := ws.baconClient.ShutdownRpc(k["rpc"]); err != nil {
+	// Need to shut down the RPC Client first
+	if err := ws.baconClient.ShutdownRPC(k["rpc"]); err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot shutdown RPC Client for deletion"), w)
 

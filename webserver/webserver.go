@@ -63,6 +63,7 @@ type WebServerArgs struct {
 }
 
 func (a *WebServerArgs) Validate() error {
+
 	if !util.IsValidNetwork(a.Network) {
 		return errors.Errorf("Network not recognized: %s", a.Network)
 	}
@@ -88,9 +89,11 @@ func (a *WebServerArgs) Validate() error {
 }
 
 func Start(args WebServerArgs) (*WebServer, error) {
+
 	if err := args.Validate(); err != nil {
 		return nil, errors.Wrap(err, "could not start web server")
 	}
+
 	ws := &WebServer{
 		baconClient:         args.Client,
 		notificationHandler: args.NotificationHandler,

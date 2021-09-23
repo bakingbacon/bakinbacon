@@ -5,11 +5,11 @@ import (
 )
 
 func (s *Storage) GetBakingWatermark() (int, error) {
-	return s.getWatermark(BakingBucket)
+	return s.getWatermark(BAKING_BUCKET)
 }
 
 func (s *Storage) GetEndorsingWatermark() (int, error) {
-	return s.getWatermark(EndorsingBucket)
+	return s.getWatermark(ENDORSING_BUCKET)
 }
 
 func (s *Storage) getWatermark(wBucket string) (int, error) {
@@ -25,19 +25,22 @@ func (s *Storage) getWatermark(wBucket string) (int, error) {
 }
 
 func (s *Storage) RecordBakedBlock(level int, blockHash string) error {
-	return s.recordOperation(BakingBucket, level, blockHash)
+	return s.recordOperation(BAKING_BUCKET, level, blockHash)
 }
 
 func (s *Storage) RecordEndorsement(level int, endorsementHash string) error {
-	return s.recordOperation(EndorsingBucket, level, endorsementHash)
+	return s.recordOperation(ENDORSING_BUCKET, level, endorsementHash)
 }
 
 func (s *Storage) recordOperation(opBucket string, level int, opHash string) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(opBucket))
+
 		if err := b.SetSequence(uint64(level)); err != nil { // Record our watermark
 			return err
 		}
+
 		return b.Put(itob(level), []byte(opHash)) // Save the level:opHash
 	})
 }

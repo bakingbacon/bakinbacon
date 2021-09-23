@@ -2,10 +2,10 @@ package baconclient
 
 const (
 	// Various states for the UI to take action
-	CanBake       = "canbake"
-	LowBalance    = "lowbal"
-	NotRegistered = "noreg"
-	NoSigner      = "nosign"
+	CAN_BAKE      = "canbake"
+	LOW_BALANCE    = "lowbal"
+	NOT_REGISTERED = "noreg"
+	NO_SIGNER      = "nosign"
 )
 
 type BaconStatus struct {

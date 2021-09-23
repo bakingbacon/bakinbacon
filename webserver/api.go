@@ -15,7 +15,8 @@ import (
 
 // Dummy health check
 func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - health")
+
+	log.Debug("API - Health")
 
 	if err := json.NewEncoder(w).Encode(map[string]bool{
 		"ok": true,
@@ -27,7 +28,8 @@ func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
 //
 // Get current status
 func (ws *WebServer) getStatus(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - GetStatus")
+
+	log.Debug("API - Get Status")
 
 	_, pkh, err := ws.storage.GetDelegate()
 	if err != nil {
@@ -53,6 +55,7 @@ func (ws *WebServer) getStatus(w http.ResponseWriter, r *http.Request) {
 //
 // Set delegate (from UI config)
 func (ws *WebServer) setDelegate(w http.ResponseWriter, r *http.Request) {
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot read set delegate"), w)

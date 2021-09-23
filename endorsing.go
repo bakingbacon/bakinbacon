@@ -129,7 +129,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 			}).Error(msg)
 
 			s.Status.SetError(errors.New(msg))
-			s.Send(msg, notifications.Balance)
+			s.Send(msg, notifications.BALANCE)
 
 			return
 		}
@@ -138,13 +138,13 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	// Continue; have rights, have enough bond
 
 	// Inner endorsement; forge and sign
-	endoContent := rpc.Content{
+	endorsementContent := rpc.Content{
 		Kind:  rpc.ENDORSEMENT,
 		Level: endorsingLevel,
 	}
 
 	// Inner endorsement bytes
-	endorsementBytes, err := forge.Encode(block.Hash, endoContent)
+	endorsementBytes, err := forge.Encode(block.Hash, endorsementContent)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Inner Endorsement")
 		return
@@ -155,12 +155,12 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	// sign inner endorsement
 	signedInnerEndorsement, err := s.Signer.SignEndorsement(endorsementBytes, block.ChainID)
 	if err != nil {
-		log.WithError(err).Error("Signer endorsement failure")
+		log.WithError(err).Error("SIGNER endorsement failure")
 		return
 	}
 
 	// Outer endorsement
-	endoWithSlot := rpc.Content{
+	endorseWithSlot := rpc.Content{
 		Kind: rpc.ENDORSEMENT_WITH_SLOT,
 		Endorsement: &rpc.InlinedEndorsement{
 			Branch: block.Hash,
@@ -174,7 +174,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	}
 
 	// Outer bytes
-	endoWithSlotBytes, err := forge.Encode(block.Hash, endoWithSlot)
+	endorseWithSlotBytes, err := forge.Encode(block.Hash, endorseWithSlot)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Outer Endorsement")
 		return
@@ -187,7 +187,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{
-		Operation: endoWithSlotBytes,
+		Operation: endorseWithSlotBytes,
 	}
 
 	// Check if a new block has been posted to /head and we should abort

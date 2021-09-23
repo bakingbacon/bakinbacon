@@ -12,7 +12,8 @@ import (
 //
 // Test existence of ledger device and get app version (Step 1)
 func (ws *WebServer) testLedger(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - testLedger")
+
+	log.Debug("API - Test Ledger")
 
 	ledgerInfo, err := ws.baconClient.Signer.TestLedger()
 	if err != nil {
@@ -29,9 +30,10 @@ func (ws *WebServer) testLedger(w http.ResponseWriter, r *http.Request) {
 //
 // Ledger: confirm the current bipPath and associated key
 func (ws *WebServer) confirmBakingPkh(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - confirmBakingPkh")
 
-	var k map[string]string
+	log.Debug("API - Confirm Baking PKH")
+
+	k := make(map[string]string)
 
 	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for bipPath"), w)
@@ -81,14 +83,15 @@ func (ws *WebServer) generateNewKey(w http.ResponseWriter, r *http.Request) {
 // Import a secret key
 // Save imported key to database, and set signer type to wallet
 func (ws *WebServer) importSecretKey(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - importSecretKey")
+
+	log.Debug("API - Import Secret Key")
 
 	// CORS crap; Handle OPTION preflight check
 	if r.Method == http.MethodOptions {
 		return
 	}
 
-	var k map[string]string
+	k := make(map[string]string)
 
 	if 	err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for secret key import"), w)
@@ -117,7 +120,8 @@ func (ws *WebServer) importSecretKey(w http.ResponseWriter, r *http.Request) {
 // Call baconClient.RegisterBaker() to construct and inject registration operation.
 // This will also check if reveal is needed.
 func (ws *WebServer) registerBaker(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - registerBaker")
+
+	log.Debug("API - Register Baker")
 
 	// CORS crap; Handle OPTION preflight check
 	if r.Method == http.MethodOptions {
@@ -146,7 +150,8 @@ func (ws *WebServer) registerBaker(w http.ResponseWriter, r *http.Request) {
 // Finish wallet wizard
 // This API saves the generated, or imported, secret key to the DB and saves the signer method
 func (ws *WebServer) finishWalletWizard(w http.ResponseWriter, r *http.Request) {
-	log.Debug("API - FinishWalletWizard")
+
+	log.Debug("API - Finish Walle tWizard")
 
 	if err := ws.baconClient.Signer.SaveSigner(); err != nil {
 		apiError(errors.Wrap(err, "Cannot save key/wallet to db"), w)

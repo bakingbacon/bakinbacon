@@ -9,6 +9,7 @@ import (
 )
 
 func CryptoGenericHash(bufferBytes []byte, watermark []byte) ([]byte, error) {
+
 	if len(watermark) > 0 {
 		bufferBytes = append(watermark, bufferBytes...)
 	}
@@ -31,6 +32,7 @@ func CryptoGenericHash(bufferBytes []byte, watermark []byte) ([]byte, error) {
 }
 
 func StripQuote(s string) string {
+
 	m := strings.TrimSpace(s)
 	if len(m) > 0 && m[0] == '"' {
 		m = m[1:]
@@ -44,5 +46,5 @@ func StripQuote(s string) string {
 }
 
 func AvailableNetworks() string {
-	return strings.Join([]string{Mainnet, Granadanet}, ",")
+	return strings.Join([]string{MAIN_NET, GRANADA_NET}, ",")
 }

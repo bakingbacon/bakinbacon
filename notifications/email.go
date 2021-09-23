@@ -13,15 +13,16 @@ type NotifyEmail struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	SMTPHost string `json:"smtphost"`
-	SMTPport int    `json:"smtpport"`
-	Enabled  bool   `json:"enabled"`
-	Storage  *storage.Storage
+	SMTPPort int    `json:"smtpport"`
+	Enabled bool   `json:"enabled"`
+
+	storage *storage.Storage
 }
 
 func (n *NotificationHandler) NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
 	return &NotifyEmail{
 		Enabled: true,
-		Storage: n.Storage,
+		storage: n.storage,
 	}, nil
 }
 
@@ -35,13 +36,14 @@ func (n *NotifyEmail) Send(msg string) {
 }
 
 func (n *NotifyEmail) SaveConfig() error {
+
 	// Marshal ourselves to []byte and send to storage manager
 	config, err := json.Marshal(n)
 	if err != nil {
 		return errors.Wrap(err, "Unable to marshal email config")
 	}
 
-	if err := n.Storage.SaveNotifiersConfig("email", config); err != nil {
+	if err := n.storage.SaveNotifiersConfig("email", config); err != nil {
 		return errors.Wrap(err, "Unable to save email config")
 	}
 

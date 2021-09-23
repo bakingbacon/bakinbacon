@@ -10,16 +10,16 @@ import (
 )
 
 type WalletSigner struct {
-	Storage *storage.Storage
-
+	storage *storage.Storage
 	sk     string
 	pkh    string
 	wallet *gtks.Key
 }
 
 func (s *Access) HydrateWalletSigner() (*WalletSigner, error) {
+
 	w := &WalletSigner{
-		Storage: s.storage,
+		storage: s.storage,
 	}
 
 	walletSk, err := s.storage.GetSignerSk()
@@ -53,6 +53,7 @@ func (s *Access) HydrateWalletSigner() (*WalletSigner, error) {
 // GenerateNewKey Generates a new ED25519 keypair; Only used on first setup through
 // UI wizard so init the signer here
 func (s *WalletSigner) GenerateNewKey() (string, string, error) {
+
 	newKey, err := gtks.Generate(gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to generate new key")
@@ -69,6 +70,7 @@ func (s *WalletSigner) GenerateNewKey() (string, string, error) {
 
 // ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
 func (s *WalletSigner) ImportSecretKey(b58Ed25519Key string) (string, string, error) {
+
 	importKey, err := gtks.FromBase58(b58Ed25519Key, gtks.Ed25519)
 	if err != nil {
 		log.WithError(err).Error("Failed to import key")
@@ -85,6 +87,7 @@ func (s *WalletSigner) ImportSecretKey(b58Ed25519Key string) (string, string, er
 
 // SaveSigner Saves Sk/pkh to DB
 func (s *WalletSigner) SaveSigner(sk, pkh string) error {
+
 	if sk == "" {
 		log.Warn("sk is empty")
 	}
@@ -94,15 +97,15 @@ func (s *WalletSigner) SaveSigner(sk, pkh string) error {
 	s.sk = sk
 	s.pkh = pkh
 
-	if err := s.Storage.SetDelegate(sk, pkh); err != nil {
+	if err := s.storage.SetDelegate(sk, pkh); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
-	if err := s.Storage.SetSignerType(SignerWallet); err != nil {
+	if err := s.storage.SetSignerType(SIGNER_WALLET); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
-	if err := s.Storage.SetSignerSk(sk); err != nil {
+	if err := s.storage.SetSignerSk(sk); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 

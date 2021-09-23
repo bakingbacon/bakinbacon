@@ -20,7 +20,7 @@ func (s *Storage) SaveNonce(cycle int, n nonce.Nonce) error {
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
-		cb, err := tx.Bucket([]byte(NonceBucket)).CreateBucketIfNotExists(itob(cycle))
+		cb, err := tx.Bucket([]byte(NONCE_BUCKET)).CreateBucketIfNotExists(itob(cycle))
 		if err != nil {
 			return errors.Wrap(err, "Unable to create nonce-cycle bucket")
 		}
@@ -34,7 +34,7 @@ func (s *Storage) GetNoncesForCycle(cycle int) ([]nonce.Nonce, error) {
 	var nonces []nonce.Nonce
 
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		cb, err := tx.Bucket([]byte(NonceBucket)).CreateBucketIfNotExists(itob(cycle))
+		cb, err := tx.Bucket([]byte(NONCE_BUCKET)).CreateBucketIfNotExists(itob(cycle))
 		if err != nil {
 			return errors.Wrap(err, "Unable to create nonce-cycle bucket")
 		}

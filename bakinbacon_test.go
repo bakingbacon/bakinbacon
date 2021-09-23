@@ -26,8 +26,6 @@ func TestMain(m *testing.M) {
 
 	log.SetLevel(log.DebugLevel)
 
-	network = util.Granadanet
-
 	os.Exit(m.Run())
 }
 
@@ -50,7 +48,8 @@ func TestProofOfWork(t *testing.T) {
 
 	forgedBytes := "00050e7f027173c6c8eda1628b74beba1a4825379d90a818e6c0ea0dba4b8c4dc9f52012c10000000061195ce604e627eb811ac7ec2098304273fea05915c8b02cd9c079e02398204732312bab90000000110000000101000000080000000000050e7e4775bb79657508f01a4efd3e9dd8570a1a6a6b39c45a487cdb56a5c049c18694000142423130000000000000"
 
-	powBytes, _, err := powLoop(forgedBytes, len("000142423130000000000000"))
+	s := BakinBaconServer{Flags: Flags{networkName: util.GRANADA_NET}}
+	powBytes, _, err := s.powLoop(forgedBytes, len("000142423130000000000000"))
 	if err != nil {
 		t.Errorf("PowLoop Failed: %s", err)
 	}

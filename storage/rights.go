@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	EndorsingRightsBucket = "endorsing"
-	BakingRightsBucket    = "baking"
+	ENDORSING_RIGHTS_BUCKET = "endorsing"
+	BAKING_RIGHTS_BUCKET    = "baking"
 )
 
 func (s *Storage) SaveEndorsingRightsForCycle(cycle int, endorsingRights []rpc.EndorsingRights) error {
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 
-		b, err := tx.Bucket([]byte(RightsBucket)).CreateBucketIfNotExists([]byte(EndorsingRightsBucket))
+		b, err := tx.Bucket([]byte(RIGHTS_BUCKET)).CreateBucketIfNotExists([]byte(ENDORSING_RIGHTS_BUCKET))
 		if err != nil {
 			return errors.Wrap(err, "Unable to create endorsing rights bucket")
 		}
@@ -45,7 +45,7 @@ func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingR
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 
-		b, err := tx.Bucket([]byte(RightsBucket)).CreateBucketIfNotExists([]byte(BakingRightsBucket))
+		b, err := tx.Bucket([]byte(RIGHTS_BUCKET)).CreateBucketIfNotExists([]byte(BAKING_RIGHTS_BUCKET))
 		if err != nil {
 			return errors.Wrap(err, "Unable to create baking rights bucket")
 		}
@@ -79,7 +79,7 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 
-		b := tx.Bucket([]byte(RightsBucket)).Bucket([]byte(EndorsingRightsBucket))
+		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(ENDORSING_RIGHTS_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing Rights Bucket Not Found")
 		}
@@ -121,7 +121,7 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 
-		b := tx.Bucket([]byte(RightsBucket)).Bucket([]byte(BakingRightsBucket))
+		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(BAKING_RIGHTS_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing Rights Bucket Not Found")
 		}
@@ -140,6 +140,7 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 				nextPriority = btoi(v)
 			}
 		}
+
 		return nil
 	})
 
@@ -160,7 +161,7 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 
-		b := tx.Bucket([]byte(EndorsingBucket))
+		b := tx.Bucket([]byte(ENDORSING_BUCKET))
 		if b == nil {
 			return errors.New("Endorsing history bucket not found")
 		}
@@ -188,7 +189,7 @@ func (s *Storage) GetRecentBake() (int, string, error) {
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 
-		b := tx.Bucket([]byte(BakingBucket))
+		b := tx.Bucket([]byte(BAKING_BUCKET))
 		if b == nil {
 			return errors.New("Baking history bucket not found")
 		}

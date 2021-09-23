@@ -14,13 +14,13 @@ import (
 type Category int
 
 const (
-	Balance Category = iota + 1
-	Signer
-	BakingOk
-	BakingFail
-	EndorseFail
-	Version
-	Nonce
+	BALANCE Category = iota + 1
+	SIGNER
+	BAKING_OK
+	BAKING_FAIL
+	ENDORSE_FAIL
+	VERSION
+	NONCE
 
 	telegram = "telegram"
 	email    = "email"
@@ -32,16 +32,17 @@ type Notifier interface {
 }
 
 type NotificationHandler struct {
-	Notifiers        map[string]Notifier
+	notifiers        map[string]Notifier
 	lastSentCategory map[Category]time.Time
-	Storage          *storage.Storage
+	storage          *storage.Storage
 }
 
 func NewHandler(db *storage.Storage) (*NotificationHandler, error) {
+
 	n := &NotificationHandler{
-		Notifiers:         make(map[string]Notifier),
+		notifiers:        make(map[string]Notifier),
 		lastSentCategory: make(map[Category]time.Time),
-		Storage:          db,
+		storage:          db,
 	}
 
 	if err := n.LoadNotifiers(); err != nil {
@@ -51,26 +52,27 @@ func NewHandler(db *storage.Storage) (*NotificationHandler, error) {
 	return n, nil
 }
 
+// LoadNotifiers TODO refactor into generic notifiers without being aware of all impls
 func (n *NotificationHandler) LoadNotifiers() error {
 	// Get telegram notifications config from DB, as []byte string
-	tConfig, err := n.Storage.GetNotifiersConfig("telegram")
+	telegramConfig, err := n.storage.GetNotifiersConfig("telegram")
 	if err != nil {
 		return errors.Wrap(err, "Unable to load telegram config")
 	}
 
 	// Configure telegram; Don't save what we just loaded
-	if err := n.Configure("telegram", tConfig, false); err != nil {
+	if err := n.Configure("telegram", telegramConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init telegram")
 	}
 
 	// Get email notifications config from DB
-	eConfig, err := n.Storage.GetNotifiersConfig("email")
+	emailConfig, err := n.storage.GetNotifiersConfig("email")
 	if err != nil {
 		return errors.Wrap(err, "Unable to load email config")
 	}
 
 	// Configure email; Don't save what we just loaded
-	if err := n.Configure("email", eConfig, false); err != nil {
+	if err := n.Configure("email", emailConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init email")
 	}
 
@@ -78,20 +80,21 @@ func (n *NotificationHandler) LoadNotifiers() error {
 }
 
 func (n *NotificationHandler) Configure(notifier string, config []byte, saveConfig bool) error {
+
 	switch notifier {
 	case telegram:
 		nt, err := n.NewTelegram(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers[telegram] = nt
+		n.notifiers[telegram] = nt
 
 	case email:
 		ne, err := n.NewEmail(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers[email] = ne
+		n.notifiers[email] = ne
 
 	default:
 		return errors.New("Unknown notification type")
@@ -113,7 +116,7 @@ func (n *NotificationHandler) Send(message string, category Category) {
 	// Add/update notification timestamp for category
 	n.lastSentCategory[category] = time.Now().UTC()
 
-	for k, n := range n.Notifiers {
+	for k, n := range n.notifiers {
 		if n.IsEnabled() {
 			n.Send(message)
 		} else {
@@ -123,11 +126,12 @@ func (n *NotificationHandler) Send(message string, category Category) {
 }
 
 func (n *NotificationHandler) TestSend(notifier string, message string) error {
+
 	switch notifier {
 	case telegram:
-		n.Notifiers[telegram].Send(message)
+		n.notifiers[telegram].Send(message)
 	case email:
-		n.Notifiers[email].Send(message)
+		n.notifiers[email].Send(message)
 	default:
 		return errors.New("Unknown notification type")
 	}
@@ -136,8 +140,8 @@ func (n *NotificationHandler) TestSend(notifier string, message string) error {
 }
 
 func (n *NotificationHandler) GetConfig() (json.RawMessage, error) {
-	// Marshal the current Notifiers as the current config
+	// Marshal the current notifiers as the current config
 	// Return RawMessage so as not to double Marshal
-	bts, err := json.Marshal(n.Notifiers)
+	bts, err := json.Marshal(n.notifiers)
 	return json.RawMessage(bts), err
 }

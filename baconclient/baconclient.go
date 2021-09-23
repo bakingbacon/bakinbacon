@@ -46,6 +46,7 @@ type BaconClient struct {
 }
 
 func New(notificationHandler *notifications.NotificationHandler, db *storage.Storage, tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+
 	// Make new client manager
 	newBaconClient := &BaconClient{
 		NewBlockNotifier:    make(chan *rpc.Block, 1),
@@ -119,15 +120,16 @@ func (b *BaconClient) Shutdown() {
 	b.Signer.Close()
 }
 
-func (b *BaconClient) ShutdownRpc(rpcId int) error {
-	newClients := make([]*BaconSlice, 0)
+func (b *BaconClient) ShutdownRPC(rpcID int) error {
+	var newClients []*BaconSlice
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
-	for _, bslice := range b.rpcClients {
-		if bslice.clientID == rpcId {
-			close(bslice.shutdown)
+	for _, client := range b.rpcClients {
+		if client.clientID == rpcID {
+			close(client.shutdown)
 		} else {
-			newClients = append(newClients, bslice) // save those that did not match
+			// save those that did not match
+			newClients = append(newClients, client)
 		}
 	}
 
@@ -234,22 +236,22 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 
 	// Always check status of signer, especially important for Ledger
 	if err := b.Signer.SignerStatus(silentChecks); err != nil {
-		b.Status.SetState(NoSigner)
+		b.Status.SetState(NO_SIGNER)
 		b.Status.SetError(err)
-		b.NotificationHandler.Send(err.Error(), notifications.Signer)
+		b.NotificationHandler.Send(err.Error(), notifications.SIGNER)
 		log.WithError(err).Error("Checking signer status")
 		return false
 	}
 
 	// The remaining checks of being registered with Tezos network, and having
 	// an appropriate balance happen on startup and can be cached
-	if b.Status.State == CanBake {
+	if b.Status.State == CAN_BAKE {
 		return true
 	}
 
 	// Registered as baker?
 	if err := b.CheckBakerRegistered(); err != nil {
-		b.Status.SetState(NotRegistered)
+		b.Status.SetState(NOT_REGISTERED)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking baker registration")
 		return false
@@ -257,7 +259,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 
 	// If revealed, balance too low?
 	if err := b.CheckDelegateBalance(); err != nil {
-		b.Status.SetState(LowBalance)
+		b.Status.SetState(LOW_BALANCE)
 		b.Status.SetError(err)
 		log.WithError(err).Error("Checking baker balance")
 		return false
@@ -266,7 +268,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	// TODO: Other checks?
 
 	// If you've passed all the checks, you should be good to bake
-	b.Status.SetState(CanBake)
+	b.Status.SetState(CAN_BAKE)
 	b.Status.ClearError()
 
 	return true
@@ -329,7 +331,7 @@ func (b *BaconClient) CheckDelegateBalance() error {
 	}
 
 	if balance < MinBakeBalance {
-		return errors.Errorf("Balance, %d XTZ, is too low", balance/1e6)
+		return errors.Errorf("BALANCE, %d XTZ, is too low", balance/1e6)
 	}
 
 	return nil

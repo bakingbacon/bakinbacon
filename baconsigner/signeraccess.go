@@ -21,17 +21,20 @@ type Access struct {
 }
 
 func (s *Access) CreateWalletSigner() *WalletSigner {
-	return &WalletSigner{Storage: s.storage}
+	return &WalletSigner{storage: s.storage}
 }
+
 
 func (s *Access) GetWalletSigner() (*WalletSigner, error) {
 	if s.walletSigner != nil {
 		return s.walletSigner, nil
 	}
+
 	walletSigner, err := s.HydrateWalletSigner()
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot init wallet signer")
 	}
+
 	return walletSigner, nil
 }
 
@@ -40,20 +43,25 @@ func (s *Access) CreateLedgerSigner() *LedgerSigner {
 }
 
 func (s *Access) GetLedgerSigner() (*LedgerSigner, error) {
+
 	if s.ledgerSigner != nil {
 		return s.ledgerSigner, nil
 	}
+
 	ledgerSigner, err := s.HydrateLedgerSigner()
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot init ledger signer")
 	}
+
 	return ledgerSigner, nil
 }
 
 func (s *Access) ConfirmBakingPkh(pkh, bip string) error {
+
 	if s.ledgerSigner == nil {
 		return errors.New("ledger signer is not instantiated")
 	}
+
 	return s.ledgerSigner.ConfirmBakingPkh(pkh, bip)
 }
 

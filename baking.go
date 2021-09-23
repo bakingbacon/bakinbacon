@@ -29,6 +29,7 @@ const (
 	PowLength       int = 4
 )
 
+// TODO refactor into a few smaller methods
 func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
@@ -165,7 +166,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 			}).Error(msg)
 
 			s.Status.SetError(errors.New(msg))
-			s.Send(msg, notifications.Balance)
+			s.Send(msg, notifications.BALANCE)
 
 			return
 		}
@@ -202,8 +203,8 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 		}
 
 		log.WithFields(log.Fields{
-			"Nonce": n.EncodedNonce, "Seed": n.Seed,
-		}).Info("Nonce required at this level")
+			"NONCE": n.EncodedNonce, "Seed": n.Seed,
+		}).Info("NONCE required at this level")
 
 		n.Level = nextLevelToBake
 	}
@@ -438,7 +439,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 	if signedErr != nil {
 		msg := "Unable to sign block bytes; Cannot inject block"
 		log.Error(msg)
-		s.Send(msg, notifications.BakingFail)
+		s.Send(msg, notifications.BAKING_FAIL)
 		return
 	}
 
@@ -496,7 +497,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 	s.Status.SetRecentBake(nextLevelToBake, block.Metadata.Level.Cycle, blockHash)
 
 	// Send notification
-	s.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BakingOk)
+	s.Send(fmt.Sprintf("Bakin'Bacon baked block %d%s!", nextLevelToBake, withNonce), notifications.BAKING_OK)
 }
 
 func parsePreapplyOperations(ops []rpc.PreappliedBlockOperations) [][]interface{} {

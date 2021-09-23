@@ -32,13 +32,17 @@ var (
 
 //B58cencode encodes a byte array into base58 with prefix
 func B58cencode(payload []byte, prefix prefix) string {
+
 	n := make([]byte, len(prefix) + len(payload))
+
 	for k := range prefix {
 		n[k] = prefix[k]
 	}
+
 	for l := range payload {
 		n[l+len(prefix)] = payload[l]
 	}
+
 	b58c := encode(n)
 	return b58c
 }
@@ -51,6 +55,7 @@ func b58cdecode(payload string, prefix []byte) []byte {
 const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 func encode(dataBytes []byte) string {
+
 	// Performing SHA256 twice
 	sha256hash := sha256.New()
 	sha256hash.Write(dataBytes)
@@ -83,7 +88,9 @@ func encode(dataBytes []byte) string {
 }
 
 func decode(encoded string) ([]byte, error) {
+
 	zeroCount := 0
+
 	for i := 0; i < len(encoded); i++ {
 		if encoded[i] == 49 {
 			zeroCount++
@@ -122,6 +129,7 @@ func decode(encoded string) ([]byte, error) {
 }
 
 func b58decode(data string) ([]byte, error) {
+
 	decimalData := new(big.Int)
 	alphabetBytes := []byte(alphabet)
 	multiplier := big.NewInt(58)

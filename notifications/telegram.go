@@ -20,7 +20,7 @@ type NotifyTelegram struct {
 	ChatIDs []int  `json:"chatids"`
 	APIKey  string `json:"apikey"`
 	Enabled bool   `json:"enabled"`
-	Storage *storage.Storage
+	storage *storage.Storage
 }
 
 // NewTelegram creates a new NotifyTelegram object using a JSON byte-stream
@@ -31,9 +31,10 @@ type NotifyTelegram struct {
 // do this if we just loaded from DB on app startup, but would want to do this
 // after getting new config from web UI.
 func (n *NotificationHandler) NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
+
 	nt := &NotifyTelegram{
 		Enabled: true,
-		Storage: n.Storage,
+		storage: n.storage,
 	}
 
 	// empty config from db?
@@ -121,7 +122,7 @@ func (n *NotifyTelegram) SaveConfig() error {
 		return errors.Wrap(err, "Unable to marshal telegram config")
 	}
 
-	if err := n.Storage.SaveNotifiersConfig(telegram, config); err != nil {
+	if err := n.storage.SaveNotifiersConfig(telegram, config); err != nil {
 		return errors.Wrap(err, "Unable to save telegram config")
 	}
 

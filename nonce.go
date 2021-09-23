@@ -21,6 +21,7 @@ import (
 var previouslyInjectedErr = regexp.MustCompile(`while applying operation (o[a-zA-Z0-9]{50}).*previously revealed`)
 
 func (s *BakinBaconServer) generateNonce() (nonce.Nonce, error) {
+
 	// Generate a 64 char hexadecimal seed from random 32 bytes
 	randBytes := make([]byte, 32)
 	if _, err := rand.Read(randBytes); err != nil {

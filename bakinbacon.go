@@ -78,7 +78,7 @@ func main() {
 		log.WithError(err).Error("Unable to load notifiers")
 	}
 
-	// Version checking
+	// VERSION checking
 	go server.RunVersionCheck()
 
 	// Network constants
@@ -188,6 +188,7 @@ Main:
 }
 
 func setupCloseChannel() chan interface{} {
+
 	// Create channels for signals
 	signalChan := make(chan os.Signal, 1)
 	closingChan := make(chan interface{}, 1)
@@ -205,7 +206,7 @@ func setupCloseChannel() chan interface{} {
 func (s *BakinBaconServer) parseArgs() {
 
 	// Args
-	flag.StringVar(&s.networkName, "networkName", util.Granadanet, fmt.Sprintf("Which networkName to use: %s", util.AvailableNetworks()))
+	flag.StringVar(&s.networkName, "network", util.GRANADA_NET, fmt.Sprintf("Which network to use: %s", util.AvailableNetworks()))
 
 	flag.BoolVar(&s.logDebug, "debug", false, "Enable debug-level logging")
 	flag.BoolVar(&s.logTrace, "trace", false, "Enable trace-level logging")
@@ -224,7 +225,7 @@ func (s *BakinBaconServer) parseArgs() {
 
 	// Sanity
 	if !util.IsValidNetwork(s.networkName) {
-		log.Errorf("unknown networkName: %s", s.networkName)
+		log.Errorf("Unknown network: %s", s.networkName)
 		flag.Usage()
 		os.Exit(1)
 	}

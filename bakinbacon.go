@@ -139,7 +139,7 @@ Main:
 
 		select {
 		case block := <-server.NewBlockNotifier:
-			// NewHandler block means to cancel any existing baking work as someone else beat us to it.
+			// New block means to cancel any existing baking work as someone else beat us to it.
 			// Noop on very first block from channel
 			ctxCancel()
 
@@ -206,7 +206,7 @@ func setupCloseChannel() chan interface{} {
 func (s *BakinBaconServer) parseArgs() {
 
 	// Args
-	flag.StringVar(&s.networkName, "network", util.GRANADA_NET, fmt.Sprintf("Which network to use: %s", util.AvailableNetworks()))
+	flag.StringVar(&s.networkName, "network", util.NETWORK_GRANADANET, fmt.Sprintf("Which network to use: %s", util.AvailableNetworks()))
 
 	flag.BoolVar(&s.logDebug, "debug", false, "Enable debug-level logging")
 	flag.BoolVar(&s.logTrace, "trace", false, "Enable trace-level logging")

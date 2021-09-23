@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	MinBakeBalance = 8001
+	MIN_BAKE_BALANCE = 8001
 )
 
 type BaconSlice struct {
@@ -121,6 +121,7 @@ func (b *BaconClient) Shutdown() {
 }
 
 func (b *BaconClient) ShutdownRPC(rpcID int) error {
+
 	var newClients []*BaconSlice
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
@@ -141,6 +142,7 @@ func (b *BaconClient) ShutdownRPC(rpcID int) error {
 }
 
 func (b *BaconClient) blockWatch(client *BaconSlice) {
+
 	defer b.waitGroup.Done()
 
 	lostTicks := 0
@@ -207,7 +209,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 						"Level":   block.Metadata.Level.Level,
 						"Hash":    block.Hash,
 						"ChainID": block.ChainID,
-					}).Info("NewHandler Block")
+					}).Info("New Block")
 				}
 
 			} else {
@@ -330,8 +332,8 @@ func (b *BaconClient) CheckDelegateBalance() error {
 		return errors.Wrap(err, "Unable to parse delegate balance")
 	}
 
-	if balance < MinBakeBalance {
-		return errors.Errorf("BALANCE, %d XTZ, is too low", balance/1e6)
+	if balance < MIN_BAKE_BALANCE {
+		return errors.Errorf("Balance, %d XTZ, is too low", balance/1e6)
 	}
 
 	return nil

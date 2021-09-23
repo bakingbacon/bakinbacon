@@ -184,7 +184,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 
 		select {
 		case <-ctx.Done():
-			log.Info("NewHandler block arrived; Canceling current bake")
+			log.Info("New block arrived; Canceling current bake")
 			return
 		case <-time.After(priorityDiff * time.Second):
 			break
@@ -232,7 +232,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 		// Sleep, but also check if new block arrived
 		select {
 		case <-ctx.Done():
-			log.Info("NewHandler block arrived; Canceling current bake")
+			log.Info("New block arrived; Canceling current bake")
 			return
 		case <-time.After(10 * time.Second):
 			break
@@ -270,7 +270,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("NewHandler block arrived; Canceling current bake")
+		log.Info("New block arrived; Canceling current bake")
 		return
 	default:
 		break
@@ -308,7 +308,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 		log.Infof("Sleeping for %ds, based on endorsing power", sleepDuration)
 		select {
 		case <-ctx.Done():
-			log.Info("NewHandler block arrived; Canceling current bake")
+			log.Info("New block arrived; Canceling current bake")
 			return
 		case <-time.After(sleepDuration * time.Second):
 			break
@@ -443,7 +443,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 		return
 	}
 
-	log.WithField("Signature", signedBlock.EDSig).Debug("Signed NewHandler Block")
+	log.WithField("Signature", signedBlock.EDSig).Debug("Signed New Block")
 
 	// The data of the block
 	ibi := rpc.InjectionBlockInput{
@@ -454,7 +454,7 @@ func (s *BakinBaconServer) handleBake(ctx context.Context, wg *sync.WaitGroup, b
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Info("NewHandler block arrived; Canceling current bake")
+		log.Info("New block arrived; Canceling current bake")
 		return
 	default:
 		break

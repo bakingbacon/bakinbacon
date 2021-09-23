@@ -1,7 +1,7 @@
 package nonce
 
 var (
-	PrefixNonce = []byte{69, 220, 169}
+	PREFIX_NONCE = []byte{69, 220, 169}
 )
 
 type Nonce struct {

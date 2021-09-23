@@ -46,5 +46,5 @@ func StripQuote(s string) string {
 }
 
 func AvailableNetworks() string {
-	return strings.Join([]string{MAIN_NET, GRANADA_NET}, ",")
+	return strings.Join([]string{NETWORK_MAINNET, NETWORK_GRANADANET}, ",")
 }

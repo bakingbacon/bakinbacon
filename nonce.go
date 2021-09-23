@@ -36,7 +36,7 @@ func (s *BakinBaconServer) generateNonce() (nonce.Nonce, error) {
 	}
 
 	// B58 encode seed hash with nonce prefix
-	encodedNonce := crypto.B58cencode(nonceHash, nonce.PrefixNonce)
+	encodedNonce := crypto.B58cencode(nonceHash, nonce.PREFIX_NONCE)
 
 	n := nonce.Nonce{
 		Seed:          hex.EncodeToString(randBytes),

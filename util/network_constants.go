@@ -1,8 +1,8 @@
 package util
 
 const (
-	MAIN_NET    = "mainnet"
-	GRANADA_NET = "granadanet"
+	NETWORK_MAINNET    = "mainnet"
+	NETWORK_GRANADANET = "granadanet"
 )
 
 type Constants struct {
@@ -27,17 +27,18 @@ func init() {
 
 	NetworkConstants = make(map[string]Constants)
 
-	// MAIN_NET
+	// Mainnet
 	// curl -Ss https://mainnet-tezos.giganode.io/chains/main/blocks/head/context/constants | jq -r '[ (.minimal_block_delay|tonumber), .blocks_per_cycle, .blocks_per_roll_snapshot, .blocks_per_commitment, (.block_security_deposit|tonumber), (.endorsement_security_deposit|tonumber), (.proof_of_work_threshold|tonumber), .initial_endorsers] | @csv'
-	NetworkConstants[MAIN_NET] = Constants{
+	NetworkConstants[NETWORK_MAINNET] = Constants{
 		30, 8192, 512, 64, 64000000, 2500000, 70368744177663, 192, 1589247, 388,
 	}
 
-	NetworkConstants[GRANADA_NET] = Constants{
+	// Granadanet
+	NetworkConstants[NETWORK_GRANADANET] = Constants{
 		15, 4096, 256, 32, 640000000, 2500000, 70368744177663, 192, 4095, 2,
 	}
 }
 
 func IsValidNetwork(maybeNetwork string) bool {
-	return maybeNetwork == MAIN_NET || maybeNetwork == GRANADA_NET
+	return maybeNetwork == NETWORK_MAINNET || maybeNetwork == NETWORK_GRANADANET
 }

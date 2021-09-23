@@ -93,7 +93,7 @@ func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 
 		// Save signer type as ledger
-		if err := b.Put([]byte(SIGNER_TYPE), itob(int(ledgerType))); err != nil {
+		if err := b.Put([]byte(SIGNER_TYPE), itob(ledgerType)); err != nil {
 			return err
 		}
 
@@ -223,11 +223,11 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 
 		// Statically add Bakin' Bacon's RPC endpoints
 		switch network {
-		case util.MAIN_NET:
+		case util.NETWORK_MAINNET:
 			_, _ = s.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
 			_, _ = s.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
 
-		case util.GRANADA_NET:
+		case util.NETWORK_GRANADANET:
 			_, _ = s.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
 			_, _ = s.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
 

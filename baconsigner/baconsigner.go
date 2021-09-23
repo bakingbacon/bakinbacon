@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	SIGNER_WALLET int = 1
-	SIGNER_LEDGER int = 2
+	SIGNER_WALLET = 1
+	SIGNER_LEDGER = 2
 )
 
 var (
-	NoSignerType = errors.New("No signer type defined")
+	NO_SIGNER_TYPE = errors.New("No signer type defined")
 )
 
 type BaconSigner struct {
@@ -130,7 +130,7 @@ func (s *BaconSigner) GetPublicKey() (string, string, error) {
 		return signer.GetPublicKey()
 	}
 
-	return "", "", NoSignerType
+	return "", "", NO_SIGNER_TYPE
 }
 
 // GenerateNewKey Generates new key; Not applicable to Ledger
@@ -195,7 +195,7 @@ func (s *BaconSigner) SaveSigner() error {
 		return signer.SaveSigner()
 	}
 
-	return NoSignerType
+	return NO_SIGNER_TYPE
 }
 
 // Close ledger or wallet
@@ -290,7 +290,7 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 			}
 			return signer.SignBytes(b)
 		}
-		return "", NoSignerType
+		return "", NO_SIGNER_TYPE
 	}(opBytes)
 
 	if err != nil {

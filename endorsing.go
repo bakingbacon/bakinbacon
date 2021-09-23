@@ -89,7 +89,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	// Check for new block
 	select {
 	case <-ctx.Done():
-		log.Warn("NewHandler block arrived; Canceling endorsement")
+		log.Warn("New block arrived; Canceling endorsement")
 		return
 	default:
 		break
@@ -193,7 +193,7 @@ func (s *BakinBaconServer) handleEndorsement(ctx context.Context, wg *sync.WaitG
 	// Check if a new block has been posted to /head and we should abort
 	select {
 	case <-ctx.Done():
-		log.Warn("NewHandler block arrived; Canceling endorsement")
+		log.Warn("New block arrived; Canceling endorsement")
 		return
 	default:
 		break

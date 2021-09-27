@@ -1,8 +1,9 @@
 package main
 
 const (
-	NETWORK_MAINNET    = "mainnet"
-	NETWORK_GRANADANET = "granadanet"
+	NETWORK_MAINNET     = "mainnet"
+	NETWORK_GRANADANET  = "granadanet"
+	NETWORK_HANGZHOUNET = "hangzhounet"
 )
 
 type Constants struct {
@@ -35,5 +36,9 @@ func init() {
 
 	networkConstants[NETWORK_GRANADANET] = Constants{
 		15, 4096, 256, 32, 640000000, 2500000, 70368744177663, 192, 4095, 2,
+	}
+
+	networkConstants[NETWORK_HANGZHOUNET] = Constants{
+		15, 4096, 256, 32, 640000000, 2500000, 70368744177663, 192, 2, 0,
 	}
 }

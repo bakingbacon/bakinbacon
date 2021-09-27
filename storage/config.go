@@ -222,6 +222,9 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 			_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
 			_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
 
+		case "hangzhounet":
+			_, _ = DB.AddRPCEndpoint("http://localhost:18732")
+
 		default:
 			return errors.New("Unknown network for storage")
 		}

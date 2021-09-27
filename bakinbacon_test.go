@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 
 	log.SetLevel(log.DebugLevel)
 
-	network = "granadanet"
+	network = "hangzhounet"
 
 	os.Exit(m.Run())
 }

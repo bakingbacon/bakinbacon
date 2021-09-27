@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -675,7 +676,17 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 
 		// For now, skip transactions and other unknown operations
 		if opSlot == 3 {
-			log.WithField("OP", op).Debug("Mempool Operation")
+			transaction := op.Contents[0].ToTransaction()
+			amount, _ := strconv.Atoi(transaction.Amount)
+			fee, _ := strconv.Atoi(transaction.Fee)
+
+			log.WithFields(log.Fields{
+				"S": transaction.Source, "D": transaction.Destination, "A": amount / 1e6, "F": fee / 1e6,
+			}).Debug("Mempool Transaction")
+		}
+
+		if opSlot == 3 && len(op.Contents) > 1 {
+			log.WithField("OP", op).Debug("Batch Manager Operation")
 			continue
 		}
 
@@ -685,18 +696,6 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 		}
 
 		// Add operation to slot
-		// operations[opSlot] = append(operations[opSlot], struct {
-		// 	Protocol  string         `json:"protocol"`
-		// 	Branch    string         `json:"branch"`
-		// 	Contents  []rpc.Contents `json:"contents"`
-		// 	Signature string         `json:"signature"`
-		// }{
-		// 	headProtocol,
-		// 	op.Branch,
-		// 	op.Contents,
-		// 	op.Signature,
-		// })
-
 		operations[opSlot] = append(operations[opSlot], rpc.Operations{
 			Protocol:  headProtocol,
 			Branch:    op.Branch,

@@ -175,7 +175,7 @@ func setupCloseChannel() chan interface{} {
 func parseArgs() {
 
 	// Args
-	flag.StringVar(&network, "network", "granadanet", "Which network to use: mainnet, granadanet, hangzhounet")
+	flag.StringVar(&network, "network", "hangzhounet", "Which network to use: mainnet, granadanet, hangzhounet")
 
 	logDebug = flag.Bool("debug", false, "Enable debug-level logging")
 	logTrace = flag.Bool("trace", false, "Enable trace-level logging")

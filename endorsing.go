@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -43,7 +42,6 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	defer func() {
 		if r := recover(); r != nil {
 			log.WithField("Message", r).Error("Panic recovered in handleEndorsement")
-			debug.PrintStack()
 		}
 	}()
 

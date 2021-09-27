@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	PROTOCOL_BB10     string = "42423130"
+	PROTOCOL_BB10     string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
 	MAX_BAKE_PRIORITY int    = 4
 
 	PRIORITY_LENGTH   int = 2

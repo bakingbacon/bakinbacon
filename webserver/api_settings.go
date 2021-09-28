@@ -13,27 +13,29 @@ import (
 	"bakinbacon/storage"
 )
 
-func saveTelegram(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
 
-	log.Trace("API - saveTelegram")
+	log.Trace("API - SaveTelegram")
 
 	// Read the POST body as a string
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API SaveTelegram")
 		apiError(errors.Wrap(err, "Failed to parse body"), w)
+
 		return
 	}
 
 	// Send string to configure for JSON unmarshaling; make sure to save config to db
 	if err := notifications.N.Configure("telegram", body, true); err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API SaveTelegram")
 		apiError(errors.Wrap(err, "Failed to configure telegram"), w)
+
 		return
 	}
 
 	if err := notifications.N.TestSend("telegram", "Test message from BakinBacon"); err != nil {
-		log.WithError(err).Error("API saveTelegram")
+		log.WithError(err).Error("API SaveTelegram")
 		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
 
 		return
@@ -42,18 +44,19 @@ func saveTelegram(w http.ResponseWriter, r *http.Request) {
 	apiReturnOk(w)
 }
 
-func saveEmail(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) saveEmail(w http.ResponseWriter, r *http.Request) {
 	apiReturnOk(w)
 }
 
-func getSettings(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 
-	log.Trace("API - getSettings")
+	log.Trace("API - GetSettings")
 
 	// Get RPC endpoints
 	endpoints, err := storage.DB.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
+
 		return
 	}
 	log.WithField("Endpoints", endpoints).Debug("API Settings Endpoints")
@@ -62,6 +65,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 	notifications, err := notifications.N.GetConfig() // Returns json.RawMessage
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
+
 		return
 	}
 	log.WithField("Notifications", string(notifications)).Debug("API Settings Notifications")
@@ -76,15 +80,15 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 //
 // Adding, Listing, Deleting endpoints
-func addEndpoint(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 
-	log.Trace("API - addEndpoint")
+	log.Trace("API - AddEndpoint")
 
-	var k map[string]string
+	k := make(map[string]string)
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc add"), w)
+
 		return
 	}
 
@@ -98,20 +102,21 @@ func addEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Init new bacon watcher for this RPC
-	baconClient.AddRpc(id, k["rpc"])
+	ws.baconClient.AddRpc(id, k["rpc"])
 
 	log.WithField("Endpoint", k["rpc"]).Debug("API Added Endpoint")
 
 	apiReturnOk(w)
 }
 
-func listEndpoints(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 
-	log.Trace("API - listEndpoints")
+	log.Trace("API - ListEndpoints")
 
 	endpoints, err := storage.DB.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
+
 		return
 	}
 
@@ -124,29 +129,29 @@ func listEndpoints(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func deleteEndpoint(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 
-	log.Trace("API - deleteEndpoint")
+	log.Trace("API - DeleteEndpoint")
 
-	var k map[string]int
+	k := make(map[string]int)
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
+
 		return
 	}
 
 	// Need to shutdown the RPC client first
-	if e := baconClient.ShutdownRpc(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
+	if err := ws.baconClient.ShutdownRpc(k["rpc"]); err != nil {
+		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot shutdown RPC client for deletion"), w)
 
 		return
 	}
 
 	// Then delete from storage
-	if e := storage.DB.DeleteRPCEndpoint(k["rpc"]); e != nil {
-		log.WithError(e).WithField("Endpoint", k).Error("API DeleteEndpoint")
+	if err := storage.DB.DeleteRPCEndpoint(k["rpc"]); err != nil {
+		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot delete endpoint from DB"), w)
 
 		return

@@ -11,6 +11,10 @@ import (
 	"github.com/btcsuite/btcutil/base58"
 )
 
+const (
+	alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+)
+
 type prefix []byte
 
 //nolint:deadcode,unused,varcheck // Keeping these in here for completeness
@@ -30,16 +34,21 @@ var (
 	networkprefix     prefix = []byte{87, 82, 0}
 )
 
-//B58cencode encodes a byte array into base58 with prefix
+// B58cencode encodes a byte array into base58 with prefix
 func B58cencode(payload []byte, prefix prefix) string {
-	n := make([]byte, (len(prefix) + len(payload)))
+
+	n := make([]byte, len(prefix) + len(payload))
+
 	for k := range prefix {
 		n[k] = prefix[k]
 	}
+
 	for l := range payload {
 		n[l+len(prefix)] = payload[l]
 	}
+
 	b58c := encode(n)
+
 	return b58c
 }
 
@@ -47,8 +56,6 @@ func b58cdecode(payload string, prefix []byte) []byte {
 	b58c, _ := decode(payload)
 	return b58c[len(prefix):]
 }
-
-const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 func encode(dataBytes []byte) string {
 
@@ -84,6 +91,7 @@ func encode(dataBytes []byte) string {
 }
 
 func decode(encoded string) ([]byte, error) {
+
 	zeroCount := 0
 	for i := 0; i < len(encoded); i++ {
 		if encoded[i] == 49 {
@@ -116,13 +124,14 @@ func decode(encoded string) ([]byte, error) {
 	hash := sha256hash.Sum(nil)
 
 	if !reflect.DeepEqual(checksum, hash[:4]) {
-		return []byte{}, errors.New("data and checksum don't match")
+		return nil, errors.New("data and checksum don't match")
 	}
 
 	return data, nil
 }
 
 func b58decode(data string) ([]byte, error) {
+
 	decimalData := new(big.Int)
 	alphabetBytes := []byte(alphabet)
 	multiplier := big.NewInt(58)

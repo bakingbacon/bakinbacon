@@ -14,11 +14,10 @@ import (
 	"bakinbacon/storage"
 )
 
-//
 // Dummy health check
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) getHealth(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - health")
+	log.Debug("API - GetHealth")
 
 	if err := json.NewEncoder(w).Encode(map[string]bool{
 		"ok": true,
@@ -27,9 +26,8 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//
 // Get current status
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) getStatus(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - GetStatus")
 
@@ -41,10 +39,10 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 	s := struct {
 		*baconclient.BaconStatus
-		Delegate string `json:"pkh"`
-		Ts       int64  `json:"ts"`
+		Delegate  string `json:"pkh"`
+		Timestamp int64  `json:"ts"`
 	}{
-		baconClient.Status,
+		ws.baconClient.Status,
 		pkh,
 		time.Now().Unix(),
 	}
@@ -56,7 +54,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 //
 // Set delegate (from UI config)
-func setDelegate(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) setDelegate(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {

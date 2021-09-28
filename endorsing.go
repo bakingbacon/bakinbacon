@@ -16,6 +16,7 @@ import (
 
 	"bakinbacon/notifications"
 	"bakinbacon/storage"
+	"bakinbacon/util"
 )
 
 /*
@@ -111,7 +112,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Continue since we have at least 1 endorsing right
 	// Check if we can pay bond
-	requiredBond := networkConstants[network].EndorsementSecurityDeposit
+	requiredBond := util.NetworkConstants[network].EndorsementSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -139,13 +140,13 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	// Continue; have rights, have enough bond
 
 	// Inner endorsement; forge and sign
-	endoContent := rpc.Content{
+	endorsementContent := rpc.Content{
 		Kind:  rpc.ENDORSEMENT,
 		Level: endorsingLevel,
 	}
 
 	// Inner endorsement bytes
-	endorsementBytes, err := forge.Encode(block.Hash, endoContent)
+	endorsementBytes, err := forge.Encode(block.Hash, endorsementContent)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Inner Endorsement")
 		return
@@ -161,7 +162,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Outer endorsement
-	endoWithSlot := rpc.Content{
+	endorseWithSlot := rpc.Content{
 		Kind: rpc.ENDORSEMENT_WITH_SLOT,
 		Endorsement: &rpc.InlinedEndorsement{
 			Branch: block.Hash,
@@ -175,7 +176,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Outer bytes
-	endoWithSlotBytes, err := forge.Encode(block.Hash, endoWithSlot)
+	endorseWithSlotBytes, err := forge.Encode(block.Hash, endorseWithSlot)
 	if err != nil {
 		log.WithError(err).Error("Error Forging Outer Endorsement")
 		return
@@ -188,7 +189,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{
-		Operation: endoWithSlotBytes,
+		Operation: endorseWithSlotBytes,
 	}
 
 	// Check if a new block has been posted to /head and we should abort
@@ -201,7 +202,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Dry-run check
-	if *dryRunEndorsement {
+	if dryRunEndorsement {
 		log.Warn("Not Injecting Endorsement; Dry-Run Mode")
 		return
 	}

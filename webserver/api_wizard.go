@@ -11,11 +11,11 @@ import (
 
 //
 // Test existence of ledger device and get app version (Step 1)
-func testLedger(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) testLedger(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - testLedger")
+	log.Debug("API - TestLedger")
 
-	ledgerInfo, err := baconClient.Signer.TestLedger()
+	ledgerInfo, err := ws.baconClient.Signer.TestLedger()
 	if err != nil {
 		apiError(errors.Wrap(err, "Unable to access ledger"), w)
 		return
@@ -29,29 +29,27 @@ func testLedger(w http.ResponseWriter, r *http.Request) {
 
 //
 // Ledger: confirm the current bipPath and associated key
-func confirmBakingPkh(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) confirmBakingPkh(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - confirmBakingPkh")
+	log.Debug("API - ConfirmBakingPkh")
 
-	var k map[string]string
+	k := make(map[string]string)
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for bipPath"), w)
 		return
 	}
 
 	// Confirming will prompt user on device to push button,
 	// also saves config to DB on success
-	err = baconClient.Signer.ConfirmBakingPkh(k["pkh"], k["bp"])
-	if err != nil {
+	if err := ws.baconClient.Signer.ConfirmBakingPkh(k["pkh"], k["bp"]); err != nil {
 		apiError(err, w)
 		return
 	}
 
 	// Update bacon status so when user refreshes page it is updated
 	// non-silent checks (silent = false)
-	_ = baconClient.CanBake(false)
+	_ = ws.baconClient.CanBake(false)
 
 	// Return to UI
 	apiReturnOk(w)
@@ -60,14 +58,14 @@ func confirmBakingPkh(w http.ResponseWriter, r *http.Request) {
 //
 // Generate new key
 // Save generated key to database, and set signer type to wallet
-func generateNewKey(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) generateNewKey(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - generateNewKey")
+	log.Debug("API - GenerateNewKey")
 
 	// Generate new key temporarily
-	newEdsk, newPkh, err := baconClient.Signer.GenerateNewKey()
+	newEdsk, newPkh, err := ws.baconClient.Signer.GenerateNewKey()
 	if err != nil {
-		apiError(errors.Wrap(err, "Cannot generate new key"), w)
+		apiError(err, w)
 		return
 	}
 
@@ -85,27 +83,26 @@ func generateNewKey(w http.ResponseWriter, r *http.Request) {
 //
 // Import a secret key
 // Save imported key to database, and set signer type to wallet
-func importSecretKey(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) importSecretKey(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - importSecretKey")
+	log.Debug("API - ImportSecretKey")
 
 	// CORS crap; Handle OPTION preflight check
 	if r.Method == http.MethodOptions {
 		return
 	}
 
-	var k map[string]string
+	k := make(map[string]string)
 
-	err := json.NewDecoder(r.Body).Decode(&k)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for secret key import"), w)
 		return
 	}
 
 	// Imports key temporarily
-	edsk, pkh, err := baconClient.Signer.ImportSecretKey(k["edsk"])
+	edsk, pkh, err := ws.baconClient.Signer.ImportSecretKey(k["edsk"])
 	if err != nil {
-		apiError(errors.Wrap(err, "Cannot import secret key"), w)
+		apiError(err, w)
 		return
 	}
 
@@ -123,16 +120,16 @@ func importSecretKey(w http.ResponseWriter, r *http.Request) {
 //
 // Call baconClient.RegisterBaker() to construct and inject registration operation.
 // This will also check if reveal is needed.
-func registerBaker(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) registerBaker(w http.ResponseWriter, r *http.Request) {
 
-	log.Debug("API - registerbaker")
+	log.Debug("API - Registerbaker")
 
 	// CORS crap; Handle OPTION preflight check
 	if r.Method == http.MethodOptions {
 		return
 	}
 
-	opHash, err := baconClient.RegisterBaker()
+	opHash, err := ws.baconClient.RegisterBaker()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot register baker"), w)
 		return
@@ -153,11 +150,11 @@ func registerBaker(w http.ResponseWriter, r *http.Request) {
 //
 // Finish wallet wizard
 // This API saves the generated, or imported, secret key to the DB and saves the signer method
-func finishWalletWizard(w http.ResponseWriter, r *http.Request) {
+func (ws *WebServer) finishWalletWizard(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("API - FinishWalletWizard")
 
-	if err := baconClient.Signer.SaveSigner(); err != nil {
+	if err := ws.baconClient.Signer.SaveSigner(); err != nil {
 		apiError(errors.Wrap(err, "Cannot save key/wallet to db"), w)
 		return
 	}

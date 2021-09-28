@@ -46,8 +46,7 @@ func InitWalletSigner() error {
 	return nil
 }
 
-// Generates a new ED25519 keypair; Only used on first setup through
-// UI wizard so init the signer here
+// GenerateNewKey Generates a new ED25519 keypair; Only used on first setup through UI wizard so init the signer here
 func GenerateNewKey() (string, string, error) {
 
 	W = &WalletSigner{}
@@ -62,10 +61,14 @@ func GenerateNewKey() (string, string, error) {
 	W.sk = newKey.GetSecretKey()
 	W.Pkh = newKey.PubKey.GetAddress()
 
+	if err := W.SaveSigner(); err != nil {
+		return "", "", errors.Wrap(err, "Could not save generated key")
+	}
+
 	return W.sk, W.Pkh, nil
 }
 
-// Imports a secret key, saves to DB, and sets signer type to wallet
+// ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
 func ImportSecretKey(iEdsk string) (string, string, error) {
 
 	W = &WalletSigner{}
@@ -79,6 +82,10 @@ func ImportSecretKey(iEdsk string) (string, string, error) {
 	W.wallet = importKey
 	W.sk = iEdsk
 	W.Pkh = importKey.PubKey.GetAddress()
+
+	if err := W.SaveSigner(); err != nil {
+		return "", "", errors.Wrap(err, "Could not save imported key")
+	}
 
 	return W.sk, W.Pkh, nil
 }
@@ -99,7 +106,8 @@ func (s *WalletSigner) SaveSigner() error {
 
 func (s *WalletSigner) SignBytes(opBytes []byte) (string, error) {
 
-	sig, err := s.wallet.SignRawBytes(opBytes) // Returns 'Signature' object
+	// Returns 'Signature' object
+	sig, err := s.wallet.SignRawBytes(opBytes)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed wallet signer")
 	}

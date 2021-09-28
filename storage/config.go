@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 
 	bolt "go.etcd.io/bbolt"
+
+	"bakinbacon/util"
 )
 
 const (
@@ -16,6 +18,7 @@ const (
 )
 
 func (s *Storage) GetDelegate() (string, string, error) {
+
 	var sk, pkh string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -29,6 +32,7 @@ func (s *Storage) GetDelegate() (string, string, error) {
 }
 
 func (s *Storage) SetDelegate(sk, pkh string) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		if err := b.Put([]byte(SIGNER_SK), []byte(sk)); err != nil {
@@ -42,28 +46,31 @@ func (s *Storage) SetDelegate(sk, pkh string) error {
 }
 
 func (s *Storage) GetSignerType() (int, error) {
-	var st int = 0
+
+	var signerType int = 0
 
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		_st := b.Get([]byte(SIGNER_TYPE))
-		if _st != nil {
-			st = btoi(_st)
+		signerTypeBytes := b.Get([]byte(SIGNER_TYPE))
+		if signerTypeBytes != nil {
+			signerType = btoi(signerTypeBytes)
 		}
 		return nil
 	})
 
-	return st, err
+	return signerType, err
 }
 
-func (s *Storage) SetSignerType(d int) error {
+func (s *Storage) SetSignerType(signerType int) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		return b.Put([]byte(SIGNER_TYPE), itob(d))
+		return b.Put([]byte(SIGNER_TYPE), itob(signerType))
 	})
 }
 
 func (s *Storage) GetSignerSk() (string, error) {
+
 	var sk string
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -76,6 +83,7 @@ func (s *Storage) GetSignerSk() (string, error) {
 }
 
 func (s *Storage) SetSignerSk(sk string) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		return b.Put([]byte(SIGNER_SK), []byte(sk))
@@ -84,6 +92,7 @@ func (s *Storage) SetSignerSk(sk string) error {
 
 // Ledger
 func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
@@ -121,8 +130,8 @@ func (s *Storage) GetLedgerConfig() (string, string, error) {
 	return pkh, bipPath, err
 }
 
-// RPC
 func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
+
 	var rpcId int = 0
 
 	err := s.db.Update(func(tx *bolt.Tx) error {
@@ -159,6 +168,7 @@ func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 }
 
 func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
+
 	endpoints := make(map[int]string)
 
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -182,6 +192,7 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 }
 
 func (s *Storage) DeleteRPCEndpoint(endpointId int) error {
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
@@ -214,15 +225,15 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 
 		// Statically add BakinBacon's RPC endpoints
 		switch network {
-		case "mainnet":
+		case util.NETWORK_MAINNET:
 			_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
 			_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
 
-		case "granadanet":
+		case util.NETWORK_GRANADANET:
 			_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
 			_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
 
-		case "hangzhounet":
+		case util.NETWORK_HANGZHOUNET:
 			_, _ = DB.AddRPCEndpoint("http://hangzhounet-us.rpc.bakinbacon.io")
 
 		default:

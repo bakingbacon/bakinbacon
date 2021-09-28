@@ -133,8 +133,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := networkConstants[network].TimeBetweenBlocks
-	blocksPerCommitment := networkConstants[network].BlocksPerCommitment
+	timeBetweenBlocks := util.NetworkConstants[network].TimeBetweenBlocks
+	blocksPerCommitment := util.NetworkConstants[network].BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -149,7 +149,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Check if we have enough bond to cover the bake
-	requiredBond := networkConstants[network].BlockSecurityDeposit
+	requiredBond := util.NetworkConstants[network].BlockSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -216,7 +216,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// so we will keep fetching from the mempool until we get at least 192, or
 	// 1/2 block time elapses whichever comes first
 	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	minEndorsingPower := networkConstants[network].InitialEndorsers
+	minEndorsingPower := util.NetworkConstants[network].InitialEndorsers
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -364,28 +364,28 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header using RPC
-// 	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
-// 		BlockID: &hashBlockID,
-// 		BlockHeader: rpc.ForgeBlockHeaderBody{
-// 			Level:          shellHeader.Level,
-// 			Proto:          shellHeader.Proto,
-// 			Predecessor:    shellHeader.Predecessor,
-// 			Timestamp:      shellHeader.Timestamp,
-// 			ValidationPass: shellHeader.ValidationPass,
-// 			OperationsHash: shellHeader.OperationsHash,
-// 			Fitness:        shellHeader.Fitness,
-// 			Context:        shellHeader.Context,
-// 			ProtocolData:   protocolData,
-// 		},
-// 	})
-// 	if err != nil {
-// 		log.WithError(err).WithFields(log.Fields{
-// 			"Request": resp.Request.URL, "Response": string(resp.Body()),
-// 		}).Error("Unable to forge block header")
-// 		return
-// 	}
-//
-// 	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
+	// resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
+	// 	BlockID: &hashBlockID,
+	// 	BlockHeader: rpc.ForgeBlockHeaderBody{
+	// 		Level:          shellHeader.Level,
+	// 		Proto:          shellHeader.Proto,
+	// 		Predecessor:    shellHeader.Predecessor,
+	// 		Timestamp:      shellHeader.Timestamp,
+	// 		ValidationPass: shellHeader.ValidationPass,
+	// 		OperationsHash: shellHeader.OperationsHash,
+	// 		Fitness:        shellHeader.Fitness,
+	// 		Context:        shellHeader.Context,
+	// 		ProtocolData:   protocolData,
+	// 	},
+	// })
+	// if err != nil {
+	// 	log.WithError(err).WithFields(log.Fields{
+	// 		"Request": resp.Request.URL, "Response": string(resp.Body()),
+	// 	}).Error("Unable to forge block header")
+	// 	return
+	// }
+	//
+	// log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
 
 	//
 	// Forge block header locally
@@ -463,7 +463,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Dry-run check
-	if *dryRunBake {
+	if dryRunBake {
 		log.Warn("Not Injecting Block; Dry-Run Mode")
 		return
 	}
@@ -545,7 +545,7 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
 	hashBuffer, _ := hex.DecodeString(forgedBlock + strings.Repeat("0", 128))
 	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
-	powThreshold := networkConstants[network].ProofOfWorkThreshold
+	powThreshold := util.NetworkConstants[network].ProofOfWorkThreshold
 
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
@@ -652,30 +652,30 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			opSlot = func(branch string, opContent rpc.Content) int {
 
 				switch opContent.Kind {
-					case rpc.ENDORSEMENT_WITH_SLOT:
+				case rpc.ENDORSEMENT_WITH_SLOT:
 
-						endorsement := op.Contents[0].Endorsement
+					endorsement := op.Contents[0].Endorsement
 
-						// Endorsements must match the current head block level and block hash
-						if endorsement.Operations.Level != curLevel {
-							return -1
-						}
+					// Endorsements must match the current head block level and block hash
+					if endorsement.Operations.Level != curLevel {
+						return -1
+					}
 
-						if branch != curBranch {
-							return -1
-						}
+					if branch != curBranch {
+						return -1
+					}
 
-						return 0
+					return 0
 
-					case rpc.PROPOSALS, rpc.BALLOT:
-						return 1
+				case rpc.PROPOSALS, rpc.BALLOT:
+					return 1
 
-					case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
-						rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
-						return 2
+				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
+					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
+					return 2
 
-					default:
-						log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
+				default:
+					log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
 				}
 
 				// Hit default case

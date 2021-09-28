@@ -21,6 +21,9 @@ const (
 	ENDORSE_FAIL
 	VERSION
 	NONCE
+
+	TELEGRAM = "telegram"
+	EMAIL    = "email"
 )
 
 type Notifier interface {
@@ -28,69 +31,69 @@ type Notifier interface {
 	IsEnabled() bool
 }
 
-type Notification struct {
-	Notifiers        map[string]Notifier
+type NotificationHandler struct {
+	notifiers        map[string]Notifier
 	lastSentCategory map[Category]time.Time
 }
 
-var N *Notification
+var N *NotificationHandler
 
 func New() error {
 
-	N = &Notification{}
-	N.Notifiers = make(map[string]Notifier)
+	N = &NotificationHandler{}
+	N.notifiers = make(map[string]Notifier)
 	N.lastSentCategory = make(map[Category]time.Time)
 
 	if err := N.LoadNotifiers(); err != nil {
-		return errors.Wrap(err, "Failed New Notification")
+		return errors.Wrap(err, "Failed to instantiate notification handler")
 	}
 
 	return nil
 }
 
-func (n *Notification) LoadNotifiers() error {
+func (n *NotificationHandler) LoadNotifiers() error {
 
 	// Get telegram notifications config from DB, as []byte string
-	tConfig, err := storage.DB.GetNotifiersConfig("telegram")
+	telegramConfig, err := storage.DB.GetNotifiersConfig(TELEGRAM)
 	if err != nil {
 		return errors.Wrap(err, "Unable to load telegram config")
 	}
 
 	// Configure telegram; Don't save what we just loaded
-	if err := n.Configure("telegram", tConfig, false); err != nil {
+	if err := n.Configure(TELEGRAM, telegramConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init telegram")
 	}
 
 	// Get email notifications config from DB
-	eConfig, err := storage.DB.GetNotifiersConfig("email")
+	emailConfig, err := storage.DB.GetNotifiersConfig(EMAIL)
 	if err != nil {
 		return errors.Wrap(err, "Unable to load email config")
 	}
 
 	// Configure email; Don't save what we just loaded
-	if err := n.Configure("email", eConfig, false); err != nil {
+	if err := n.Configure(EMAIL, emailConfig, false); err != nil {
 		return errors.Wrap(err, "Unable to init email")
 	}
 
 	return nil
 }
 
-func (n *Notification) Configure(notifier string, config []byte, saveconfig bool) error {
+func (n *NotificationHandler) Configure(notifier string, config []byte, saveConfig bool) error {
 
 	switch notifier {
-	case "telegram":
-		nt, err := NewTelegram(config, saveconfig)
+	case TELEGRAM:
+		nt, err := NewTelegram(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers["telegram"] = nt
+		n.notifiers[TELEGRAM] = nt
 
-	case "email":
-		ne, err := NewEmail(config, saveconfig)
+	case EMAIL:
+		ne, err := NewEmail(config, saveConfig)
 		if err != nil {
 			return err
 		}
-		n.Notifiers["email"] = ne
+		n.notifiers[EMAIL] = ne
 
 	default:
 		return errors.New("Unknown notification type")
@@ -99,7 +102,7 @@ func (n *Notification) Configure(notifier string, config []byte, saveconfig bool
 	return nil
 }
 
-func (n *Notification) Send(message string, category Category) {
+func (n *NotificationHandler) Send(message string, category Category) {
 
 	// Check that we haven't sent a message from this category
 	// within the past 10 minutes
@@ -113,7 +116,7 @@ func (n *Notification) Send(message string, category Category) {
 	// Add/update notification timestamp for category
 	n.lastSentCategory[category] = time.Now().UTC()
 
-	for k, n := range n.Notifiers {
+	for k, n := range n.notifiers {
 		if n.IsEnabled() {
 			n.Send(message)
 		} else {
@@ -122,13 +125,13 @@ func (n *Notification) Send(message string, category Category) {
 	}
 }
 
-func (n *Notification) TestSend(notifier string, message string) error {
+func (n *NotificationHandler) TestSend(notifier string, message string) error {
 
 	switch notifier {
-	case "telegram":
-		n.Notifiers["telegram"].Send(message)
-	case "email":
-		n.Notifiers["email"].Send(message)
+	case TELEGRAM:
+		n.notifiers[TELEGRAM].Send(message)
+	case EMAIL:
+		n.notifiers[EMAIL].Send(message)
 	default:
 		return errors.New("Unknown notification type")
 	}
@@ -136,10 +139,10 @@ func (n *Notification) TestSend(notifier string, message string) error {
 	return nil
 }
 
-func (n *Notification) GetConfig() (json.RawMessage, error) {
+func (n *NotificationHandler) GetConfig() (json.RawMessage, error) {
 
 	// Marshal the current Notifiers as the current config
 	// Return RawMessage so as not to double Marshal
-	bts, err := json.Marshal(n.Notifiers)
+	bts, err := json.Marshal(n.notifiers)
 	return json.RawMessage(bts), err
 }

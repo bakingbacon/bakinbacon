@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"bakinbacon/baconclient"
 	"bakinbacon/notifications"
 	"bakinbacon/storage"
+	"bakinbacon/util"
 	"bakinbacon/webserver"
 )
 
@@ -21,13 +23,13 @@ var (
 
 	// Flags
 	network           string
-	logDebug          *bool
-	logTrace          *bool
-	dryRunEndorsement *bool
-	dryRunBake        *bool
-	webUiAddr         *string
-	webUiPort         *int
-	dataDir           *string
+	logDebug          bool
+	logTrace          bool
+	dryRunEndorsement bool
+	dryRunBake        bool
+	webUiAddr         string
+	webUiPort         int
+	dataDir           string
 )
 
 // TODO: Translations (https://www.transifex.com/bakinbacon/bakinbacon-core/content/)
@@ -44,13 +46,13 @@ func main() {
 	parseArgs()
 
 	// Logging
-	setupLogging(*logDebug, *logTrace)
+	setupLogging(logDebug, logTrace)
 
 	// Clean exits
 	shutdownChannel := setupCloseChannel()
 
 	// Open/Init database
-	if err := storage.InitStorage(*dataDir, network); err != nil {
+	if err := storage.InitStorage(dataDir, network); err != nil {
 		log.WithError(err).Fatal("Could not open storage")
 	}
 
@@ -68,27 +70,40 @@ func main() {
 
 	// Network constants
 	log.WithFields(log.Fields{ //nolint:wsl
-		"BlocksPerCycle":      networkConstants[network].BlocksPerCycle,
-		"BlocksPerCommitment": networkConstants[network].BlocksPerCommitment,
-		"TimeBetweenBlocks":   networkConstants[network].TimeBetweenBlocks,
+		"BlocksPerCycle":      util.NetworkConstants[network].BlocksPerCycle,
+		"BlocksPerCommitment": util.NetworkConstants[network].BlocksPerCommitment,
+		"TimeBetweenBlocks":   util.NetworkConstants[network].TimeBetweenBlocks,
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
-	bc, err = baconclient.New(networkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
+	bc, err = baconclient.New(util.NetworkConstants[network].TimeBetweenBlocks, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
 	}
 
 	// Start web UI
 	// Template variables for the UI
-	wg.Add(1)
 	templateVars := webserver.TemplateVars{
 		Network:        network,
-		BlocksPerCycle: networkConstants[network].BlocksPerCycle,
-		MinBlockTime:   networkConstants[network].TimeBetweenBlocks,
+		BlocksPerCycle: util.NetworkConstants[network].BlocksPerCycle,
+		MinBlockTime:   util.NetworkConstants[network].TimeBetweenBlocks,
 		UiBaseUrl:      os.Getenv("UI_DEBUG"),
 	}
-	webserver.Start(bc, *webUiAddr, *webUiPort, templateVars, shutdownChannel, &wg)
+
+	// Args for web server
+	webServerArgs := webserver.WebServerArgs{
+		Network:         network,
+		Client:          bc,
+		BindAddr:        webUiAddr,
+		BindPort:        webUiPort,
+		TemplateVars:    templateVars,
+		ShutdownChannel: shutdownChannel,
+		WG:              &wg,
+	}
+	if err := webserver.Start(webServerArgs); err != nil {
+		log.WithError(err).Error("Unable to start webserver UI")
+		os.Exit(1)
+	}
 
 	// For canceling when new blocks appear
 	_, ctxCancel := context.WithCancel(context.Background())
@@ -175,25 +190,26 @@ func setupCloseChannel() chan interface{} {
 func parseArgs() {
 
 	// Args
-	flag.StringVar(&network, "network", "hangzhounet", "Which network to use: mainnet, granadanet, hangzhounet")
+	flag.StringVar(&network, "network", "hangzhounet", fmt.Sprintf("Which network to use: %s", util.AvailableNetworks()))
 
-	logDebug = flag.Bool("debug", false, "Enable debug-level logging")
-	logTrace = flag.Bool("trace", false, "Enable trace-level logging")
+	flag.BoolVar(&logDebug, "debug", false, "Enable debug-level logging")
+	flag.BoolVar(&logTrace, "trace", false, "Enable trace-level logging")
 
-	dryRunEndorsement = flag.Bool("dry-run-endorse", false, "Compute, but don't inject endorsements")
-	dryRunBake = flag.Bool("dry-run-bake", false, "Compute, but don't inject blocks")
+	flag.BoolVar(&dryRunEndorsement, "dry-run-endorse", false, "Compute, but don't inject endorsements")
+	flag.BoolVar(&dryRunBake, "dry-run-bake", false, "Compute, but don't inject blocks")
 
-	webUiAddr = flag.String("webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
-	webUiPort = flag.Int("webuiport", 8082, "Port on which to bind web UI server")
+	flag.StringVar(&webUiAddr, "webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
+	flag.IntVar(&webUiPort, "webuiport", 8082, "Port on which to bind web UI server")
 
-	dataDir = flag.String("datadir", "./", "Location of database")
+	flag.StringVar(&dataDir, "datadir", "./", "Location of database")
 
 	printVersion := flag.Bool("version", false, "Show version and exit")
 
 	flag.Parse()
 
 	// Sanity
-	if network != NETWORK_MAINNET && network != NETWORK_GRANADANET && network != NETWORK_HANGZHOUNET {
+	if !util.IsValidNetwork(network) {
+		log.Errorf("Unknown network: %s", network)
 		flag.Usage()
 		os.Exit(1)
 	}

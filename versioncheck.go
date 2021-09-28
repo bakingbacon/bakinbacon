@@ -64,7 +64,7 @@ func RunVersionCheck() {
 			log.WithError(err).Error("Error checking version")
 		} else {
 
-			// Assume JSON is in version order, get latest entry
+			// Assume JSON is in version order, get the latest entry
 			latestVersion := versions[0]
 
 			// If newer version available, send notification
@@ -72,7 +72,6 @@ func RunVersionCheck() {
 				notifications.N.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
 					latestVersion, version), notifications.VERSION)
 			}
-
 		}
 
 		// wait here for next iteration

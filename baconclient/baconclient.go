@@ -38,26 +38,22 @@ type BaconClient struct {
 	Signer *baconsigner.BaconSigner
 
 	lock sync.Mutex
-}
 
-// Set from main at startup
-var (
 	timeBetweenBlocks int
 	globalShutdown    chan interface{}
 	waitGroup         *sync.WaitGroup
-)
+}
 
 func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
 
-	timeBetweenBlocks = tbb
-	globalShutdown = shutdown
-	waitGroup = wg
-
 	// Make new client manager
 	newBaconClient := &BaconClient{
-		NewBlockNotifier: make(chan *rpc.Block, 1),
-		rpcClients:       make([]*BaconSlice, 0),
-		Status:           &BaconStatus{},
+		NewBlockNotifier:  make(chan *rpc.Block, 1),
+		rpcClients:        make([]*BaconSlice, 0),
+		Status:            &BaconStatus{},
+		timeBetweenBlocks: tbb,
+		globalShutdown:    shutdown,
+		waitGroup:         wg,
 	}
 
 	// Init bacon signer
@@ -113,7 +109,7 @@ func (b *BaconClient) AddRpc(rpcId int, rpcEndpointUrl string) {
 	b.rpcClients = append(b.rpcClients, newBaconSlice)
 
 	// Launch client
-	waitGroup.Add(1)
+	b.waitGroup.Add(1)
 	go b.blockWatch(newBaconSlice)
 }
 
@@ -143,12 +139,12 @@ func (b *BaconClient) ShutdownRpc(rpcId int) error {
 
 func (b *BaconClient) blockWatch(client *BaconSlice) {
 
-	defer waitGroup.Done()
+	defer b.waitGroup.Done()
 
 	lostTicks := 0
 
 	// Get network constant time_between_blocks and set sleep-ticker to 50%
-	sleepTime := time.Duration(timeBetweenBlocks / 2)
+	sleepTime := time.Duration(b.timeBetweenBlocks / 2)
 	ticker := time.NewTicker(sleepTime * time.Second)
 
 	log.WithField("Endpoint", client.Host).Info("Blockwatch running...")
@@ -227,7 +223,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 		case <-client.shutdown:
 			log.WithField("Endpoint", client.Host).Info("Shutting down RPC client")
 			return
-		case <-globalShutdown:
+		case <-b.globalShutdown:
 			log.WithField("Endpoint", client.Host).Info("(Global) Shutting down RPC client")
 			return
 		}
@@ -276,7 +272,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	return true
 }
 
-// Check if the baker is registered as a baker
+// CheckBakerRegistered checks if the baker is registered as a baker
 func (b *BaconClient) CheckBakerRegistered() error {
 
 	pkh := b.Signer.BakerPkh
@@ -308,7 +304,7 @@ func (b *BaconClient) CheckBakerRegistered() error {
 	return errors.New("Unknown error in determining baker status")
 }
 
-// Check if the balance of the baker is > 8001 Tez; Extra 1 Tez is for submitting reveal, if necessary
+// CheckDelegateBalance checks if the balance of the baker is > 8001 Tez; Extra 1 Tez is for submitting reveal, if necessary
 func (b *BaconClient) CheckDelegateBalance() error {
 
 	dbi := rpc.DelegateBalanceInput{
@@ -327,7 +323,7 @@ func (b *BaconClient) CheckDelegateBalance() error {
 	}
 
 	// Convert string to number
-	balance, _ := strconv.Atoi(delegateBalance)
+	balance, err := strconv.Atoi(delegateBalance)
 	if err != nil {
 		return errors.Wrap(err, "Unable to parse delegate balance")
 	}
@@ -339,7 +335,7 @@ func (b *BaconClient) CheckDelegateBalance() error {
 	return nil
 }
 
-// Returns spendable balance to determine if we can post bond
+// GetSpendableBalance returns the spendable balance of the baker to determine if we can post bond
 func (b *BaconClient) GetSpendableBalance() (int, error) {
 
 	di := rpc.DelegateInput{
@@ -360,10 +356,10 @@ func (b *BaconClient) GetSpendableBalance() (int, error) {
 	// Spendable balance is "total balance" - frozen balance
 	balance, err := strconv.Atoi(delegateInfo.Balance)
 	if err != nil {
-		return 0, errors.Wrap(err, "Unable to parse balance")
+		return 0, errors.Wrap(err, "Unable to parse spendable balance")
 	}
 
-	frozen, _ := strconv.Atoi(delegateInfo.FrozenBalance)
+	frozen, err := strconv.Atoi(delegateInfo.FrozenBalance)
 	if err != nil {
 		return 0, errors.Wrap(err, "Unable to parse frozen balance")
 	}
@@ -371,7 +367,7 @@ func (b *BaconClient) GetSpendableBalance() (int, error) {
 	return balance - frozen, nil
 }
 
-// Check if the baker has revealed their public key. If not, display UI message indicating the need to do this step.
+// IsRevealed Checks if the baker has revealed their public key. If not, display UI message indicating the need to do this step.
 func (b *BaconClient) IsRevealed() (bool, error) {
 
 	cmki := rpc.ContractManagerKeyInput{
@@ -404,6 +400,7 @@ func (b *BaconClient) IsRevealed() (bool, error) {
 	return false, errors.New("Unable to determine state of public key reveal")
 }
 
+// RegisterBaker will attempt to register the baker as a delegate (baker). It will also send revelation, if needed.
 func (b *BaconClient) RegisterBaker() (string, error) {
 
 	var registrationContents []rpc.Content
@@ -424,7 +421,6 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		return "", errors.Wrap(err, "Unable to fetch contract metadata")
 	}
 
-	//
 	// Revelation of PK
 	// If needed, this operation needs to come first in a multi-op injection
 
@@ -459,9 +455,7 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		registrationContents = append(registrationContents, revealOp)
 	}
 
-	//
 	// Registration operation
-	//
 
 	// Increment counter
 	counter += 1
@@ -479,24 +473,21 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 
 	registrationContents = append(registrationContents, registrationOp)
 
-	//
 	// Forge the operation(s)
-	//
-	encodedOperation, err := forge.Encode(b.Status.Hash, registrationContents...) // Returns string hex-encoded operation
+	// Returns string hex-encoded operation
+	encodedOperation, err := forge.Encode(b.Status.Hash, registrationContents...)
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to register baker")
 	}
 
-	//
 	// Sign the operation
 	signerResult, err := b.Signer.SignSetDelegate(encodedOperation)
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to sign registration")
 	}
 
-	//
 	// Inject operation
-	_, ophash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
+	_, opHash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
 		Operation: signerResult.SignedOperation,
 	})
 	if err != nil {
@@ -504,7 +495,7 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 	}
 
 	// Success
-	return ophash, nil
+	return opHash, nil
 }
 
 func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error) {
@@ -531,9 +522,8 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 		return "", errors.Wrap(err, "Unable to sign upvote")
 	}
 
-	//
 	// Inject operation
-	_, ophash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
+	_, opHash, err := b.Current.InjectionOperation(rpc.InjectionOperationInput{
 		Operation: signerResult.SignedOperation,
 	})
 	if err != nil {
@@ -541,5 +531,5 @@ func (b *BaconClient) UpvoteProposal(proposal string, period int) (string, error
 	}
 
 	// Success
-	return ophash, nil
+	return opHash, nil
 }

@@ -29,6 +29,8 @@ const (
 	PRIORITY_LENGTH   int = 2
 	POW_HEADER_LENGTH int = 4
 	POW_LENGTH        int = 4
+
+	MUTEZ             float64 = 1000000
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -611,23 +613,6 @@ func createProtocolData(priority int, nonceHex string) string {
 
 func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
 
-	// 	for(var i = 0; i < r.applied.length; i++){
-	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
-	// 			if (r.applied[i].branch != head.hash) continue;
-	// 			if (badOps.indexOf(r.applied[i].hash) >= 0) continue;
-	// 			if (operationPass(r.applied[i]) == 3) continue; //todo fee filter
-	//
-	// 			addedOps.push(r.applied[i].hash);
-	//
-	// 			operations[operationPass(r.applied[i])].push({
-	// 				"protocol" : head.protocol,
-	// 				"branch" : r.applied[i].branch,
-	// 				"contents" : r.applied[i].contents,
-	// 				"signature" : r.applied[i].signature,
-	// 			});
-	// 		}
-	// 	}
-
 	// 4 slots for operations to be sorted into:
 	//  0 endorsements
 	//  1 votes/proposals
@@ -640,13 +625,16 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 		operations[i] = make([]rpc.Operations, 0)
 	}
 
+	blockGasLimit := util.NetworkConstants[network].BlockGasLimit
+	currentBlockGas := 0
+
 	// Determine the type of each applied operation to find out into which slot it goes
 	for _, op := range ops.Applied {
 
-		// Default slot
-		var opSlot int = 3
+		// Default is not to handle operation
+		var opSlot int = -1
 
-		// If there's more than one, probably a transfer which we don't handle yet
+		// If there's more than one, probably a batch transfer which we don't handle (yet)
 		if len(op.Contents) == 1 {
 
 			opSlot = func(branch string, opContent rpc.Content) int {
@@ -665,6 +653,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 						return -1
 					}
 
+					// Endorsements go in slot 0
 					return 0
 
 				case rpc.PROPOSALS, rpc.BALLOT:
@@ -674,25 +663,57 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
 					return 2
 
+				case rpc.TRANSACTION:
+					// All other signed operations go in the last slot
+					return 3
+
 				default:
 					log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
+					return -1
 				}
 
-				// Hit default case
-				return 3
+				// Some other operation we don't include
+				return -1
 
 			}(op.Branch, op.Contents[0])
+
+		} else {
+
+			log.WithField("Operation", op).Debug("More than one contents in operation")
+			continue
 		}
 
-		// Attempt to parse transactions
-		if opSlot == 3 && len(op.Contents) == 1 {
+		// If we don't handle it, skip and continue
+		if opSlot == -1 {
+			continue
+		}
+
+		// Parse and display transactions; included in block below
+		if opSlot == 3 && op.Contents[0].Kind == rpc.TRANSACTION {
 
 			transaction := op.Contents[0].ToTransaction()
-			amount, _ := strconv.Atoi(transaction.Amount)
-			fee, _ := strconv.Atoi(transaction.Fee)
+
+			amount, _ := strconv.ParseFloat(transaction.Amount, 64)
+			amountTez := amount / MUTEZ
+
+			fee, _ := strconv.ParseFloat(transaction.Fee, 64)
+			feeTez := fee / MUTEZ
+
+			gasTez, _ := strconv.Atoi(transaction.GasLimit)
+
+			// If adding this transaction to current gas counter goes above max, skip it
+			if currentBlockGas + gasTez > blockGasLimit {
+				log.WithFields(log.Fields{
+					"S": transaction.Source, "D": transaction.Destination, "A": amountTez, "F": feeTez, "G": gasTez,
+				}).Debug("Max block gas; Excluded transaction")
+				continue
+			}
+
+			// Add this transactions' gas to our running counter
+			currentBlockGas += gasTez
 
 			log.WithFields(log.Fields{
-				"S": transaction.Source, "D": transaction.Destination, "A": amount / 1e6, "F": fee / 1e6,
+				"S": transaction.Source, "D": transaction.Destination, "A": amountTez, "F": feeTez, "G": gasTez,
 			}).Debug("Mempool Transaction")
 
 			// TODO: Sort based on fee
@@ -700,11 +721,6 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 
 		if opSlot == 3 && len(op.Contents) > 1 {
 			log.WithField("OP", op).Debug("Batch Manager Operation")
-			continue
-		}
-
-		// Make sure any endorsements are for the current level
-		if opSlot == -1 {
 			continue
 		}
 
@@ -716,6 +732,11 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			Signature: op.Signature,
 		})
 	}
+
+	log.WithFields(log.Fields{
+		"NumEndorsements": len(operations[0]), "NumVote": len(operations[1]), "NumAnon": len(operations[2]),
+		"NumTxn": len(operations[3]), "TotalBlockGas": currentBlockGas,
+	}).Debug("Parsed mempool operations")
 
 	return operations, nil
 }
@@ -732,6 +753,7 @@ func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rp
 		BlockID: blockId,
 		Level:   bakingLevel,
 	}
+
 	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsInput)
 	if err != nil {
 		return endorsingPower, err

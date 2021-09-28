@@ -631,8 +631,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	// Determine the type of each applied operation to find out into which slot it goes
 	for _, op := range ops.Applied {
 
-		// Default is not to handle operation
-		var opSlot int = -1
+		var opSlot int
 
 		// If there's more than one, probably a batch transfer which we don't handle (yet)
 		if len(op.Contents) == 1 {
@@ -671,9 +670,6 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 					log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
 					return -1
 				}
-
-				// Some other operation we don't include
-				return -1
 
 			}(op.Branch, op.Contents[0])
 

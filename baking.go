@@ -341,7 +341,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Attempt to preapply the block header we created using the protocol data,
 	// and operations pulled from mempool.
 	//
-	// If the initial preapply fails, attempt again using an empty list of operations
+	// TODO If the initial preapply fails, attempt again using an empty list of operations
 	//
 	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
@@ -354,7 +354,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	log.WithField("Resp", preapplyBlockResp).Trace("Preapply Response")
 
-	// Re-filter the applied operations that came back from pre-apply
+	// Filter the applied operations that came back from pre-apply
 	appliedOperations := parsePreapplyOperations(preapplyBlockResp.Operations)
 	log.WithField("Operations", appliedOperations).Trace("Preapply Operations")
 
@@ -629,65 +629,58 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	currentBlockGas := 0
 
 	// Determine the type of each applied operation to find out into which slot it goes
-	for _, op := range ops.Applied {
+	for _, operation := range ops.Applied {
 
-		var opSlot int
+		// Default, don't handle
+		opSlot := -1
 
-		// If there's more than one, probably a batch transfer which we don't handle (yet)
-		if len(op.Contents) == 1 {
-
-			opSlot = func(branch string, opContent rpc.Content) int {
-
-				switch opContent.Kind {
-				case rpc.ENDORSEMENT_WITH_SLOT:
-
-					endorsement := op.Contents[0].Endorsement
-
-					// Endorsements must match the current head block level and block hash
-					if endorsement.Operations.Level != curLevel {
-						return -1
-					}
-
-					if branch != curBranch {
-						return -1
-					}
-
-					// Endorsements go in slot 0
-					return 0
-
-				case rpc.PROPOSALS, rpc.BALLOT:
-					return 1
-
-				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
-					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
-					return 2
-
-				case rpc.TRANSACTION:
-					// All other signed operations go in the last slot
-					return 3
-
-				default:
-					log.WithField("Kind", opContent.Kind).Debug("Unhandled Operation Type")
-					return -1
-				}
-
-			}(op.Branch, op.Contents[0])
-
-		} else {
-
-			log.WithField("Operation", op).Debug("More than one contents in operation")
+		// If there's more than one action within this operation, it is probably a batch transfer
+		// or reveal/transfer, which we don't handle (yet)
+		if len(operation.Contents) > 1 {
+			log.WithField("Operation", operation.Contents).Debug("More than one contents in operation")
 			continue
 		}
 
-		// If we don't handle it, skip and continue
-		if opSlot == -1 {
+		content := operation.Contents[0]
+
+		// Determine with slot based on operation kind
+		switch content.Kind {
+		case rpc.ENDORSEMENT_WITH_SLOT:
+
+			endorsement := content.Endorsement
+
+			// Endorsements must match the current head block level and block hash
+			if endorsement.Operations.Level != curLevel {
+				continue
+			}
+
+			if operation.Branch != curBranch {
+				continue
+			}
+
+			// Endorsements go in slot 0
+			opSlot = 0
+
+		case rpc.PROPOSALS, rpc.BALLOT:
+			opSlot = 1
+
+		case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
+			rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
+			opSlot = 2
+
+		case rpc.TRANSACTION:
+			// All other signed operations go in the last slot
+			opSlot = 3
+
+		default:
+			log.WithField("Kind", content.Kind).Debug("Unhandled Operation Type")
 			continue
 		}
 
 		// Parse and display transactions; included in block below
-		if opSlot == 3 && op.Contents[0].Kind == rpc.TRANSACTION {
+		if opSlot == 3 && operation.Contents[0].Kind == rpc.TRANSACTION {
 
-			transaction := op.Contents[0].ToTransaction()
+			transaction := operation.Contents[0].ToTransaction()
 
 			amount, _ := strconv.ParseFloat(transaction.Amount, 64)
 			amountTez := amount / MUTEZ
@@ -715,17 +708,12 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 			// TODO: Sort based on fee
 		}
 
-		if opSlot == 3 && len(op.Contents) > 1 {
-			log.WithField("OP", op).Debug("Batch Manager Operation")
-			continue
-		}
-
 		// Add operation to slot; Must take into account max block gas/storage
 		operations[opSlot] = append(operations[opSlot], rpc.Operations{
 			Protocol:  headProtocol,
-			Branch:    op.Branch,
-			Contents:  op.Contents,
-			Signature: op.Signature,
+			Branch:    operation.Branch,
+			Contents:  operation.Contents,
+			Signature: operation.Signature,
 		})
 	}
 

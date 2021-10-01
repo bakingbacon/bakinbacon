@@ -188,6 +188,7 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 					b.NewBlockNotifier <- block
 
 					b.lock.Lock()
+
 					b.Status.Hash = block.Hash
 					b.Status.Level = block.Metadata.Level.Level
 					b.Status.Cycle = block.Metadata.Level.Cycle

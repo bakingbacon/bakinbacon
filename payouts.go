@@ -197,7 +197,7 @@ func handlePayouts(ctx context.Context, wg *sync.WaitGroup, block rpc.Block, net
 		// Subtract baker fee
 		reward.Reward = int(float64(rewardShare) * bakerFeePct)
 
-		log.Infof("Delegator Rewards: D: %s, Bal: %d, SharePct: %.6f, RewardShare: %d, Reward: %.6f",
+		log.Infof("Delegator Rewards: D: %s, Bal: %d, SharePct: %.6f, RewardShare: %d, Reward: %d",
 			reward.Delegator, reward.Balance, reward.SharePct, rewardShare, (reward.Reward / 1e6))
 
 		// Save reward record to DB

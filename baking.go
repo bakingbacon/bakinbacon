@@ -649,7 +649,7 @@ func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, he
 	for _, operation := range ops.Applied {
 
 		// Default, don't handle
-		opSlot := -1
+		var opSlot int
 
 		// If there's more than one action within this operation, it is probably a batch transfer
 		// or reveal/transfer, which we don't handle (yet)

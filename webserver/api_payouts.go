@@ -29,7 +29,9 @@ func (ws *WebServer) getPayouts(w http.ResponseWriter, r *http.Request) {
 
 	// return raw JSON
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(payoutsMetadata)
+	if err := json.NewEncoder(w).Encode(payoutsMetadata); err != nil {
+		log.WithError(err).Error("UI Return getPayouts Failure")
+	}
 }
 
 func (ws *WebServer) getCyclePayouts(w http.ResponseWriter, r *http.Request) {
@@ -57,5 +59,7 @@ func (ws *WebServer) getCyclePayouts(w http.ResponseWriter, r *http.Request) {
 
 	// return raw JSON
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(payoutsData)
+	if err := json.NewEncoder(w).Encode(payoutsData); err != nil {
+		log.WithError(err).Error("UI Return getCyclePayouts Failure")
+	}
 }

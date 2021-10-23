@@ -216,8 +216,16 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Retrieve mempool operations
 	// There's a minimum required number of endorsements at priority 0 which is 192,
 	// so we will keep fetching from the mempool until we get at least 192, or
-	// 1/2 block time elapses whichever comes first
-	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
+	// 1/4 block time elapses whichever comes first.
+
+	// If our priority is > 0, then we've technically already slept enough time while giving
+	// priorities below us a chance to bake.
+	mempoolSleepDuration := time.Duration(timeBetweenBlocks / 4) * time.Second
+	if priority > 0 {
+		mempoolSleepDuration = time.Duration(1 * time.Second)
+	}
+
+	endMempool := time.Now().UTC().Add(mempoolSleepDuration)
 	minEndorsingPower := util.NetworkConstants[network].InitialEndorsers
 	endorsingPower := 0
 
@@ -231,14 +239,14 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	for time.Now().UTC().Before(endMempool) && endorsingPower < minEndorsingPower {
 
 		// Sleep 10s to let mempool accumulate
-		log.Infof("Sleeping 10s for more endorsements and ops")
+		log.Infof("Sleeping %s for more endorsements and ops", mempoolSleepDuration)
 
 		// Sleep, but also check if new block arrived
 		select {
 		case <-ctx.Done():
 			log.Info("New block arrived; Canceling current bake")
 			return
-		case <-time.After(10 * time.Second):
+		case <-time.After(mempoolSleepDuration):
 			break
 		}
 
@@ -414,6 +422,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	//forgedBlock := forgedBlockHeader.Block
 	protocolDataLength := len(protocolData)
 
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling current bake")
+		return
+	default:
+		break
+	}
+
 	// Perform a lame proof-of-work computation
 	blockBytes, attempts, err := powLoop(localForgedBlockHex, protocolDataLength)
 	if err != nil {
@@ -474,13 +491,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	resp, blockHash, err := bc.Current.InjectionBlock(ibi)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": string(resp.Body()),
+			"Request": resp.Request.URL, "Response": string(resp.Body()), "P": priority,
 		}).Error("Block Injection Failure")
 		return
 	}
 
 	log.WithFields(log.Fields{
-		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
+		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano), "P": priority,
 	}).Info("Block Injected")
 
 	// Save watermark to DB

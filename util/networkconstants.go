@@ -15,6 +15,7 @@ type Constants struct {
 	BlockSecurityDeposit       int
 	EndorsementSecurityDeposit int
 	ProofOfWorkThreshold       uint64
+	PreservedCycles            int
 	InitialEndorsers           int
 	GranadaActivationLevel     int
 	GranadaActivationCycle     int
@@ -30,17 +31,17 @@ func init() {
 	NetworkConstants = make(map[string]Constants)
 
 	// Mainnet
-	// curl -Ss https://mainnet-tezos.giganode.io/chains/main/blocks/head/context/constants | jq -r '[ (.minimal_block_delay|tonumber), .blocks_per_cycle, .blocks_per_roll_snapshot, .blocks_per_commitment, (.hard_gas_limit_per_block|tonumber), (.block_security_deposit|tonumber), (.endorsement_security_deposit|tonumber), (.proof_of_work_threshold|tonumber), .initial_endorsers] | @csv'
+	// curl -Ss https://mainnet-tezos.giganode.io/chains/main/blocks/head/context/constants | jq -r '[ (.minimal_block_delay|tonumber), .blocks_per_cycle, .blocks_per_roll_snapshot, .blocks_per_commitment, (.hard_gas_limit_per_block|tonumber), (.block_security_deposit|tonumber), (.endorsement_security_deposit|tonumber), (.proof_of_work_threshold|tonumber), .preserved_cycles, .initial_endorsers] | @csv'
 	NetworkConstants[NETWORK_MAINNET] = Constants{
-		30, 8192, 512, 64, 5200000, 64000000, 2500000, 70368744177663, 192, 1589247, 388,
+		30, 8192, 512, 64, 5200000, 64000000, 2500000, 70368744177663, 5, 192, 1589247, 388,
 	}
 
 	NetworkConstants[NETWORK_GRANADANET] = Constants{
-		15, 4096, 256, 32, 5200000, 640000000, 2500000, 70368744177663, 192, 4095, 2,
+		15, 4096, 256, 32, 5200000, 640000000, 2500000, 70368744177663, 3, 192, 4095, 2,
 	}
 
 	NetworkConstants[NETWORK_HANGZHOUNET] = Constants{
-		15, 4096, 256, 32, 5200000, 640000000, 2500000, 70368744177663, 192, 2, 0,
+		15, 4096, 256, 32, 5200000, 640000000, 2500000, 70368744177663, 3, 192, 0, 0,
 	}
 }
 

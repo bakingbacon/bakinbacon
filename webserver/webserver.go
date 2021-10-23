@@ -135,6 +135,7 @@ func Start(args WebServerArgs) error {
 	log.WithField("Addr", httpAddr).Info("Bakin'Bacon WebUI Listening")
 
 	// Launch webserver in background
+	args.WG.Add(1)
 	go func() {
 		// TODO: SSL for localhost?
 		//var err error

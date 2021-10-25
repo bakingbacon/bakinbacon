@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,12 +23,14 @@ import (
 )
 
 const (
-	PROTOCOL_BB10     string = "42423130"
+	PROTOCOL_BB10     string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
 	MAX_BAKE_PRIORITY int    = 4
 
 	PRIORITY_LENGTH   int = 2
 	POW_HEADER_LENGTH int = 4
 	POW_LENGTH        int = 4
+
+	MUTEZ             float64 = 1000000
 )
 
 func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -132,8 +135,8 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	priority := bakingRight.Priority
-	timeBetweenBlocks := networkConstants[network].TimeBetweenBlocks
-	blocksPerCommitment := networkConstants[network].BlocksPerCommitment
+	timeBetweenBlocks := util.NetworkConstants[network].TimeBetweenBlocks
+	blocksPerCommitment := util.NetworkConstants[network].BlocksPerCommitment
 
 	log.WithFields(log.Fields{
 		"Priority":  priority,
@@ -148,7 +151,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Check if we have enough bond to cover the bake
-	requiredBond := networkConstants[network].BlockSecurityDeposit
+	requiredBond := util.NetworkConstants[network].BlockSecurityDeposit
 
 	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
@@ -213,9 +216,17 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Retrieve mempool operations
 	// There's a minimum required number of endorsements at priority 0 which is 192,
 	// so we will keep fetching from the mempool until we get at least 192, or
-	// 1/2 block time elapses whichever comes first
-	endMempool := time.Now().UTC().Add(time.Duration(timeBetweenBlocks / 2) * time.Second)
-	minEndorsingPower := networkConstants[network].InitialEndorsers
+	// 1/4 block time elapses whichever comes first.
+
+	// If our priority is > 0, then we've technically already slept enough time while giving
+	// priorities below us a chance to bake.
+	mempoolSleepDuration := time.Duration(timeBetweenBlocks / 4) * time.Second
+	if priority > 0 {
+		mempoolSleepDuration = time.Duration(1 * time.Second)
+	}
+
+	endMempool := time.Now().UTC().Add(mempoolSleepDuration)
+	minEndorsingPower := util.NetworkConstants[network].InitialEndorsers
 	endorsingPower := 0
 
 	var operations [][]rpc.Operations
@@ -228,14 +239,14 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	for time.Now().UTC().Before(endMempool) && endorsingPower < minEndorsingPower {
 
 		// Sleep 10s to let mempool accumulate
-		log.Infof("Sleeping 10s for more endorsements and ops")
+		log.Infof("Sleeping %s for more endorsements and ops", mempoolSleepDuration)
 
 		// Sleep, but also check if new block arrived
 		select {
 		case <-ctx.Done():
 			log.Info("New block arrived; Canceling current bake")
 			return
-		case <-time.After(10 * time.Second):
+		case <-time.After(mempoolSleepDuration):
 			break
 		}
 
@@ -338,7 +349,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Attempt to preapply the block header we created using the protocol data,
 	// and operations pulled from mempool.
 	//
-	// If the initial preapply fails, attempt again using an empty list of operations
+	// TODO If the initial preapply fails, attempt again using an empty list of operations
 	//
 	resp, preapplyBlockResp, err := bc.Current.PreapplyBlock(preapplyBlockheader)
 	if err != nil {
@@ -351,7 +362,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	log.WithField("Resp", preapplyBlockResp).Trace("Preapply Response")
 
-	// Re-filter the applied operations that came back from pre-apply
+	// Filter the applied operations that came back from pre-apply
 	appliedOperations := parsePreapplyOperations(preapplyBlockResp.Operations)
 	log.WithField("Operations", appliedOperations).Trace("Preapply Operations")
 
@@ -363,28 +374,28 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header using RPC
-// 	resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
-// 		BlockID: &hashBlockID,
-// 		BlockHeader: rpc.ForgeBlockHeaderBody{
-// 			Level:          shellHeader.Level,
-// 			Proto:          shellHeader.Proto,
-// 			Predecessor:    shellHeader.Predecessor,
-// 			Timestamp:      shellHeader.Timestamp,
-// 			ValidationPass: shellHeader.ValidationPass,
-// 			OperationsHash: shellHeader.OperationsHash,
-// 			Fitness:        shellHeader.Fitness,
-// 			Context:        shellHeader.Context,
-// 			ProtocolData:   protocolData,
-// 		},
-// 	})
-// 	if err != nil {
-// 		log.WithError(err).WithFields(log.Fields{
-// 			"Request": resp.Request.URL, "Response": string(resp.Body()),
-// 		}).Error("Unable to forge block header")
-// 		return
-// 	}
-//
-// 	log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
+	// resp, forgedBlockHeader, err := bc.Current.ForgeBlockHeader(rpc.ForgeBlockHeaderInput{
+	// 	BlockID: &hashBlockID,
+	// 	BlockHeader: rpc.ForgeBlockHeaderBody{
+	// 		Level:          shellHeader.Level,
+	// 		Proto:          shellHeader.Proto,
+	// 		Predecessor:    shellHeader.Predecessor,
+	// 		Timestamp:      shellHeader.Timestamp,
+	// 		ValidationPass: shellHeader.ValidationPass,
+	// 		OperationsHash: shellHeader.OperationsHash,
+	// 		Fitness:        shellHeader.Fitness,
+	// 		Context:        shellHeader.Context,
+	// 		ProtocolData:   protocolData,
+	// 	},
+	// })
+	// if err != nil {
+	// 	log.WithError(err).WithFields(log.Fields{
+	// 		"Request": resp.Request.URL, "Response": string(resp.Body()),
+	// 	}).Error("Unable to forge block header")
+	// 	return
+	// }
+	//
+	// log.WithField("Forged", forgedBlockHeader).Trace("Forged Header (RPC)")
 
 	//
 	// Forge block header locally
@@ -410,6 +421,15 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// protocol_data can sometimes contain seed_nonce_hash, so send the offset to powLoop
 	//forgedBlock := forgedBlockHeader.Block
 	protocolDataLength := len(protocolData)
+
+	// Check if a new block has been posted to /head and we should abort
+	select {
+	case <-ctx.Done():
+		log.Info("New block arrived; Canceling current bake")
+		return
+	default:
+		break
+	}
 
 	// Perform a lame proof-of-work computation
 	blockBytes, attempts, err := powLoop(localForgedBlockHex, protocolDataLength)
@@ -462,7 +482,7 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	}
 
 	// Dry-run check
-	if *dryRunBake {
+	if dryRunBake {
 		log.Warn("Not Injecting Block; Dry-Run Mode")
 		return
 	}
@@ -471,13 +491,13 @@ func handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	resp, blockHash, err := bc.Current.InjectionBlock(ibi)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"Request": resp.Request.URL, "Response": string(resp.Body()),
+			"Request": resp.Request.URL, "Response": string(resp.Body()), "P": priority,
 		}).Error("Block Injection Failure")
 		return
 	}
 
 	log.WithFields(log.Fields{
-		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano),
+		"BlockHash": blockHash, "CurrentTS": time.Now().UTC().Format(time.RFC3339Nano), "P": priority,
 	}).Info("Block Injected")
 
 	// Save watermark to DB
@@ -544,7 +564,7 @@ func powLoop(forgedBlock string, protocolDataLength int) (string, int, error) {
 
 	hashBuffer, _ := hex.DecodeString(forgedBlock + strings.Repeat("0", 128))
 	protocolOffset := ((len(forgedBlock) - protocolDataLength) / 2) + PRIORITY_LENGTH + POW_HEADER_LENGTH
-	powThreshold := networkConstants[network].ProofOfWorkThreshold
+	powThreshold := util.NetworkConstants[network].ProofOfWorkThreshold
 
 	// log.WithField("FB", forgedBlock).Debug("FORGED")
 	// log.WithField("HB", hashBuffer).Debug("HASHBUFFER")
@@ -610,100 +630,114 @@ func createProtocolData(priority int, nonceHex string) string {
 
 func parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
 
-	// 	for(var i = 0; i < r.applied.length; i++){
-	// 		if (addedOps.indexOf(r.applied[i].hash) < 0) {
-	// 			if (r.applied[i].branch != head.hash) continue;
-	// 			if (badOps.indexOf(r.applied[i].hash) >= 0) continue;
-	// 			if (operationPass(r.applied[i]) == 3) continue; //todo fee filter
-	//
-	// 			addedOps.push(r.applied[i].hash);
-	//
-	// 			operations[operationPass(r.applied[i])].push({
-	// 				"protocol" : head.protocol,
-	// 				"branch" : r.applied[i].branch,
-	// 				"contents" : r.applied[i].contents,
-	// 				"signature" : r.applied[i].signature,
-	// 			});
-	// 		}
-	// 	}
+	// 4 slots for operations to be sorted into:
+	//  0 endorsements
+	//  1 votes/proposals
+	//  2 anonymous operations - operations that do not have signatures
+	//  3 manager operations - signed operations that change account states (trx, contracts, etc)
 
-	// 4 slots for operations to be sorted into
 	// Init each slot to size 0 so that marshaling returns "[]" instead of null
 	operations := make([][]rpc.Operations, 4)
 	for i := range operations {
 		operations[i] = make([]rpc.Operations, 0)
 	}
 
+	blockGasLimit := util.NetworkConstants[network].BlockGasLimit
+	currentBlockGas := 0
+
 	// Determine the type of each applied operation to find out into which slot it goes
-	for _, op := range ops.Applied {
+	for _, operation := range ops.Applied {
 
-		// Default slot
-		var opSlot int = 3
+		// Default, don't handle
+		var opSlot int
 
-		// If there's more than one, probably a transfer which we don't handle yet
-		if len(op.Contents) == 1 {
-
-			opSlot = func(branch string, opContent rpc.Content) int {
-
-				switch opContent.Kind {
-				case rpc.ENDORSEMENT_WITH_SLOT:
-
-					endorsement := op.Contents[0].Endorsement
-
-					// Endorsements must match the current head block level and block hash
-					if endorsement.Operations.Level != curLevel {
-						return -1
-					}
-
-					if branch != curBranch {
-						return -1
-					}
-
-					return 0
-
-				case rpc.PROPOSALS, rpc.BALLOT:
-					return 1
-
-				case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
-					rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
-					return 2
-				}
-
-				return 3
-			}(op.Branch, op.Contents[0])
-		}
-
-		// For now, skip transactions and other unknown operations
-		if opSlot == 3 {
-			log.WithField("OP", op).Debug("Mempool Operation")
+		// If there's more than one action within this operation, it is probably a batch transfer
+		// or reveal/transfer, which we don't handle (yet)
+		if len(operation.Contents) > 1 {
+			log.WithField("Operation", operation.Contents).Debug("More than one contents in operation")
 			continue
 		}
 
-		// Make sure any endorsements are for the current level
-		if opSlot == -1 {
+		content := operation.Contents[0]
+
+		// Determine with slot based on operation kind
+		switch content.Kind {
+		case rpc.ENDORSEMENT_WITH_SLOT:
+
+			endorsement := content.Endorsement
+
+			// Endorsements must match the current head block level and block hash
+			if endorsement.Operations.Level != curLevel {
+				continue
+			}
+
+			if operation.Branch != curBranch {
+				continue
+			}
+
+			// Endorsements go in slot 0
+			opSlot = 0
+
+		case rpc.PROPOSALS, rpc.BALLOT:
+			opSlot = 1
+
+		case rpc.SEEDNONCEREVELATION, rpc.DOUBLEENDORSEMENTEVIDENCE,
+			rpc.DOUBLEBAKINGEVIDENCE, rpc.ACTIVATEACCOUNT:
+			opSlot = 2
+
+		case rpc.TRANSACTION:
+			// All other signed operations go in the last slot
+			opSlot = 3
+
+		default:
+			log.WithField("Kind", content.Kind).Debug("Unhandled Operation Type")
 			continue
 		}
 
-		// Add operation to slot
-		// operations[opSlot] = append(operations[opSlot], struct {
-		// 	Protocol  string         `json:"protocol"`
-		// 	Branch    string         `json:"branch"`
-		// 	Contents  []rpc.Contents `json:"contents"`
-		// 	Signature string         `json:"signature"`
-		// }{
-		// 	headProtocol,
-		// 	op.Branch,
-		// 	op.Contents,
-		// 	op.Signature,
-		// })
+		// Parse and display transactions; included in block below
+		if opSlot == 3 && operation.Contents[0].Kind == rpc.TRANSACTION {
 
+			transaction := operation.Contents[0].ToTransaction()
+
+			amount, _ := strconv.ParseFloat(transaction.Amount, 64)
+			amountTez := amount / MUTEZ
+
+			fee, _ := strconv.ParseFloat(transaction.Fee, 64)
+			feeTez := fee / MUTEZ
+
+			gasTez, _ := strconv.Atoi(transaction.GasLimit)
+
+			// If adding this transaction to current gas counter goes above max, skip it
+			if currentBlockGas + gasTez > blockGasLimit {
+				log.WithFields(log.Fields{
+					"S": transaction.Source, "D": transaction.Destination, "A": amountTez, "F": feeTez, "G": gasTez,
+				}).Debug("Max block gas; Excluded transaction")
+				continue
+			}
+
+			// Add this transactions' gas to our running counter
+			currentBlockGas += gasTez
+
+			log.WithFields(log.Fields{
+				"S": transaction.Source, "D": transaction.Destination, "A": amountTez, "F": feeTez, "G": gasTez,
+			}).Debug("Mempool Transaction")
+
+			// TODO: Sort based on fee
+		}
+
+		// Add operation to slot; Must take into account max block gas/storage
 		operations[opSlot] = append(operations[opSlot], rpc.Operations{
 			Protocol:  headProtocol,
-			Branch:    op.Branch,
-			Contents:  op.Contents,
-			Signature: op.Signature,
+			Branch:    operation.Branch,
+			Contents:  operation.Contents,
+			Signature: operation.Signature,
 		})
 	}
+
+	log.WithFields(log.Fields{
+		"NumEndorsements": len(operations[0]), "NumVote": len(operations[1]), "NumAnon": len(operations[2]),
+		"NumTxn": len(operations[3]), "TotalBlockGas": currentBlockGas,
+	}).Debug("Parsed mempool operations")
 
 	return operations, nil
 }
@@ -720,6 +754,7 @@ func computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rp
 		BlockID: blockId,
 		Level:   bakingLevel,
 	}
+
 	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsInput)
 	if err != nil {
 		return endorsingPower, err

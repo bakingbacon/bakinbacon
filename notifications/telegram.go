@@ -30,8 +30,9 @@ type NotifyTelegram struct {
 // after getting new config from web UI.
 func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 
-	n := &NotifyTelegram{}
-	n.Enabled = true
+	n := &NotifyTelegram{
+		Enabled: true,
+	}
 
 	// empty config from db?
 	if config != nil {
@@ -62,7 +63,7 @@ func (n *NotifyTelegram) Send(msg string) {
 
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", n.ApiKey), nil)
 	if err != nil {
-		log.WithError(err).Error("Unable to make telegram request")
+		log.WithError(err).Error("Unable to make Telegram request")
 		return
 	}
 
@@ -78,9 +79,9 @@ func (n *NotifyTelegram) Send(msg string) {
 	}
 
 	// Loop over chatIds, sending message
-	for _, id := range n.ChatIds {
+	for _, chatId := range n.ChatIds {
 
-		q.Set("chat_id", strconv.Itoa(id))
+		q.Set("chat_id", strconv.Itoa(chatId))
 
 		// Encode URL parameters
 		req.URL.RawQuery = q.Encode()
@@ -89,14 +90,19 @@ func (n *NotifyTelegram) Send(msg string) {
 		resp, err := client.Do(req)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"ChatId": id,
-			}).WithError(err).Error("Unable to send telegram message")
+				"ChatId": chatId,
+			}).WithError(err).Error("Unable to send Telegram message")
 		}
 
 		defer resp.Body.Close()
-		resp_body, _ := ioutil.ReadAll(resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"ChatId": chatId,
+			}).WithError(err).Error("Unable to read Telegram API response")
+		}
 
-		log.WithField("Resp", string(resp_body)).Debug("Telegram Reply")
+		log.WithField("Resp", string(body)).Debug("Telegram Reply")
 	}
 
 	log.WithField("MSG", msg).Info("Sent Telegram Message")

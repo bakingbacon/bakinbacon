@@ -148,6 +148,7 @@ const Voting = (props) => {
 
 	if (votingPhase === "proposal") {
 		return (
+			<>
 			<Row>
 				<Col>
 					<Card>
@@ -184,11 +185,14 @@ const Voting = (props) => {
 					</Card>
 				</Col>
 			</Row>
+			<Row><Col><BaconAlert alert={alert} /></Col></Row>
+			</>
 		)
 	}
 
 	if (votingPhase === "exploration") {
 		return (
+			<>
 			<Row>
 				<Col>
 					<Card>
@@ -210,6 +214,8 @@ const Voting = (props) => {
 					</Card>
 				</Col>
 			</Row>
+			<Row><Col><BaconAlert alert={alert} /></Col></Row>
+			</>
 		)
 	}
 

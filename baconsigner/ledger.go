@@ -29,7 +29,7 @@ type LedgerSigner struct {
 
 	// Actual object of the ledger
 	ledger *ledger.TezosLedger
-	lock sync.Mutex
+	lock   sync.Mutex
 }
 
 var L *LedgerSigner
@@ -105,7 +105,7 @@ func (s *LedgerSigner) Close() {
 	s.ledger.Close()
 }
 
-// Gets the public key from ledger device
+// GetPublicKey Gets the public key from ledger device
 func (s *LedgerSigner) GetPublicKey() (string, string, error) {
 
 	s.lock.Lock()
@@ -122,7 +122,8 @@ func (s *LedgerSigner) SignBytes(opBytes []byte) (string, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return s.ledger.SignBytes(opBytes) // Returns b58 encoded signature
+	// Returns b58 encoded signature
+	return s.ledger.SignBytes(opBytes)
 }
 
 func (s *LedgerSigner) IsBakingApp() (string, error) {
@@ -160,8 +161,7 @@ func (s *LedgerSigner) SetBipPath(p string) error {
 	return s.ledger.SetBipPath(p)
 }
 
-//
-// This function is only called from web UI during initial setup.
+// TestLedger This function is only called from web UI during initial setup.
 // It will open the ledger, get the version string of the running app, and
 // fetch either the currently auth'd baking key, or fetch the default BIP path key
 func TestLedger() (*LedgerInfo, error) {
@@ -219,7 +219,7 @@ func TestLedger() (*LedgerInfo, error) {
 }
 
 //
-// Ask ledger to display request for public key. User must press button to confirm.
+// ConfirmBakingPkh Ask ledger to display request for public key. User must press button to confirm.
 func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 
 	log.WithFields(log.Fields{
@@ -264,7 +264,7 @@ func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 	return nil
 }
 
-// Saves Sk/Pkh to DB
+// SaveSigner Saves Pkh and BipPath to DB
 func (s *LedgerSigner) SaveSigner() error {
 
 	if err := storage.DB.SaveLedgerToDB(s.Info.Pkh, s.Info.BipPath, SIGNER_LEDGER); err != nil {

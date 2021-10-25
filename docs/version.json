@@ -1,4 +1,5 @@
 [
  {"date":"2021-09-08T04:00:00Z", "version":"0.6.0", "notes":"Yay! Public beta release!"},
- {"date":"2021-09-09T03:00:00Z", "version":"0.6.1", "notes":"- Fix for nonce reveals"}
+ {"date":"2021-09-09T03:00:00Z", "version":"0.6.1", "notes":"- Fix for nonce reveals"},
+ {"date":"2021-09-21T05:00:00Z", "version":"0.7.0", "notes":"- Hangzhounet compatibility"}
 ]

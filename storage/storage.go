@@ -28,9 +28,9 @@ type Storage struct {
 
 var DB Storage
 
-func InitStorage(datadir, network string) error {
+func InitStorage(dataDir, network string) error {
 
-	db, err := bolt.Open(datadir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(dataDir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return errors.Wrap(err, "Failed to init db")
 	}
@@ -84,7 +84,12 @@ func InitStorage(datadir, network string) error {
 	}
 
 	// Add the default endpoints only on brand new setup
-	return DB.AddDefaultEndpoints(network)
+	if err := DB.AddDefaultEndpoints(network); err != nil {
+		log.WithError(err).Error("Could not add default endpoints")
+		return errors.Wrap(err, "Could not add default endpoints")
+	}
+
+	return nil
 }
 
 func (s *Storage) Close() {
@@ -94,6 +99,7 @@ func (s *Storage) Close() {
 
 // itob returns an 8-byte big endian representation of v.
 func itob(v int) []byte {
+
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(v))
 

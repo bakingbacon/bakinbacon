@@ -15,7 +15,7 @@ const Notifications = (props) => {
 	const { settings, loadSettings } = props;
 
 	const [telegramConfig, setTelegramConfig] = useState(settings.notifications.telegram)
-	const [emailConfig, setEmailConfig] = useState(settings.notifications.email);
+	// const [emailConfig, setEmailConfig] = useState(settings.notifications.email);
 	const addToast = useContext(ToasterContext);
 
 	useEffect(() => {
@@ -32,7 +32,7 @@ const Notifications = (props) => {
 			setTelegramConfig(tConfig)
 		}
 
-		setEmailConfig(config.email)
+		// setEmailConfig(config.email)
 
 	}, [settings]);
 
@@ -47,13 +47,13 @@ const Notifications = (props) => {
 		}));
 	}
 
-	const handleEmailChange = (e) => {
-		const { name, value } = e.target;
-		setEmailConfig((prev) => ({
-			...prev,
-			[name]: value
-		}));
-	}
+	// const handleEmailChange = (e) => {
+	// 	const { name, value } = e.target;
+	// 	setEmailConfig((prev) => ({
+	// 		...prev,
+	// 		[name]: value
+	// 	}));
+	// }
 
 	const saveTelegram = (e) => {
 
@@ -139,7 +139,7 @@ const Notifications = (props) => {
                     <Form.Row>
                       <Form.Group as={Col}>
                         <Form.Text as="span">Chat Ids</Form.Text>
-                        <Form.Control type="text" name="chatids" value={telegramConfig.chatids} onChange={handleTelegramChange} />
+                        <Form.Control type="text" name="chatids" value={telegramConfig.chatids || ""} onChange={handleTelegramChange} />
                         <Form.Text className="text-muted">Separate multiple chatIds with ','</Form.Text>
                       </Form.Group>
                     </Form.Row>

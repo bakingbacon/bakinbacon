@@ -140,6 +140,7 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 				nextPriority = btoi(v)
 			}
 		}
+
 		return nil
 	})
 

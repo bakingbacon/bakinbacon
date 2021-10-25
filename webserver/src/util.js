@@ -15,6 +15,7 @@ export const CHAINIDS = {
 	"mainnet":     "NetXdQprcVkpaWU",
 	"florencenet": "NetXxkAx4woPLyu",
 	"granadanet":  "NetXz969SFaFn8k",
+	"hangzhounet": "NetXuXoGoLxNK6o",
 };
 
 // Copied from https://github.com/github/fetch/issues/203#issuecomment-266034180

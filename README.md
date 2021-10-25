@@ -23,7 +23,7 @@ If you would like bakinbacon compiled for a different platform, you can build it
 
 ### Testing Tokens
 
-The Tezos network requires 8000 XTZ at stake in order to be considered a baker. Please fill out this form https://forms.gle/iuSuWprvhejCGKP56 to request enough tokens from our pool. You should receive the funds within 12-16 hours. These tokens are only valid on the Hangzhou testing network and will not work on mainnet, nor Granadanet.
+The Tezos network requires 8000 XTZ at stake in order to be considered a baker. Please use the [hangzhou faucet](https://faucet.hangzhounet.teztnets.xyz/) to acquire testing tokens. These tokens are only valid on the Hangzhou testing network and will not work on mainnet.
 
 ## Building BakinBacon
 

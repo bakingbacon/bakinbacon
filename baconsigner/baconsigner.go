@@ -22,8 +22,9 @@ var (
 )
 
 type BaconSigner struct {
-	BakerPkh      string
-	signerType    int
+	BakerPkh   string
+	signerType int
+	storage    *storage.Storage
 }
 
 // SignOperationOutput contains an operation with the signature appended, and the signature
@@ -34,12 +35,14 @@ type SignOperationOutput struct {
 }
 
 // New
-func New() (*BaconSigner, error) {
+func New(db *storage.Storage) (*BaconSigner, error) {
 
-	bs := &BaconSigner{}
+	bs := &BaconSigner{
+		storage: db,
+	}
 
 	// Get which signing method (wallet or ledger), so we can perform sanity checks
-	signerType, err := storage.DB.GetSignerType()
+	signerType, err := bs.storage.GetSignerType()
 	if err != nil {
 		return bs, errors.Wrap(err, "Unable to get signer type from DB")
 	}
@@ -47,11 +50,11 @@ func New() (*BaconSigner, error) {
 
 	switch bs.signerType {
 	case SIGNER_WALLET:
-		if err := InitWalletSigner(); err != nil {
+		if err := InitWalletSigner(db); err != nil {
 			return bs, errors.Wrap(err, "Cannot init wallet signer")
 		}
 	case SIGNER_LEDGER:
-		if err := InitLedgerSigner(); err != nil {
+		if err := InitLedgerSigner(db); err != nil {
 			return bs, errors.Wrap(err, "Cannot init ledger signer")
 		}
 	default:
@@ -77,7 +80,7 @@ func (s *BaconSigner) LoadDelegate(silent bool) error {
 
 	var err error
 
-	_, s.BakerPkh, err = storage.DB.GetDelegate()
+	_, s.BakerPkh, err = s.storage.GetDelegate()
 	if err != nil {
 		log.WithError(err).Error("Unable to load delegate from DB")
 		return err

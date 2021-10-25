@@ -132,3 +132,8 @@ svg.ledgerAlert {
 .row-bottom-border {
 	border-bottom: 1px solid black;
 }
+
+.row-top-border td {
+	border-top: 2px solid black;
+}
+

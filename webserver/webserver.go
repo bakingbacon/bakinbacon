@@ -18,7 +18,9 @@ import (
 	"github.com/pkg/errors"
 
 	"bakinbacon/baconclient"
-	"bakinbacon/util"
+	"bakinbacon/notifications"
+	"bakinbacon/payouts"
+	"bakinbacon/storage"
 )
 
 var (
@@ -40,20 +42,26 @@ type TemplateVars struct {
 
 type WebServer struct {
 	// Global vars for the webserver package
-	httpSvr     *http.Server
-	baconClient *baconclient.BaconClient
-	network     string
+	httpSvr             *http.Server
+	baconClient         *baconclient.BaconClient
+	notificationHandler *notifications.NotificationHandler
+	storage             *storage.Storage
 }
 
 type WebServerArgs struct {
-	Network         string
-	Client          *baconclient.BaconClient
+	Client              *baconclient.BaconClient
+	NotificationHandler *notifications.NotificationHandler
+	PayoutsHandler      *payouts.PayoutsHandler
+	Storage             *storage.Storage
+
 	BindAddr        string
 	BindPort        int
 	TemplateVars    TemplateVars
+
 	ShutdownChannel <-chan interface{}
 	WG              *sync.WaitGroup
 }
+
 
 func Start(args WebServerArgs) error {
 
@@ -62,8 +70,9 @@ func Start(args WebServerArgs) error {
 	}
 
 	ws := &WebServer{
-		baconClient: args.Client,
-		network:     args.Network,
+		baconClient:         args.Client,
+		notificationHandler: args.NotificationHandler,
+		storage:             args.Storage,
 	}
 
 	// Repoint web ui down one directory
@@ -102,6 +111,11 @@ func Start(args WebServerArgs) error {
 	settingsRouter.HandleFunc("/addendpoint", ws.addEndpoint).Methods("POST")
 	settingsRouter.HandleFunc("/listendpoints", ws.listEndpoints).Methods("GET")
 	settingsRouter.HandleFunc("/deleteendpoint", ws.deleteEndpoint).Methods("POST")
+
+	// Payouts tab
+	payoutsRouter := apiRouter.PathPrefix("/payouts").Subrouter()
+	payoutsRouter.HandleFunc("/list", ws.getPayouts).Methods("GET")
+	payoutsRouter.HandleFunc("/cycledetail", ws.getCyclePayouts).Methods("GET")
 
 	// Voting tab
 	votingRouter := apiRouter.PathPrefix("/voting").Subrouter()
@@ -179,10 +193,6 @@ func apiReturnOk(w http.ResponseWriter) {
 }
 
 func (a *WebServerArgs) Validate() error {
-
-	if !util.IsValidNetwork(a.Network) {
-		return errors.Errorf("Network is not recognized: %s", a.Network)
-	}
 
 	if a.Client == nil {
 		return errors.New("BaconClient is not instantiated")

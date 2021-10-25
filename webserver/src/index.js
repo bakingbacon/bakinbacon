@@ -13,6 +13,7 @@ import BakinDashboard from './dashboard.js'
 import DelegateRegister from './delegateregister.js'
 import Settings from './settings'
 import SetupWizard from './wizards'
+import Payouts from './payouts'
 import Voting from './voting.js'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
@@ -139,6 +140,9 @@ const Bakinbacon = () => {
 					</Tab>
 					<Tab eventKey="voting" title="Voting">
 						<Voting delegate={delegate} />
+					</Tab>
+					<Tab eventKey="payouts" title="Payouts">
+						<Payouts />
 					</Tab>
 				</Tabs>
 			  </Col>

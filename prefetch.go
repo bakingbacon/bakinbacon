@@ -6,49 +6,46 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bakingbacon/go-tezos/v4/rpc"
-
-	"bakinbacon/storage"
-	"bakinbacon/util"
 )
 
 // Update BaconStatus with the most recent information from DB. This
 // is done to initialize BaconStatus with values, otherwise status does
 // not update until next bake/endorse.
-func updateRecentBaconStatus() {
+func (bb *BakinBacon) updateRecentBaconStatus() {
 
 	// Update baconClient.Status with most recent endorsement
-	recentEndorsementLevel, recentEndorsementHash, err := storage.DB.GetRecentEndorsement()
+	recentEndorsementLevel, recentEndorsementHash, err := bb.Storage.GetRecentEndorsement()
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent endorsement")
 	}
 
-	bc.Status.SetRecentEndorsement(recentEndorsementLevel, getCycleFromLevel(recentEndorsementLevel), recentEndorsementHash)
+	bb.Status.SetRecentEndorsement(recentEndorsementLevel, bb.getCycleFromLevel(recentEndorsementLevel), recentEndorsementHash)
 
 	// Update baconClient.Status with most recent bake
-	recentBakeLevel, recentBakeHash, err := storage.DB.GetRecentBake()
+	recentBakeLevel, recentBakeHash, err := bb.Storage.GetRecentBake()
 	if err != nil {
 		log.WithError(err).Error("Unable to get recent bake")
 	}
 
-	bc.Status.SetRecentBake(recentBakeLevel, getCycleFromLevel(recentBakeLevel), recentBakeHash)
+	bb.Status.SetRecentBake(recentBakeLevel, bb.getCycleFromLevel(recentBakeLevel), recentBakeHash)
 }
 
 // Called on each new block; update BaconStatus with next opportunity for bakes/endorses
-func updateCycleRightsStatus(metadataLevel rpc.Level) {
+func (bb *BakinBacon) updateCycleRightsStatus(metadataLevel rpc.Level) {
 
 	nextCycle := metadataLevel.Cycle + 1
 
 	// Update our baconStatus with next endorsement level and next baking right.
 	// If this returns err, it means there was no bucket data which means
 	// we have never fetched current cycle rights and should do so asap
-	nextEndorsingLevel, highestFetchedCycle, err := storage.DB.GetNextEndorsingRight(metadataLevel.Level)
+	nextEndorsingLevel, highestFetchedCycle, err := bb.Storage.GetNextEndorsingRight(metadataLevel.Level)
 	if err != nil {
 		log.WithError(err).Error("GetNextEndorsingRight")
 	}
 
 	// Update BaconClient status, even if next level is 0 (none found)
-	nextEndorsingCycle := getCycleFromLevel(nextEndorsingLevel)
-	bc.Status.SetNextEndorsement(nextEndorsingLevel, nextEndorsingCycle)
+	nextEndorsingCycle := bb.getCycleFromLevel(nextEndorsingLevel)
+	bb.Status.SetNextEndorsement(nextEndorsingLevel, nextEndorsingCycle)
 
 	log.WithFields(log.Fields{
 		"Level": nextEndorsingLevel, "Cycle": nextEndorsingCycle,
@@ -60,26 +57,26 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Endorsing Rights")
 
-			go fetchEndorsingRights(metadataLevel, metadataLevel.Cycle)
+			go bb.fetchEndorsingRights(metadataLevel, metadataLevel.Cycle)
 
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Endorsing Rights")
 
-			go fetchEndorsingRights(metadataLevel, nextCycle)
+			go bb.fetchEndorsingRights(metadataLevel, nextCycle)
 		}
 	}
 
 	//
 	// Next baking right; similar logic to above
 	//
-	nextBakeLevel, nextBakePriority, highestFetchedCycle, err := storage.DB.GetNextBakingRight(metadataLevel.Level)
+	nextBakeLevel, nextBakePriority, highestFetchedCycle, err := bb.Storage.GetNextBakingRight(metadataLevel.Level)
 	if err != nil {
 		log.WithError(err).Error("GetNextEndorsingRight")
 	}
 
 	// Update BaconClient status, even if next level is 0 (none found)
-	nextBakeCycle := getCycleFromLevel(nextBakeLevel)
-	bc.Status.SetNextBake(nextBakeLevel, nextBakeCycle, nextBakePriority)
+	nextBakeCycle := bb.getCycleFromLevel(nextBakeLevel)
+	bb.Status.SetNextBake(nextBakeLevel, nextBakeCycle, nextBakePriority)
 
 	log.WithFields(log.Fields{
 		"Level": nextBakeLevel, "Cycle": nextBakeCycle, "Priority": nextBakePriority,
@@ -90,19 +87,19 @@ func updateCycleRightsStatus(metadataLevel rpc.Level) {
 		case highestFetchedCycle < metadataLevel.Cycle:
 			log.WithField("Cycle", metadataLevel.Cycle).Info("Fetch Cycle Baking Rights")
 
-			go fetchBakingRights(metadataLevel, metadataLevel.Cycle)
+			go bb.fetchBakingRights(metadataLevel, metadataLevel.Cycle)
 
 		case highestFetchedCycle < nextCycle:
 			log.WithField("Cycle", nextCycle).Info("Fetch Next Cycle Baking Rights")
 
-			go fetchBakingRights(metadataLevel, nextCycle)
+			go bb.fetchBakingRights(metadataLevel, nextCycle)
 		}
 	}
 }
 
 // Called on each new block; Only processes every 1024 blocks
 // Fetches the bake/endorse rights for the next cycle and stores to DB
-func prefetchCycleRights(metadataLevel rpc.Level) {
+func (bb *BakinBacon) prefetchCycleRights(metadataLevel rpc.Level) {
 
 	// We only prefetch every 1024 levels
 	if metadataLevel.Level % 1024 != 0 {
@@ -113,13 +110,13 @@ func prefetchCycleRights(metadataLevel rpc.Level) {
 
 	log.WithField("NextCycle", nextCycle).Info("Pre-fetching rights for next cycle")
 
-	go fetchEndorsingRights(metadataLevel, nextCycle)
-	go fetchBakingRights(metadataLevel, nextCycle)
+	go bb.fetchEndorsingRights(metadataLevel, nextCycle)
+	go bb.fetchBakingRights(metadataLevel, nextCycle)
 }
 
-func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
+func (bb *BakinBacon) fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
-	if bc.Signer.BakerPkh == "" {
+	if bb.Signer.BakerPkh == "" {
 		log.Error("Cannot fetch endorsing rights; No baker configured")
 		return
 	}
@@ -131,7 +128,7 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	// Instead, we make an insane number of fast RPCs to get rights
 	// per level for the reminder of this cycle, or for the next cycle.
 
-	blocksPerCycle := util.NetworkConstants[network].BlocksPerCycle
+	blocksPerCycle := bb.NetworkConstants.BlocksPerCycle
 
 	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
 	if err != nil {
@@ -151,10 +148,10 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 		endorsingRightsFilter := rpc.EndorsingRightsInput{
 			BlockID:  &rpc.BlockIDHead{},
 			Level:    level,
-			Delegate: bc.Signer.BakerPkh,
+			Delegate: bb.Signer.BakerPkh,
 		}
 
-		resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+		resp, endorsingRights, err := bb.Current.EndorsingRights(endorsingRightsFilter)
 		if err != nil {
 			log.WithError(err).WithFields(log.Fields{
 				"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -174,19 +171,19 @@ func fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	}).Debug("Prefetched Endorsing Rights")
 
 	// Save rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveEndorsingRightsForCycle(cycleToFetch, allEndorsingRights); err != nil {
+	if err := bb.Storage.SaveEndorsingRightsForCycle(cycleToFetch, allEndorsingRights); err != nil {
 		log.WithError(err).Error("Unable to save endorsing rights for cycle")
 	}
 }
 
-func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
+func (bb *BakinBacon) fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 
-	if bc.Signer.BakerPkh == "" {
+	if bb.Signer.BakerPkh == "" {
 		log.Error("Cannot fetch baking rights; No baker configured")
 		return
 	}
 
-	blocksPerCycle := util.NetworkConstants[network].BlocksPerCycle
+	blocksPerCycle := bb.NetworkConstants.BlocksPerCycle
 
 	levelToStart, levelToEnd, err := levelToStartEnd(metadataLevel, blocksPerCycle, cycleToFetch)
 	if err != nil {
@@ -202,10 +199,10 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 		bakingRightsFilter := rpc.BakingRightsInput{
 			BlockID:  &rpc.BlockIDHead{},
 			Level:    level,
-			Delegate: bc.Signer.BakerPkh,
+			Delegate: bb.Signer.BakerPkh,
 		}
 
-		resp, bakingRights, err := bc.Current.BakingRights(bakingRightsFilter)
+		resp, bakingRights, err := bb.Current.BakingRights(bakingRightsFilter)
 		if err != nil {
 			log.WithError(err).WithFields(log.Fields{
 				"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -226,7 +223,7 @@ func fetchBakingRights(metadataLevel rpc.Level, cycleToFetch int) {
 	}).Info("Prefetched Baking Rights")
 
 	// Save filtered rights to DB, even if len == 0 so that it is noted we queried this cycle
-	if err := storage.DB.SaveBakingRightsForCycle(cycleToFetch, allBakingRights); err != nil {
+	if err := bb.Storage.SaveBakingRightsForCycle(cycleToFetch, allBakingRights); err != nil {
 		log.WithError(err).Error("Unable to save baking rights for cycle")
 	}
 }
@@ -257,17 +254,17 @@ func levelToStartEnd(metadataLevel rpc.Level, blocksPerCycle, cycleToFetch int) 
 	return levelToStart, levelToEnd, nil
 }
 
-func getCycleFromLevel(l int) int {
+func (bb *BakinBacon) getCycleFromLevel(l int) int {
 
-	gal := util.NetworkConstants[network].GranadaActivationLevel
-	gac := util.NetworkConstants[network].GranadaActivationCycle
+	gal := bb.NetworkConstants.GranadaActivationLevel
+	gac := bb.NetworkConstants.GranadaActivationCycle
 
 	// If level is before Granada activation, calculation is simple
 	if l <= gal {
-		return int(l / util.NetworkConstants[network].BlocksPerCycle)
+		return int(l / bb.NetworkConstants.BlocksPerCycle)
 	}
 
 	// If level is after Granada activation, must take in to account the
 	// change in number of blocks per cycle
-	return int(((l - gal) / util.NetworkConstants[network].BlocksPerCycle) + gac)
+	return int(((l - gal) / bb.NetworkConstants.BlocksPerCycle) + gac)
 }

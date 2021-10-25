@@ -10,18 +10,21 @@ import (
 )
 
 type WalletSigner struct {
-	sk     string
-	Pkh    string
-	wallet *gtks.Key
+	sk      string
+	pkh     string
+	wallet  *gtks.Key
+	storage *storage.Storage
 }
 
 var W *WalletSigner
 
-func InitWalletSigner() error {
+func InitWalletSigner(db *storage.Storage) error {
 
-	W = &WalletSigner{}
+	W = &WalletSigner{
+		storage: db,
+	}
 
-	walletSk, err := storage.DB.GetSignerSk()
+	walletSk, err := W.storage.GetSignerSk()
 	if err != nil {
 		return errors.Wrap(err, "Unable to get signer sk from DB")
 	}
@@ -37,10 +40,10 @@ func InitWalletSigner() error {
 	}
 
 	W.wallet = wallet
-	W.Pkh = wallet.PubKey.GetAddress()
+	W.pkh = wallet.PubKey.GetAddress()
 
 	log.WithFields(log.Fields{
-		"Baker": W.Pkh, "PublicKey": W.wallet.PubKey.GetPublicKey(),
+		"Baker": W.pkh, "PublicKey": W.wallet.PubKey.GetPublicKey(),
 	}).Info("Loaded software wallet")
 
 	return nil
@@ -59,13 +62,13 @@ func GenerateNewKey() (string, string, error) {
 
 	W.wallet = newKey
 	W.sk = newKey.GetSecretKey()
-	W.Pkh = newKey.PubKey.GetAddress()
+	W.pkh = newKey.PubKey.GetAddress()
 
 	if err := W.SaveSigner(); err != nil {
 		return "", "", errors.Wrap(err, "Could not save generated key")
 	}
 
-	return W.sk, W.Pkh, nil
+	return W.sk, W.pkh, nil
 }
 
 // ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
@@ -81,23 +84,23 @@ func ImportSecretKey(iEdsk string) (string, string, error) {
 
 	W.wallet = importKey
 	W.sk = iEdsk
-	W.Pkh = importKey.PubKey.GetAddress()
+	W.pkh = importKey.PubKey.GetAddress()
 
 	if err := W.SaveSigner(); err != nil {
 		return "", "", errors.Wrap(err, "Could not save imported key")
 	}
 
-	return W.sk, W.Pkh, nil
+	return W.sk, W.pkh, nil
 }
 
 // Saves Sk/Pkh to DB
 func (s *WalletSigner) SaveSigner() error {
 
-	if err := storage.DB.SetDelegate(s.sk, s.Pkh); err != nil {
+	if err := s.storage.SetDelegate(s.sk, s.pkh); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
-	if err := storage.DB.SetSignerType(SIGNER_WALLET); err != nil {
+	if err := s.storage.SetSignerType(SIGNER_WALLET); err != nil {
 		return errors.Wrap(err, "Unable to save key/wallet")
 	}
 
@@ -116,5 +119,5 @@ func (s *WalletSigner) SignBytes(opBytes []byte) (string, error) {
 }
 
 func (s *WalletSigner) GetPublicKey() (string, string, error) {
-	return s.wallet.PubKey.GetPublicKey(), s.Pkh, nil
+	return s.wallet.PubKey.GetPublicKey(), s.pkh, nil
 }

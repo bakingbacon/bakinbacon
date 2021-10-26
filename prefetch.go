@@ -143,7 +143,12 @@ func (bb *BakinBacon) fetchEndorsingRights(metadataLevel rpc.Level, cycleToFetch
 	// Range from start to end, fetch rights per level
 	for level := levelToStart; level < levelToEnd; level++ {
 
-		log.WithField("L", level).Trace("Fetching endorsing rights")
+		// Chill on logging
+		if level % 256 == 0 {
+			log.WithFields(log.Fields{
+				"S": levelToStart, "L": level, "E": levelToEnd,
+			}).Trace("Fetched endorsing rights")
+		}
 
 		endorsingRightsFilter := rpc.EndorsingRightsInput{
 			BlockID:  &rpc.BlockIDHead{},

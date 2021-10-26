@@ -113,7 +113,6 @@ func main() {
 
 	// Args for web server
 	webServerArgs := webserver.WebServerArgs{
-		BakinBacon:          bakinbacon,
 		Client:              bakinbacon.BaconClient,
 		NotificationHandler: bakinbacon.NotificationHandler,
 		Storage:             bakinbacon.Storage,
@@ -174,7 +173,7 @@ func main() {
 			go bakinbacon.handleBake(ctx, &wg, *block)
 
 			wg.Add(1)
-			go bakinbacon.handlePayouts(ctx, &wg, *block)
+			go bakinbacon.PayoutsHandler.HandlePayouts(ctx, &wg, *block)
 
 			//
 			// Utility

@@ -2,6 +2,7 @@ package payouts
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"strconv"
 	"sync"
@@ -38,7 +39,7 @@ func NewPayoutsHandler(bc *baconclient.BaconClient, db *storage.Storage, nc *uti
 
 // HandlePayouts At the beginning of each cycle, collect information about the baker's delegators and calculate
 // how much is owed to each based on the baker's fee and % share of each delegator in the overall staking balance
-func (p *PayoutsHandler) handlePayouts(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -143,7 +144,7 @@ func (p *PayoutsHandler) handlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		return
 	}
 
-	cycleRewardMetadata := &payouts.CycleRewardMetadata{
+	cycleRewardMetadata := &CycleRewardMetadata{
 		PayoutCycle: payoutCycle,
 		LevelOfPayoutCycle: firstLevelPayoutCycle,
 		SnapshotIndex: chosenSnapshotIndex,
@@ -157,8 +158,15 @@ func (p *PayoutsHandler) handlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		FeeRewards: feeRewards,
 	}
 
+	// Marshal cycle reward metadata
+	cycleRewardMetadataBytes, err := json.Marshal(cycleRewardMetadata)
+	if err != nil {
+		log.WithError(err).Error("Unable to marshal cycle reward metadata")
+		return
+	}
+
 	// Save to DB
-	if err := p.storage.SaveCycleRewardMetadata(payoutCycle, cycleRewardMetadata); err != nil {
+	if err := p.storage.SaveCycleRewardMetadata(payoutCycle, cycleRewardMetadataBytes); err != nil {
 		log.WithError(err).Error("Cannot save rewards metadata to DB")
 		return
 	}
@@ -177,7 +185,7 @@ func (p *PayoutsHandler) handlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		}
 
 		// Reward record
-		reward := &payouts.DelegatorReward{
+		rewardRecord := &DelegatorReward{
 			Delegator: delegatorAddress,
 		}
 
@@ -201,26 +209,33 @@ func (p *PayoutsHandler) handlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 			log.WithError(err).Error("Cannot parse delegator balance.")
 			return
 		}
-		reward.Balance = delegatorBalance
+		rewardRecord.Balance = delegatorBalance
 
 		// There's a lot of int/float business going on here. This is golang issues around
 		// division and multiplication along with attempts to keep monetary calculations
 		// based in mutez (int)
 
 		// Calculate delegator share %, rounded to 6 decimal places
-		reward.SharePct = math.Round((float64(delegatorBalance) / stakeBalance64) * 1000000) / 1000000
+		rewardRecord.SharePct = math.Round((float64(delegatorBalance) / stakeBalance64) * 1000000) / 1000000
 
 		// Calculate delegator share of the rewards in mutez
-		rewardShareRevenue := int(totalBakerRewards * reward.SharePct)
+		rewardShareRevenue := int(totalBakerRewards * rewardRecord.SharePct)
 
 		// Subtract baker fee
-		reward.Reward = int(float64(rewardShareRevenue) * bakerFeePct)
+		rewardRecord.Reward = int(float64(rewardShareRevenue) * bakerFeePct)
 
 		log.Infof("Delegator Rewards: D: %s, Bal: %d, SharePct: %.6f, RewardShareRev: %d, RewardShareNet: %.6f",
-			reward.Delegator, reward.Balance, reward.SharePct, rewardShareRevenue, float64(reward.Reward)/1e6)
+			rewardRecord.Delegator, rewardRecord.Balance, rewardRecord.SharePct, rewardShareRevenue, float64(rewardRecord.Reward)/1e6)
+
+		// Marshal reward
+		rewardRecordBytes, err := json.Marshal(rewardRecord)
+		if err != nil {
+			log.WithError(err).Error("Unable to marshal reward record")
+			return
+		}
 
 		// Save reward record to DB
-		if err := p.storage.SaveDelegatorReward(payoutCycle, reward); err != nil {
+		if err := p.storage.SaveDelegatorReward(payoutCycle, rewardRecord.Delegator, rewardRecordBytes); err != nil {
 			log.WithError(err).Error("Unable to save delegator reward to DB. Aborting payouts.")
 			return
 		}
@@ -269,7 +284,7 @@ func (p *PayoutsHandler) getUnfrozenRewards(bakerAddress string, rewardCycle int
 	return unfrozenRewards, unfrozenFees, nil
 }
 
-func (p *PayoutsHandler) sendPayouts(rewardCycle int) error {
+func (p *PayoutsHandler) SendCyclePayouts(rewardCycle int) error {
 
 	log.Info("Payouts sent")
 	p.notifications.SendNotification("Payouts sent", notifications.PAYOUTS)

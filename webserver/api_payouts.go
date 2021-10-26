@@ -66,5 +66,28 @@ func (ws *WebServer) sendCyclePayouts(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - sendCyclePayouts")
 
+	// Get query parameter
+	k := make(map[string]int)
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
+		apiError(errors.Wrap(err, "Cannot decode body for sendCyclePayouts"), w)
+
+		return
+	}
+
+	payoutsCycle, ok := k["cycle"]
+	if !ok {
+		apiError(errors.New("missing cycle parameter for sending payouts"), w)
+
+		return
+	}
+
+	// Execute the payouts process
+	if err := ws.payoutsHandler.SendCyclePayouts(payoutsCycle); err != nil {
+		log.WithError(err).Error("Unable send cycle payouts")
+		apiError(errors.Wrap(err, "Unable send cycle payouts"), w)
+
+		return
+	}
+
 	apiReturnOk(w)
 }

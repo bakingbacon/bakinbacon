@@ -45,6 +45,7 @@ type WebServer struct {
 	httpSvr             *http.Server
 	baconClient         *baconclient.BaconClient
 	notificationHandler *notifications.NotificationHandler
+	payoutsHandler      *payouts.PayoutsHandler
 	storage             *storage.Storage
 }
 
@@ -72,6 +73,7 @@ func Start(args WebServerArgs) error {
 	ws := &WebServer{
 		baconClient:         args.Client,
 		notificationHandler: args.NotificationHandler,
+		payoutsHandler:      args.PayoutsHandler,
 		storage:             args.Storage,
 	}
 
@@ -116,6 +118,7 @@ func Start(args WebServerArgs) error {
 	payoutsRouter := apiRouter.PathPrefix("/payouts").Subrouter()
 	payoutsRouter.HandleFunc("/list", ws.getPayouts).Methods("GET")
 	payoutsRouter.HandleFunc("/cycledetail", ws.getCyclePayouts).Methods("GET")
+	payoutsRouter.HandleFunc("/sendpayouts", ws.sendCyclePayouts).Methods("POST")
 
 	// Voting tab
 	votingRouter := apiRouter.PathPrefix("/voting").Subrouter()

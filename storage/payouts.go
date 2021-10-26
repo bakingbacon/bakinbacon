@@ -6,8 +6,6 @@ import (
 	"github.com/pkg/errors"
 
 	bolt "go.etcd.io/bbolt"
-
-	"bakinbacon/payouts"
 )
 
 const (
@@ -80,13 +78,7 @@ func (s *Storage) GetCyclePayouts(cycle int) (map[string]json.RawMessage, error)
 	return cyclePayouts, err
 }
 
-func (s *Storage) SaveCycleRewardMetadata(rewardCycle int, metadata *payouts.CycleRewardMetadata) error {
-
-	// Marshal metadata to JSON and store in 'metadata' key
-	metadataBytes, err := json.Marshal(metadata)
-	if err != nil {
-		return errors.Wrap(err, "Unable to marshal rewards metadata")
-	}
+func (s *Storage) SaveCycleRewardMetadata(rewardCycle int, metadataBytes []byte) error {
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.Bucket([]byte(PAYOUTS_BUCKET)).CreateBucketIfNotExists(itob(rewardCycle))
@@ -98,13 +90,7 @@ func (s *Storage) SaveCycleRewardMetadata(rewardCycle int, metadata *payouts.Cyc
 	})
 }
 
-func (s *Storage) SaveDelegatorReward(rewardCycle int, rewardRecord *payouts.DelegatorReward) error {
-
-	// Marshal reward
-	rewardRecordBytes, err := json.Marshal(rewardRecord)
-	if err != nil {
-		return errors.Wrap(err, "Unable to marshal reward record")
-	}
+func (s *Storage) SaveDelegatorReward(rewardCycle int, delegator string, rewardRecordBytes []byte) error {
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(PAYOUTS_BUCKET)).Bucket(itob(rewardCycle))
@@ -114,7 +100,7 @@ func (s *Storage) SaveDelegatorReward(rewardCycle int, rewardRecord *payouts.Del
 
 		// Store the record as the value of the record address (key)
 		// This will allow for easier scanning/searching for a payment record
-		return b.Put([]byte(rewardRecord.Delegator), rewardRecordBytes)
+		return b.Put([]byte(delegator), rewardRecordBytes)
 	})
 }
 

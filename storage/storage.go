@@ -20,19 +20,18 @@ const (
 	RIGHTS_BUCKET        = "rights"
 	ENDPOINTS_BUCKET     = "endpoints"
 	NOTIFICATIONS_BUCKET = "notifs"
+	PAYOUTS_BUCKET       = "payouts"
 )
 
 type Storage struct {
 	db *bolt.DB
 }
 
-var DB Storage
-
-func InitStorage(dataDir, network string) error {
+func InitStorage(dataDir, network string) (*Storage, error) {
 
 	db, err := bolt.Open(dataDir+DATABASE_FILE, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return errors.Wrap(err, "Failed to init db")
+		return nil, errors.Wrap(err, "Failed to init db")
 	}
 
 	// Ensure some buckets exist, and migrations
@@ -72,24 +71,28 @@ func InitStorage(dataDir, network string) error {
 			return errors.Wrap(err, "Cannot create rights bucket")
 		}
 
+		if _, err := tx.CreateBucketIfNotExists([]byte(PAYOUTS_BUCKET)); err != nil {
+			return errors.Wrap(err, "Cannot create payouts bucket")
+		}
+
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// set variable so main program can access
-	DB = Storage{
+	storage := &Storage{
 		db: db,
 	}
 
 	// Add the default endpoints only on brand new setup
-	if err := DB.AddDefaultEndpoints(network); err != nil {
+	if err := storage.AddDefaultEndpoints(network); err != nil {
 		log.WithError(err).Error("Could not add default endpoints")
-		return errors.Wrap(err, "Could not add default endpoints")
+		return nil, errors.Wrap(err, "Could not add default endpoints")
 	}
 
-	return nil
+	return storage, err
 }
 
 func (s *Storage) Close() {
@@ -99,10 +102,8 @@ func (s *Storage) Close() {
 
 // itob returns an 8-byte big endian representation of v.
 func itob(v int) []byte {
-
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(v))
-
 	return b
 }
 

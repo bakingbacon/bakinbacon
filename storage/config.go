@@ -226,15 +226,15 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 		// Statically add BakinBacon's RPC endpoints
 		switch network {
 		case util.NETWORK_MAINNET:
-			_, _ = DB.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
-			_, _ = DB.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://mainnet-us.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://mainnet-eu.rpc.bakinbacon.io")
 
 		case util.NETWORK_GRANADANET:
-			_, _ = DB.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
-			_, _ = DB.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://granadanet-us.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://granadanet-eu.rpc.bakinbacon.io")
 
 		case util.NETWORK_HANGZHOUNET:
-			_, _ = DB.AddRPCEndpoint("http://hangzhounet-us.rpc.bakinbacon.io")
+			_, _ = s.AddRPCEndpoint("http://hangzhounet-us.rpc.bakinbacon.io")
 
 		default:
 			return errors.New("Unknown network for storage")

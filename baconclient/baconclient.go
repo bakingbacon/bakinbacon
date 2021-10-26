@@ -15,6 +15,7 @@ import (
 	"bakinbacon/baconsigner"
 	"bakinbacon/notifications"
 	"bakinbacon/storage"
+	"bakinbacon/util"
 )
 
 const (
@@ -29,10 +30,11 @@ type BaconSlice struct {
 }
 
 type BaconClient struct {
-	NewBlockNotifier chan *rpc.Block
-
-	Current    *BaconSlice
-	rpcClients []*BaconSlice
+	NewBlockNotifier    chan *rpc.Block
+	NotificationHandler *notifications.NotificationHandler
+	Storage             *storage.Storage
+	Current             *BaconSlice
+	rpcClients          []*BaconSlice
 
 	Status *BaconStatus
 	Signer *baconsigner.BaconSigner
@@ -44,27 +46,29 @@ type BaconClient struct {
 	waitGroup         *sync.WaitGroup
 }
 
-func New(tbb int, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
+func New(nh *notifications.NotificationHandler, db *storage.Storage, nc *util.NetworkConstants, shutdown chan interface{}, wg *sync.WaitGroup) (*BaconClient, error) {
 
 	// Make new client manager
 	newBaconClient := &BaconClient{
-		NewBlockNotifier:  make(chan *rpc.Block, 1),
-		rpcClients:        make([]*BaconSlice, 0),
-		Status:            &BaconStatus{},
-		timeBetweenBlocks: tbb,
-		globalShutdown:    shutdown,
-		waitGroup:         wg,
+		NewBlockNotifier:    make(chan *rpc.Block, 1),
+		NotificationHandler: nh,
+		Storage:             db,
+		rpcClients:          make([]*BaconSlice, 0),
+		Status:              &BaconStatus{},
+		timeBetweenBlocks:   nc.TimeBetweenBlocks,
+		globalShutdown:      shutdown,
+		waitGroup:           wg,
 	}
 
 	// Init bacon signer
-	signer, err := baconsigner.New()
+	signer, err := baconsigner.New(db)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot init bacon signer")
 	}
 	newBaconClient.Signer = signer
 
 	// Pull endpoints from storage
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := db.GetRPCEndpoints()
 	if err != nil {
 		log.WithError(err).Error("Unable to get endpoints")
 		return nil, errors.Wrap(err, "Failed DB.GetRPCEndpoints")
@@ -119,7 +123,7 @@ func (b *BaconClient) Shutdown() {
 
 func (b *BaconClient) ShutdownRpc(rpcId int) error {
 
-	newClients := make([]*BaconSlice, 0)
+	var newClients []*BaconSlice
 
 	// Iterate through list of rpc clients (BaconSlices) and find matching id
 	for _, bslice := range b.rpcClients {
@@ -237,7 +241,7 @@ func (b *BaconClient) CanBake(silentChecks bool) bool {
 	if err := b.Signer.SignerStatus(silentChecks); err != nil {
 		b.Status.SetState(NO_SIGNER)
 		b.Status.SetError(err)
-		notifications.N.Send(err.Error(), notifications.SIGNER)
+		b.NotificationHandler.SendNotification(err.Error(), notifications.SIGNER)
 		log.WithError(err).Error("Checking signer status")
 		return false
 	}
@@ -315,9 +319,12 @@ func (b *BaconClient) CheckDelegateBalance() error {
 
 	resp, delegateBalance, err := b.Current.DelegateBalance(dbi)
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Trace("Fetching delegate balance")
+	// If there is a response, trace log
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Trace("Fetching delegate balance")
+	}
 
 	if err != nil {
 		return errors.Wrap(err, "Unable to fetch delegate balance")
@@ -378,9 +385,11 @@ func (b *BaconClient) IsRevealed() (bool, error) {
 
 	resp, manager, err := b.Current.ContractManagerKey(cmki)
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()), "Manager": manager,
-	}).Debug("Fetching manager key")
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()), "Manager": manager,
+		}).Debug("Fetching manager key")
+	}
 
 	if err != nil {
 		return false, errors.Wrap(err, "Unable to fetch manager key")
@@ -414,9 +423,11 @@ func (b *BaconClient) RegisterBaker() (string, error) {
 		ContractID: pkh,
 	})
 
-	log.WithFields(log.Fields{
-		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Debug("Fetching contract metadata")
+	if resp != nil {
+		log.WithFields(log.Fields{
+			"Request": resp.Request.URL, "Response": string(resp.Body()),
+		}).Debug("Fetching contract metadata")
+	}
 
 	if err != nil {
 		return "", errors.Wrap(err, "Unable to fetch contract metadata")

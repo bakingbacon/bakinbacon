@@ -5,6 +5,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	log "github.com/sirupsen/logrus"
+
 	"bakinbacon/storage"
 )
 
@@ -14,14 +16,16 @@ type NotifyEmail struct {
 	Smtp_host string `json:"smtphost"`
 	Smtp_port int    `json:"smtpport"`
 	Enabled   bool   `json:"enabled"`
+
+	storage   *storage.Storage
 }
 
-func NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
+func (n *NotificationHandler) NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
 
-	ne := &NotifyEmail{}
-	ne.Enabled = true
-
-	return ne, nil
+	return &NotifyEmail{
+		Enabled: true,
+		storage: n.storage,
+	}, nil
 }
 
 func (n *NotifyEmail) IsEnabled() bool {
@@ -30,6 +34,8 @@ func (n *NotifyEmail) IsEnabled() bool {
 
 func (n *NotifyEmail) Send(msg string) {
 	// TODO Not implemented yet
+	log.Warn("Email notifications not yet implemented")
+
 }
 
 func (n *NotifyEmail) SaveConfig() error {
@@ -40,7 +46,7 @@ func (n *NotifyEmail) SaveConfig() error {
 		return errors.Wrap(err, "Unable to marshal email config")
 	}
 
-	if err := storage.DB.SaveNotifiersConfig("email", config); err != nil {
+	if err := n.storage.SaveNotifiersConfig(EMAIL, config); err != nil {
 		return errors.Wrap(err, "Unable to save email config")
 	}
 

@@ -8,9 +8,6 @@ import (
 	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
-
-	"bakinbacon/notifications"
-	"bakinbacon/storage"
 )
 
 func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
@@ -27,14 +24,14 @@ func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send string to configure for JSON unmarshaling; make sure to save config to db
-	if err := notifications.N.Configure("telegram", body, true); err != nil {
+	if err := ws.notificationHandler.Configure("telegram", body, true); err != nil {
 		log.WithError(err).Error("API SaveTelegram")
 		apiError(errors.Wrap(err, "Failed to configure telegram"), w)
 
 		return
 	}
 
-	if err := notifications.N.TestSend("telegram", "Test message from BakinBacon"); err != nil {
+	if err := ws.notificationHandler.TestSend("telegram", "Test message from BakinBacon"); err != nil {
 		log.WithError(err).Error("API SaveTelegram")
 		apiError(errors.Wrap(err, "Failed to execute telegram test"), w)
 
@@ -53,7 +50,7 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - GetSettings")
 
 	// Get RPC endpoints
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
 
@@ -62,7 +59,7 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	log.WithField("Endpoints", endpoints).Debug("API Settings Endpoints")
 
 	// Get Notification settings
-	notifications, err := notifications.N.GetConfig() // Returns json.RawMessage
+	notifications, err := ws.notificationHandler.GetConfig() // Returns json.RawMessage
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
 
@@ -93,7 +90,7 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save new RPC to db to get id
-	id, err := storage.DB.AddRPCEndpoint(k["rpc"])
+	id, err := ws.storage.AddRPCEndpoint(k["rpc"])
 	if err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API AddEndpoint")
 		apiError(errors.Wrap(err, "Cannot add endpoint to DB"), w)
@@ -113,7 +110,7 @@ func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - ListEndpoints")
 
-	endpoints, err := storage.DB.GetRPCEndpoints()
+	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
 
@@ -150,7 +147,7 @@ func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Then delete from storage
-	if err := storage.DB.DeleteRPCEndpoint(k["rpc"]); err != nil {
+	if err := ws.storage.DeleteRPCEndpoint(k["rpc"]); err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API DeleteEndpoint")
 		apiError(errors.Wrap(err, "Cannot delete endpoint from DB"), w)
 

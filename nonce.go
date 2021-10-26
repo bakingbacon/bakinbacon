@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"sync"
@@ -69,25 +70,33 @@ func (bb *BakinBacon) revealNonces(ctx context.Context, wg *sync.WaitGroup, bloc
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
 
-	nonces, err := bb.GetNoncesForCycle(previousCycle)
+	// Returns []json.RawMessage...
+	noncesRawBytes, err := bb.GetNoncesForCycle(previousCycle)
 	if err != nil {
 		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
 		return
 	}
 
-	// Filter out nonces which have been revealed
-	var unrevealedNonces []nonce.Nonce
+	// ...need to unmarshal
+	unrevealedNonces := make([]nonce.Nonce, 0)
+	for _, b := range noncesRawBytes {
 
-	for _, n := range nonces {
-		if n.RevealOp != "" {
+		var tmpNonce nonce.Nonce
+		if err := json.Unmarshal(b, &tmpNonce); err != nil {
+			log.WithError(err).Error("Unable to unmarshal nonce")
+			continue
+		}
+
+		// Filter out nonces which have been revealed
+		if tmpNonce.RevealOp != "" {
 			log.WithFields(log.Fields{
-				"Level": n.Level, "RevealedOp": n.RevealOp,
+				"Level": tmpNonce.Level, "RevealedOp": tmpNonce.RevealOp,
 			}).Debug("Nonce already revealed")
 
 			continue
 		}
 
-		unrevealedNonces = append(unrevealedNonces, n)
+		unrevealedNonces = append(unrevealedNonces, tmpNonce)
 	}
 
 	// Any unrevealed nonces?
@@ -203,7 +212,15 @@ func (bb *BakinBacon) revealNonces(ctx context.Context, wg *sync.WaitGroup, bloc
 
 		// Update DB with hash of reveal operation
 		nonce.RevealOp = revealOpHash
-		if err := bb.SaveNonce(previousCycle, nonce); err != nil {
+
+		// Marshal for DB
+		nonceBytes, err := json.Marshal(nonce)
+		if err != nil {
+			log.WithError(err).Error("Unable to marshal nonce")
+			continue
+		}
+
+		if err := bb.SaveNonce(previousCycle, nonce.Level, nonceBytes); err != nil {
 			log.WithError(err).Error("Unable to save nonce reveal to DB")
 		}
 	}

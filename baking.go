@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -197,19 +198,19 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 	// Determine if we need to calculate a nonce
 	// It is our responsibility to create a nonce on specific levels (usually level % 32),
 	// then reveal the seed used to create the nonce in the next cycle.
-	var n nonce.Nonce
+	var nonce nonce.Nonce
 	if nextLevelToBake % blocksPerCommitment == 0 {
 
-		n, err = bb.generateNonce()
+		nonce, err = bb.generateNonce()
 		if err != nil {
 			log.WithError(err)
 		}
 
 		log.WithFields(log.Fields{
-			"Nonce": n.EncodedNonce, "Seed": n.Seed,
+			"Nonce": nonce.EncodedNonce, "Seed": nonce.Seed,
 		}).Info("Nonce required at this level")
 
-		n.Level = nextLevelToBake
+		nonce.Level = nextLevelToBake
 	}
 
 	// Retrieve mempool operations
@@ -330,7 +331,7 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 		Protocol:            block.Protocol,
 		Priority:            priority,
 		ProofOfWorkNonce:    "0000000000000000",
-		SeedNonceHash:       n.EncodedNonce,
+		SeedNonceHash:       nonce.EncodedNonce,
 		LiquidityEscapeVote: false,
 		Signature:           "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
 	}
@@ -369,7 +370,7 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 	shellHeader := preapplyBlockResp.ShellHeader
 
 	// Protocol data (commit hash, proof-of-work nonce, seed, liquidity vote)
-	protocolData := createProtocolData(priority, n.NoPrefixNonce)
+	protocolData := createProtocolData(priority, nonce.NoPrefixNonce)
 	log.WithField("ProtocolData", protocolData).Debug("Generated Protocol Data")
 
 	// Forge the block header using RPC
@@ -506,11 +507,20 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 
 	// Save nonce to DB for reveal in next cycle
 	withNonce := ""
-	if n.EncodedNonce != "" {
-		if err := bb.Storage.SaveNonce(block.Metadata.Level.Cycle, n); err != nil {
-			log.WithError(err).Error("Unable to save nonce for reveal")
-		}
+	if nonce.EncodedNonce != "" {
+
 		withNonce = ", with nonce"
+
+		// Marshal for DB
+		nonceBytes, err := json.Marshal(nonce)
+		if err != nil {
+			log.WithError(err).Error("Unable to marshal nonce")
+		} else {
+
+			if err := bb.Storage.SaveNonce(block.Metadata.Level.Cycle, nonce.Level, nonceBytes); err != nil {
+				log.WithError(err).Error("Unable to save nonce for reveal")
+			}
+		}
 	}
 
 	// Update status for UI

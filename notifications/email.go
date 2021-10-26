@@ -17,7 +17,7 @@ type NotifyEmail struct {
 	Smtp_port int    `json:"smtpport"`
 	Enabled   bool   `json:"enabled"`
 
-	storage   *storage.Storage
+	storage *storage.Storage
 }
 
 func (n *NotificationHandler) NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {

@@ -103,4 +103,3 @@ func (s *Storage) SaveDelegatorReward(rewardCycle int, delegator string, rewardR
 		return b.Put([]byte(delegator), rewardRecordBytes)
 	})
 }
-

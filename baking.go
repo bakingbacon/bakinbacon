@@ -23,14 +23,14 @@ import (
 )
 
 const (
-	PROTOCOL_BB10     string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
+	PROTOCOL_BB10 string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
 
 	MAX_BAKE_PRIORITY int = 4
 	PRIORITY_LENGTH   int = 2
 	POW_HEADER_LENGTH int = 4
 	POW_LENGTH        int = 4
 
-	MUTEZ             float64 = 1000000
+	MUTEZ float64 = 1000000
 )
 
 func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {

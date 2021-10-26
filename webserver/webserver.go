@@ -55,14 +55,13 @@ type WebServerArgs struct {
 	PayoutsHandler      *payouts.PayoutsHandler
 	Storage             *storage.Storage
 
-	BindAddr        string
-	BindPort        int
-	TemplateVars    TemplateVars
+	BindAddr     string
+	BindPort     int
+	TemplateVars TemplateVars
 
 	ShutdownChannel <-chan interface{}
 	WG              *sync.WaitGroup
 }
-
 
 func Start(args WebServerArgs) error {
 

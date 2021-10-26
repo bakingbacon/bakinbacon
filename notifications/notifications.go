@@ -21,6 +21,7 @@ const (
 	ENDORSE_FAIL
 	VERSION
 	NONCE
+	PAYOUTS
 
 	TELEGRAM = "telegram"
 	EMAIL    = "email"
@@ -34,27 +35,28 @@ type Notifier interface {
 type NotificationHandler struct {
 	notifiers        map[string]Notifier
 	lastSentCategory map[Category]time.Time
+	storage          *storage.Storage
 }
 
-var N *NotificationHandler
+func NewHandler(db *storage.Storage) (*NotificationHandler, error) {
 
-func New() error {
-
-	N = &NotificationHandler{}
-	N.notifiers = make(map[string]Notifier)
-	N.lastSentCategory = make(map[Category]time.Time)
-
-	if err := N.LoadNotifiers(); err != nil {
-		return errors.Wrap(err, "Failed to instantiate notification handler")
+	n := &NotificationHandler{
+		notifiers:        make(map[string]Notifier),
+		lastSentCategory: make(map[Category]time.Time),
+		storage:          db,
 	}
 
-	return nil
+	if err := n.LoadNotifiers(); err != nil {
+		return nil, errors.Wrap(err, "Failed to instantiate notification handler")
+	}
+
+	return n, nil
 }
 
 func (n *NotificationHandler) LoadNotifiers() error {
 
 	// Get telegram notifications config from DB, as []byte string
-	telegramConfig, err := storage.DB.GetNotifiersConfig(TELEGRAM)
+	telegramConfig, err := n.storage.GetNotifiersConfig(TELEGRAM)
 	if err != nil {
 		return errors.Wrap(err, "Unable to load telegram config")
 	}
@@ -65,7 +67,7 @@ func (n *NotificationHandler) LoadNotifiers() error {
 	}
 
 	// Get email notifications config from DB
-	emailConfig, err := storage.DB.GetNotifiersConfig(EMAIL)
+	emailConfig, err := n.storage.GetNotifiersConfig(EMAIL)
 	if err != nil {
 		return errors.Wrap(err, "Unable to load email config")
 	}
@@ -82,14 +84,14 @@ func (n *NotificationHandler) Configure(notifier string, config []byte, saveConf
 
 	switch notifier {
 	case TELEGRAM:
-		nt, err := NewTelegram(config, saveConfig)
+		nt, err := n.NewTelegram(config, saveConfig)
 		if err != nil {
 			return err
 		}
 		n.notifiers[TELEGRAM] = nt
 
 	case EMAIL:
-		ne, err := NewEmail(config, saveConfig)
+		ne, err := n.NewEmail(config, saveConfig)
 		if err != nil {
 			return err
 		}
@@ -102,7 +104,7 @@ func (n *NotificationHandler) Configure(notifier string, config []byte, saveConf
 	return nil
 }
 
-func (n *NotificationHandler) Send(message string, category Category) {
+func (n *NotificationHandler) SendNotification(message string, category Category) {
 
 	// Check that we haven't sent a message from this category
 	// within the past 10 minutes

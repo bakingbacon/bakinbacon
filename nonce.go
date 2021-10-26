@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"sync"
@@ -15,13 +16,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/nonce"
-	"bakinbacon/storage"
 	"bakinbacon/util"
 )
 
 var previouslyInjectedErr = regexp.MustCompile(`while applying operation (o[a-zA-Z0-9]{50}).*previously revealed`)
 
-func generateNonce() (nonce.Nonce, error) {
+func (bb *BakinBacon) generateNonce() (nonce.Nonce, error) {
 
 	// Generate a 64 char hexadecimal seed from random 32 bytes
 	randBytes := make([]byte, 32)
@@ -49,7 +49,7 @@ func generateNonce() (nonce.Nonce, error) {
 	return n, nil
 }
 
-func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (bb *BakinBacon) revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -70,25 +70,33 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 	// Get nonces for previous cycle from DB
 	previousCycle := block.Metadata.Level.Cycle - 1
 
-	nonces, err := storage.DB.GetNoncesForCycle(previousCycle)
+	// Returns []json.RawMessage...
+	noncesRawBytes, err := bb.GetNoncesForCycle(previousCycle)
 	if err != nil {
 		log.WithError(err).WithField("Cycle", previousCycle).Warn("Unable to get nonces from DB")
 		return
 	}
 
-	// Filter out nonces which have been revealed
-	var unrevealedNonces []nonce.Nonce
+	// ...need to unmarshal
+	unrevealedNonces := make([]nonce.Nonce, 0)
+	for _, b := range noncesRawBytes {
 
-	for _, n := range nonces {
-		if n.RevealOp != "" {
+		var tmpNonce nonce.Nonce
+		if err := json.Unmarshal(b, &tmpNonce); err != nil {
+			log.WithError(err).Error("Unable to unmarshal nonce")
+			continue
+		}
+
+		// Filter out nonces which have been revealed
+		if tmpNonce.RevealOp != "" {
 			log.WithFields(log.Fields{
-				"Level": n.Level, "RevealedOp": n.RevealOp,
+				"Level": tmpNonce.Level, "RevealedOp": tmpNonce.RevealOp,
 			}).Debug("Nonce already revealed")
 
 			continue
 		}
 
-		unrevealedNonces = append(unrevealedNonces, n)
+		unrevealedNonces = append(unrevealedNonces, tmpNonce)
 	}
 
 	// Any unrevealed nonces?
@@ -140,7 +148,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 		}
 
 		// Validate the operation against the node for any errors
-		resp, preApplyResp, err := bc.Current.PreapplyOperations(preapplyNonceRevealOp)
+		resp, preApplyResp, err := bb.Current.PreapplyOperations(preapplyNonceRevealOp)
 		if err != nil {
 
 			// If somehow the nonce reveal was already injected, but we have no record of the opHash,
@@ -181,7 +189,7 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 			Operation: nonceRevelationBytes,
 		}
 
-		resp, revealOpHash, err := bc.Current.InjectionOperation(injectionInput)
+		resp, revealOpHash, err := bb.Current.InjectionOperation(injectionInput)
 		if err != nil {
 
 			// Check error message for possible previous injection. If notice not present
@@ -204,7 +212,15 @@ func revealNonces(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 		// Update DB with hash of reveal operation
 		nonce.RevealOp = revealOpHash
-		if err := storage.DB.SaveNonce(previousCycle, nonce); err != nil {
+
+		// Marshal for DB
+		nonceBytes, err := json.Marshal(nonce)
+		if err != nil {
+			log.WithError(err).Error("Unable to marshal nonce")
+			continue
+		}
+
+		if err := bb.SaveNonce(previousCycle, nonce.Level, nonceBytes); err != nil {
 			log.WithError(err).Error("Unable to save nonce reveal to DB")
 		}
 	}

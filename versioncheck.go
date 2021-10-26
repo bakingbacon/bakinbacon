@@ -20,7 +20,7 @@ const (
 
 var (
 	commitHash string
-	version    = "v0.7.0"
+	version    = "v0.7.1"
 )
 
 type Versions []Version
@@ -31,7 +31,7 @@ type Version struct {
 	Notes   string    `json:"notes"`
 }
 
-func RunVersionCheck() {
+func (bb *BakinBacon) RunVersionCheck() {
 
 	// Check every 12hrs
 	ticker := time.NewTicker(24 * time.Hour)
@@ -69,7 +69,7 @@ func RunVersionCheck() {
 
 			// If newer version available, send notification
 			if semver.Compare(version, latestVersion.Version) == -1 {
-				notifications.N.Send(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
+				bb.NotificationHandler.SendNotification(fmt.Sprintf("A new version, %s, of Bakin'Bacon is available! You are currently running %s.",
 					latestVersion, version), notifications.VERSION)
 			}
 		}

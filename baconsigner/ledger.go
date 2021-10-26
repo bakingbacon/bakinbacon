@@ -28,16 +28,19 @@ type LedgerSigner struct {
 	Info   *LedgerInfo
 
 	// Actual object of the ledger
-	ledger *ledger.TezosLedger
-	lock   sync.Mutex
+	ledger  *ledger.TezosLedger
+	storage *storage.Storage
+	lock    sync.Mutex
 }
 
 var L *LedgerSigner
 
-func InitLedgerSigner() error {
+func InitLedgerSigner(db *storage.Storage) error {
 
-	L = &LedgerSigner{}
-	L.Info = &LedgerInfo{}
+	L = &LedgerSigner{
+		Info: &LedgerInfo{},
+		storage: db,
+	}
 
 	// Get device
 	dev, err := ledger.Get()
@@ -48,7 +51,7 @@ func InitLedgerSigner() error {
 	L.ledger = dev
 
 	// Get bipPath and PKH from DB
-	pkh, dbBipPath, err := storage.DB.GetLedgerConfig()
+	pkh, dbBipPath, err := L.storage.GetLedgerConfig()
 	if err != nil {
 		return errors.Wrap(err, "Cannot load ledger config from DB")
 	}
@@ -248,7 +251,7 @@ func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 	}
 
 	// Save config to DB
-	if err := storage.DB.SaveLedgerToDB(authPkh, bipPath, SIGNER_LEDGER); err != nil {
+	if err := s.storage.SaveLedgerToDB(authPkh, bipPath, SIGNER_LEDGER); err != nil {
 		log.WithError(err).Error("Cannot save key/wallet to db")
 		return err
 	}
@@ -267,7 +270,7 @@ func (s *LedgerSigner) ConfirmBakingPkh(pkh, bipPath string) error {
 // SaveSigner Saves Pkh and BipPath to DB
 func (s *LedgerSigner) SaveSigner() error {
 
-	if err := storage.DB.SaveLedgerToDB(s.Info.Pkh, s.Info.BipPath, SIGNER_LEDGER); err != nil {
+	if err := s.storage.SaveLedgerToDB(s.Info.Pkh, s.Info.BipPath, SIGNER_LEDGER); err != nil {
 		log.WithError(err).Error("Cannot save key/wallet to db")
 		return err
 	}

@@ -15,8 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"bakinbacon/notifications"
-	"bakinbacon/storage"
-	"bakinbacon/util"
 )
 
 /*
@@ -34,7 +32,7 @@ $ ~/.opam/for_tezos/bin/tezos-codec decode 009-PsFLoren.operation from 5b3c0553c
     "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q" }
 */
 
-func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
+func (bb *BakinBacon) handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
 
 	// Decrement waitGroup on exit
 	defer wg.Done()
@@ -49,7 +47,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	endorsingLevel := block.Header.Level
 
 	// Check watermark to ensure we have not endorsed at this level before
-	watermark, err := storage.DB.GetEndorsingWatermark()
+	watermark, err := bb.GetEndorsingWatermark()
 	if err != nil {
 		// watermark = 0 on DB error
 		log.WithError(err).Error("Unable to get endorsing watermark from DB")
@@ -68,10 +66,10 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	endorsingRightsFilter := rpc.EndorsingRightsInput{
 		BlockID:  &hashBlockID,
 		Level:    endorsingLevel,
-		Delegate: bc.Signer.BakerPkh,
+		Delegate: bb.Signer.BakerPkh,
 	}
 
-	resp, endorsingRights, err := bc.Current.EndorsingRights(endorsingRightsFilter)
+	resp, endorsingRights, err := bb.Current.EndorsingRights(endorsingRightsFilter)
 
 	log.WithFields(log.Fields{
 		"Level": endorsingLevel, "Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -112,9 +110,9 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 
 	// Continue since we have at least 1 endorsing right
 	// Check if we can pay bond
-	requiredBond := util.NetworkConstants[network].EndorsementSecurityDeposit
+	requiredBond := bb.NetworkConstants.EndorsementSecurityDeposit
 
-	if spendableBalance, err := bc.GetSpendableBalance(); err != nil {
+	if spendableBalance, err := bb.GetSpendableBalance(); err != nil {
 		log.WithError(err).Error("Unable to get spendable balance")
 
 		// Even if error here, we can still proceed.
@@ -130,8 +128,8 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 				"Spendable": spendableBalance, "ReqBond": requiredBond,
 			}).Error(msg)
 
-			bc.Status.SetError(errors.New(msg))
-			notifications.N.Send(msg, notifications.BALANCE)
+			bb.Status.SetError(errors.New(msg))
+			bb.SendNotification(msg, notifications.BALANCE)
 
 			return
 		}
@@ -155,7 +153,7 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	log.WithField("Bytes", endorsementBytes).Debug("Forged Inlined Endorsement")
 
 	// sign inner endorsement
-	signedInnerEndorsement, err := bc.Signer.SignEndorsement(endorsementBytes, block.ChainID)
+	signedInnerEndorsement, err := bb.Signer.SignEndorsement(endorsementBytes, block.ChainID)
 	if err != nil {
 		log.WithError(err).Error("Signer endorsement failure")
 		return
@@ -202,13 +200,13 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	}
 
 	// Dry-run check
-	if dryRunEndorsement {
+	if bb.dryRunEndorsement {
 		log.Warn("Not Injecting Endorsement; Dry-Run Mode")
 		return
 	}
 
 	// Inject endorsement
-	resp, opHash, err := bc.Current.InjectionOperation(injectionInput)
+	resp, opHash, err := bb.Current.InjectionOperation(injectionInput)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -220,10 +218,10 @@ func handleEndorsement(ctx context.Context, wg *sync.WaitGroup, block rpc.Block)
 	log.WithField("Operation", opHash).Info("Endorsement Injected")
 
 	// Save endorsement to DB for watermarking
-	if err := storage.DB.RecordEndorsement(endorsingLevel, opHash); err != nil {
+	if err := bb.RecordEndorsement(endorsingLevel, opHash); err != nil {
 		log.WithError(err).Error("Unable to save endorsement; Watermark compromised")
 	}
 
 	// Update status for UI
-	bc.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
+	bb.Status.SetRecentEndorsement(endorsingLevel, block.Metadata.Level.Cycle, opHash)
 }

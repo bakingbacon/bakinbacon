@@ -19,6 +19,8 @@ type NotifyTelegram struct {
 	ChatIds []int  `json:"chatids"`
 	ApiKey  string `json:"apikey"`
 	Enabled bool   `json:"enabled"`
+
+	storage *storage.Storage
 }
 
 // NewTelegram creates a new NotifyTelegram object using a JSON byte-stream
@@ -28,26 +30,27 @@ type NotifyTelegram struct {
 // If saveConfig is true, save the new object's config to DB. Normally would not
 // do this if we just loaded from DB on app startup, but would want to do this
 // after getting new config from web UI.
-func NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
+func (n *NotificationHandler) NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 
-	n := &NotifyTelegram{
+	nt := &NotifyTelegram{
 		Enabled: true,
+		storage: n.storage,
 	}
 
 	// empty config from db?
 	if config != nil {
-		if err := json.Unmarshal(config, n); err != nil {
-			return n, errors.Wrap(err, "Unable to unmarshal telegram config")
+		if err := json.Unmarshal(config, nt); err != nil {
+			return nt, errors.Wrap(err, "Unable to unmarshal telegram config")
 		}
 	}
 
 	if saveConfig {
-		if err := n.SaveConfig(); err != nil {
-			return n, err
+		if err := nt.SaveConfig(); err != nil {
+			return nt, err
 		}
 	}
 
-	return n, nil
+	return nt, nil
 }
 
 func (n *NotifyTelegram) IsEnabled() bool {
@@ -116,7 +119,7 @@ func (n *NotifyTelegram) SaveConfig() error {
 		return errors.Wrap(err, "Unable to marshal telegram config")
 	}
 
-	if err := storage.DB.SaveNotifiersConfig("telegram", config); err != nil {
+	if err := n.storage.SaveNotifiersConfig(TELEGRAM, config); err != nil {
 		return errors.Wrap(err, "Unable to save telegram config")
 	}
 

@@ -154,12 +154,12 @@ func Start(args WebServerArgs) error {
 	args.WG.Add(1)
 	go func() {
 		// TODO: SSL for localhost?
-		//var err error
-		//if wantSSL {
-		//	err = httpSvr.ListenAndServeTLS("ssl/cert.pem", "ssl/key.pem")
-		//} else {
-		//	err = httpSvr.ListenAndServe()
-		//}
+		// var err error
+		// if wantSSL {
+		//   err = httpSvr.ListenAndServeTLS("ssl/cert.pem", "ssl/key.pem")
+		// } else {
+		//   err = httpSvr.ListenAndServe()
+		// }
 		if err := ws.httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.WithError(err).Errorf("Httpserver: ListenAndServe()")
 		}

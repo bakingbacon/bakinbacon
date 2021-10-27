@@ -53,7 +53,6 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
-
 		return
 	}
 	log.WithField("Endpoints", endpoints).Debug("API Settings Endpoints")
@@ -62,7 +61,6 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	notifications, err := ws.notificationHandler.GetConfig() // Returns json.RawMessage
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get notification settings"), w)
-
 		return
 	}
 	log.WithField("Notifications", string(notifications)).Debug("API Settings Notifications")
@@ -85,7 +83,6 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
 		apiError(errors.Wrap(err, "Cannot decode body for rpc add"), w)
-
 		return
 	}
 
@@ -94,7 +91,6 @@ func (ws *WebServer) addEndpoint(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.WithError(err).WithField("Endpoint", k).Error("API AddEndpoint")
 		apiError(errors.Wrap(err, "Cannot add endpoint to DB"), w)
-
 		return
 	}
 
@@ -113,7 +109,6 @@ func (ws *WebServer) listEndpoints(w http.ResponseWriter, r *http.Request) {
 	endpoints, err := ws.storage.GetRPCEndpoints()
 	if err != nil {
 		apiError(errors.Wrap(err, "Cannot get endpoints"), w)
-
 		return
 	}
 
@@ -133,6 +128,7 @@ func (ws *WebServer) deleteEndpoint(w http.ResponseWriter, r *http.Request) {
 	k := make(map[string]int)
 
 	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
+		log.WithError(err).Error("Cannot decode body for rpc delete")
 		apiError(errors.Wrap(err, "Cannot decode body for rpc delete"), w)
 
 		return

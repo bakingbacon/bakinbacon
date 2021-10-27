@@ -252,6 +252,7 @@ func (p *PayoutsHandler) getUnfrozenRewards(bakerAddress string, rewardCycle int
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
 		}).Error("Unable to get unfrozen rewards metadata for payouts")
+
 		return 0, 0, err
 	}
 
@@ -260,6 +261,7 @@ func (p *PayoutsHandler) getUnfrozenRewards(bakerAddress string, rewardCycle int
 
 	for _, update := range unfrozenBlockMetadata.BalanceUpdates {
 
+		// nolint:nestif
 		if update.Kind == "freezer" && update.Delegate == bakerAddress && update.Cycle == rewardCycle {
 
 			if update.Category == "rewards" {

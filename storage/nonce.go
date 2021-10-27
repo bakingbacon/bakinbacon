@@ -16,6 +16,7 @@ func (s *Storage) SaveNonce(cycle, nonceLevel int, nonceBytes []byte) error {
 		if err != nil {
 			return errors.Wrap(err, "Unable to create nonce-cycle bucket")
 		}
+
 		return cb.Put(itob(nonceLevel), nonceBytes)
 	})
 }

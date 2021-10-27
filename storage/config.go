@@ -25,6 +25,7 @@ func (s *Storage) GetDelegate() (string, string, error) {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
+
 		return nil
 	})
 
@@ -41,6 +42,7 @@ func (s *Storage) SetDelegate(sk, pkh string) error {
 		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
 			return err
 		}
+
 		return nil
 	})
 }
@@ -55,6 +57,7 @@ func (s *Storage) GetSignerType() (int, error) {
 		if signerTypeBytes != nil {
 			signerType = btoi(signerTypeBytes)
 		}
+
 		return nil
 	})
 
@@ -180,6 +183,7 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 		if err := b.ForEach(func(k, v []byte) error {
 			id := btoi(k)
 			endpoints[id] = string(v)
+
 			return nil
 		}); err != nil {
 			return err
@@ -210,14 +214,16 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 
 	var currentSeq uint64
 
-	if err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("AddDefaultRPCs - Unable to locate endpoints bucket")
 		}
 		currentSeq = b.Sequence()
+
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 

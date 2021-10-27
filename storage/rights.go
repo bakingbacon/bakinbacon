@@ -97,6 +97,7 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 				nextLevel = btoi(k)
 			}
 		}
+
 		return nil
 	})
 

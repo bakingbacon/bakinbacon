@@ -38,6 +38,7 @@ func (s *Storage) recordOperation(opBucket string, level int, opHash string) err
 		if err := b.SetSequence(uint64(level)); err != nil { // Record our watermark
 			return err
 		}
+
 		return b.Put(itob(level), []byte(opHash)) // Save the level:opHash
 	})
 }

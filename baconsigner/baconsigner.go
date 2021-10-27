@@ -173,8 +173,7 @@ func (s *BaconSigner) SaveSigner() error {
 // Close ledger or wallet
 func (s *BaconSigner) Close() {
 
-	switch s.signerType {
-	case SIGNER_LEDGER:
+	if s.signerType == SIGNER_LEDGER {
 		L.Close()
 	}
 }
@@ -232,16 +231,16 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	if err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "Failed to sign operation")
 	}
-	//fmt.Println("IncOpHex:   ", incOpHex)
-	//fmt.Println("IncOpBytes: ", incOpBytes)
+	// fmt.Println("IncOpHex:   ", incOpHex)
+	// fmt.Println("IncOpBytes: ", incOpBytes)
 
 	// Append incoming op bytes to either prefix, or prefix + chainId
 	opBytes = append(opBytes, incOpBytes...)
 
 	// Convert op bytes back to hex; anyone need this?
-	//finalOpHex := hex.EncodeToString(opBytes)
-	//fmt.Println("ToSignBytes: ", opBytes)
-	//fmt.Println("ToSignByHex: ", finalOpHex)
+	// finalOpHex := hex.EncodeToString(opBytes)
+	// fmt.Println("ToSignBytes: ", opBytes)
+	// fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig, err := func(b []byte) (string, error) {
 		switch s.signerType {

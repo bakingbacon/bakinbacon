@@ -118,21 +118,19 @@ func (bb *BakinBacon) handleEndorsement(ctx context.Context, wg *sync.WaitGroup,
 		// Even if error here, we can still proceed.
 		// Might have enough to post bond, might not.
 
-	} else {
+	} else if requiredBond > spendableBalance {
 
 		// If not enough bond, exit early
-		if requiredBond > spendableBalance {
 
-			msg := "Bond balance too low for endorsing"
-			log.WithFields(log.Fields{
-				"Spendable": spendableBalance, "ReqBond": requiredBond,
-			}).Error(msg)
+		msg := "Bond balance too low for endorsing"
+		log.WithFields(log.Fields{
+			"Spendable": spendableBalance, "ReqBond": requiredBond,
+		}).Error(msg)
 
-			bb.Status.SetError(errors.New(msg))
-			bb.SendNotification(msg, notifications.BALANCE)
+		bb.Status.SetError(errors.New(msg))
+		bb.SendNotification(msg, notifications.BALANCE)
 
-			return
-		}
+		return
 	}
 
 	// Continue; have rights, have enough bond
@@ -181,9 +179,9 @@ func (bb *BakinBacon) handleEndorsement(ctx context.Context, wg *sync.WaitGroup,
 	}
 
 	// Really low-level debugging
-	//log.WithField("SignedOp", signedInnerEndorsement.SignedOperation).Debug("SIGNED OP")
-	//log.WithField("DecodedSig", signedInnerEndorsement.Signature).Debug("DECODED SIG")
-	//log.WithField("Signature", signedInnerEndorsement.EDSig).Debug("EDSIG")
+	// log.WithField("SignedOp", signedInnerEndorsement.SignedOperation).Debug("SIGNED OP")
+	// log.WithField("DecodedSig", signedInnerEndorsement.Signature).Debug("DECODED SIG")
+	// log.WithField("Signature", signedInnerEndorsement.EDSig).Debug("EDSIG")
 
 	// Create injection
 	injectionInput := rpc.InjectionOperationInput{

@@ -63,6 +63,7 @@ type WebServerArgs struct {
 	WG              *sync.WaitGroup
 }
 
+
 func Start(args WebServerArgs) error {
 
 	if err := args.Validate(); err != nil {

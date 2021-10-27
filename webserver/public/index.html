@@ -14,10 +14,16 @@
     <link rel="apple-touch-icon" href="/static/media/logo512.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <script>
-    window.BLOCKS_PER_CYCLE = {{.BlocksPerCycle}};
-    window.NETWORK = "{{.Network}}";
-    window.MIN_BLOCK_TIME = {{.MinBlockTime}};
-    window.BASE_URL = "{{.UiBaseUrl}}";
+//     window.BLOCKS_PER_CYCLE = {{.BlocksPerCycle}};
+//     window.NETWORK = "{{.Network}}";
+//     window.MIN_BLOCK_TIME = {{.MinBlockTime}};
+//     window.BASE_URL = "{{.UiBaseUrl}}";
+
+    window.BLOCKS_PER_CYCLE = 4096;
+    window.NETWORK = "hangzhounet";
+    window.MIN_BLOCK_TIME = 15;
+    window.BASE_URL = "http://10.10.10.203:8082";
+    
     </script>
     <title>Bakin'Bacon</title>
   </head>

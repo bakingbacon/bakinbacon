@@ -16,7 +16,7 @@ func (s *Storage) getWatermark(wBucket string) (int, error) {
 
 	var watermark uint64
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		watermark = tx.Bucket([]byte(wBucket)).Sequence()
 		return nil
 	})
@@ -33,12 +33,12 @@ func (s *Storage) RecordEndorsement(level int, endorsementHash string) error {
 }
 
 func (s *Storage) recordOperation(opBucket string, level int, opHash string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(opBucket))
 		if err := b.SetSequence(uint64(level)); err != nil { // Record our watermark
 			return err
 		}
 
-		return b.Put(itob(level), []byte(opHash)) // Save the level:opHash
+		return b.Put(Itob(level), []byte(opHash)) // Save the level:opHash
 	})
 }

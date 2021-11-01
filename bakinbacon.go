@@ -72,14 +72,16 @@ func main() {
 	}
 
 	// Start
-	log.Infof("=== BakinBacon v1.0 (%s) ===", commitHash)
+	startMsg := fmt.Sprintf("=== BakinBacon %s (%s) ===", version, commitHash)
+	log.Infof(startMsg)
 	log.Infof("=== Network: %s ===", bakinbacon.network)
 
-	// Global Notifications handler singleton
+	// Global Notifications handler
 	bakinbacon.NotificationHandler, err = notifications.NewHandler(bakinbacon.Storage)
 	if err != nil {
 		log.WithError(err).Error("Unable to load notifiers")
 	}
+	bakinbacon.SendNotification(startMsg, notifications.STARTUP)
 
 	// Network constants
 	bakinbacon.NetworkConstants, err = util.GetNetworkConstants(bakinbacon.network)
@@ -94,9 +96,17 @@ func main() {
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
-	bakinbacon.BaconClient, err = baconclient.New(bakinbacon.NotificationHandler, bakinbacon.Storage, bakinbacon.NetworkConstants, shutdownChannel, &wg)
+	bakinbacon.BaconClient, err = baconclient.New(
+		bakinbacon.NotificationHandler, bakinbacon.Storage, bakinbacon.NetworkConstants, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
+	}
+
+	// For managing rewards payouts
+	bakinbacon.PayoutsHandler, err = payouts.NewPayoutsHandler(
+		bakinbacon.BaconClient, bakinbacon.Storage, bakinbacon.NetworkConstants, bakinbacon.NotificationHandler)
+	if err != nil {
+		log.WithError(err).Fatalf("Cannot create payouts handler")
 	}
 
 	// Version checking
@@ -115,6 +125,7 @@ func main() {
 	webServerArgs := webserver.WebServerArgs{
 		Client:              bakinbacon.BaconClient,
 		NotificationHandler: bakinbacon.NotificationHandler,
+		PayoutsHandler:      bakinbacon.PayoutsHandler,
 		Storage:             bakinbacon.Storage,
 		BindAddr:            bakinbacon.webUiAddr,
 		BindPort:            bakinbacon.webUiPort,
@@ -125,13 +136,6 @@ func main() {
 	if err := webserver.Start(webServerArgs); err != nil {
 		log.WithError(err).Error("Unable to start webserver UI")
 		os.Exit(1)
-	}
-
-	// For managing rewards payouts
-	bakinbacon.PayoutsHandler, err = payouts.NewPayoutsHandler(
-		bakinbacon.BaconClient, bakinbacon.Storage, bakinbacon.NetworkConstants, bakinbacon.NotificationHandler)
-	if err != nil {
-		log.WithError(err).Fatalf("Cannot create payouts handler")
 	}
 
 	// For canceling when new blocks appear
@@ -197,7 +201,7 @@ func main() {
 	wg.Wait()
 
 	// Clean close DB, logs
-	bakinbacon.Storage.Close()
+	bakinbacon.Storage.CloseDb()
 	closeLogging()
 
 	os.Exit(0)

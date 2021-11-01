@@ -1,4 +1,3 @@
-//nolint:wsl
 package storage
 
 import (
@@ -18,7 +17,7 @@ const (
 
 func (s *Storage) SaveEndorsingRightsForCycle(cycle int, endorsingRights []rpc.EndorsingRights) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 
 		b, err := tx.Bucket([]byte(RIGHTS_BUCKET)).CreateBucketIfNotExists([]byte(ENDORSING_RIGHTS_BUCKET))
 		if err != nil {
@@ -32,7 +31,7 @@ func (s *Storage) SaveEndorsingRightsForCycle(cycle int, endorsingRights []rpc.E
 
 		// Keys of values are not related to the sequence
 		for _, r := range endorsingRights {
-			if err := b.Put(itob(r.Level), itob(cycle)); err != nil {
+			if err := b.Put(Itob(r.Level), Itob(cycle)); err != nil {
 				return err
 			}
 		}
@@ -43,7 +42,7 @@ func (s *Storage) SaveEndorsingRightsForCycle(cycle int, endorsingRights []rpc.E
 
 func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingRights) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 
 		b, err := tx.Bucket([]byte(RIGHTS_BUCKET)).CreateBucketIfNotExists([]byte(BAKING_RIGHTS_BUCKET))
 		if err != nil {
@@ -57,7 +56,7 @@ func (s *Storage) SaveBakingRightsForCycle(cycle int, bakingRights []rpc.BakingR
 
 		// Keys of values are not related to the sequence
 		for _, r := range bakingRights {
-			if err := b.Put(itob(r.Level), itob(r.Priority)); err != nil {
+			if err := b.Put(Itob(r.Level), Itob(r.Priority)); err != nil {
 				return err
 			}
 		}
@@ -75,9 +74,9 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 		highestFetchCycle int
 	)
 
-	curLevelBytes := itob(curLevel)
+	curLevelBytes := Itob(curLevel)
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(ENDORSING_RIGHTS_BUCKET))
 		if b == nil {
@@ -94,7 +93,7 @@ func (s *Storage) GetNextEndorsingRight(curLevel int) (int, int, error) {
 				// k is less than, or equal to current level, loop to next entry
 				continue
 			case -1:
-				nextLevel = btoi(k)
+				nextLevel = Btoi(k)
 			}
 		}
 
@@ -118,9 +117,9 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 		highestFetchCycle int
 	)
 
-	curLevelBytes := itob(curLevel)
+	curLevelBytes := Itob(curLevel)
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(RIGHTS_BUCKET)).Bucket([]byte(BAKING_RIGHTS_BUCKET))
 		if b == nil {
@@ -137,8 +136,8 @@ func (s *Storage) GetNextBakingRight(curLevel int) (int, int, int, error) {
 				// k is less than, or equal to current level, loop to next entry
 				continue
 			case -1:
-				nextLevel = btoi(k)
-				nextPriority = btoi(v)
+				nextLevel = Btoi(k)
+				nextPriority = Btoi(v)
 			}
 		}
 
@@ -160,7 +159,7 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 		recentEndorsementHash  string = ""
 	)
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(ENDORSING_BUCKET))
 		if b == nil {
@@ -170,7 +169,7 @@ func (s *Storage) GetRecentEndorsement() (int, string, error) {
 		// The last/highest key is the most recent endorsement
 		k, v := b.Cursor().Last()
 		if k != nil {
-			recentEndorsementLevel = btoi(k)
+			recentEndorsementLevel = Btoi(k)
 			recentEndorsementHash = string(v)
 		}
 
@@ -188,7 +187,7 @@ func (s *Storage) GetRecentBake() (int, string, error) {
 		recentBakeHash  string = ""
 	)
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(BAKING_BUCKET))
 		if b == nil {
@@ -198,7 +197,7 @@ func (s *Storage) GetRecentBake() (int, string, error) {
 		// The last/highest key is the most recent endorsement
 		k, v := b.Cursor().Last()
 		if k != nil {
-			recentBakeLevel = btoi(k)
+			recentBakeLevel = Btoi(k)
 			recentBakeHash = string(v)
 		}
 

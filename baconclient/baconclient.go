@@ -235,6 +235,10 @@ func (b *BaconClient) blockWatch(client *BaconSlice) {
 	}
 }
 
+func (b *BaconClient) HeadHash() string {
+	return b.Status.Hash
+}
+
 func (b *BaconClient) CanBake(silentChecks bool) bool {
 
 	// Always check status of signer, especially important for Ledger

@@ -23,7 +23,7 @@ type NotifyEmail struct {
 func (n *NotificationHandler) NewEmail(config []byte, saveConfig bool) (*NotifyEmail, error) {
 
 	return &NotifyEmail{
-		Enabled: true,
+		Enabled: false,
 		storage: n.storage,
 	}, nil
 }

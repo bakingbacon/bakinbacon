@@ -15,9 +15,7 @@ func (ws *WebServer) getPayouts(w http.ResponseWriter, r *http.Request) {
 	log.Trace("API - getPayouts")
 
 	// Get all rewards metadata from DB
-	// Since this is just going straight to browser, DB.GetPayoutsMetadata() returns a bytestring
-	// that we just send back to API call
-	payoutsMetadata, err := ws.storage.GetPayoutsMetadata()
+	payoutsMetadata, err := ws.payoutsHandler.GetPayoutsMetadataAll()
 	if err != nil {
 		log.WithError(err).Error("API - getPayouts")
 		apiError(errors.Wrap(err, "Unable to get metadata from DB"), w)
@@ -32,6 +30,8 @@ func (ws *WebServer) getPayouts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getCyclePayouts will return a map[string] containing the cycle's metadata,
+// and the individual rewards payouts data
 func (ws *WebServer) getCyclePayouts(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - getCyclePayouts")
@@ -46,8 +46,17 @@ func (ws *WebServer) getCyclePayouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch cycle payout data from DB and return map
-	payoutsData, err := ws.storage.GetCyclePayouts(payoutsCycle)
+	// Fetch cycle metadata from DB
+	cycleMetadata, err := ws.payoutsHandler.GetRewardMetadataForCycle(payoutsCycle)
+	if err != nil {
+		log.WithError(err).Error("API - getCyclePayouts")
+		apiError(errors.Wrap(err, "Unable to get cycle metadata from DB"), w)
+
+		return
+	}
+
+	// Fetch cycle payout data from DB
+	payoutsData, err := ws.payoutsHandler.GetDelegatorRewardAllForCycle(payoutsCycle)
 	if err != nil {
 		log.WithError(err).Error("API - getCyclePayouts")
 		apiError(errors.Wrap(err, "Unable to get cycle payout from DB"), w)
@@ -55,9 +64,13 @@ func (ws *WebServer) getCyclePayouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cyclePayoutsData := make(map[string]interface{}, 2)
+	cyclePayoutsData["metadata"] = cycleMetadata
+	cyclePayoutsData["payouts"] = payoutsData
+
 	// return raw JSON
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payoutsData); err != nil {
+	if err := json.NewEncoder(w).Encode(cyclePayoutsData); err != nil {
 		log.WithError(err).Error("UI Return getCyclePayouts Failure")
 	}
 }

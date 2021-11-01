@@ -21,7 +21,7 @@ func (s *Storage) GetDelegate() (string, string, error) {
 
 	var sk, pkh string
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
@@ -34,7 +34,7 @@ func (s *Storage) GetDelegate() (string, string, error) {
 
 func (s *Storage) SetDelegate(sk, pkh string) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		if err := b.Put([]byte(SIGNER_SK), []byte(sk)); err != nil {
 			return err
@@ -51,11 +51,11 @@ func (s *Storage) GetSignerType() (int, error) {
 
 	var signerType int = 0
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		signerTypeBytes := b.Get([]byte(SIGNER_TYPE))
 		if signerTypeBytes != nil {
-			signerType = btoi(signerTypeBytes)
+			signerType = Btoi(signerTypeBytes)
 		}
 
 		return nil
@@ -66,9 +66,9 @@ func (s *Storage) GetSignerType() (int, error) {
 
 func (s *Storage) SetSignerType(signerType int) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
-		return b.Put([]byte(SIGNER_TYPE), itob(signerType))
+		return b.Put([]byte(SIGNER_TYPE), Itob(signerType))
 	})
 }
 
@@ -76,7 +76,7 @@ func (s *Storage) GetSignerSk() (string, error) {
 
 	var sk string
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		sk = string(b.Get([]byte(SIGNER_SK)))
 		return nil
@@ -87,7 +87,7 @@ func (s *Storage) GetSignerSk() (string, error) {
 
 func (s *Storage) SetSignerSk(sk string) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		return b.Put([]byte(SIGNER_SK), []byte(sk))
 	})
@@ -96,12 +96,12 @@ func (s *Storage) SetSignerSk(sk string) error {
 // Ledger
 func (s *Storage) SaveLedgerToDB(pkh, bipPath string, ledgerType int) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 
 		// Save signer type as ledger
-		if err := b.Put([]byte(SIGNER_TYPE), itob(ledgerType)); err != nil {
+		if err := b.Put([]byte(SIGNER_TYPE), Itob(ledgerType)); err != nil {
 			return err
 		}
 
@@ -123,7 +123,7 @@ func (s *Storage) GetLedgerConfig() (string, string, error) {
 
 	var pkh, bipPath string
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 		pkh = string(b.Get([]byte(PUBLIC_KEY_HASH)))
 		bipPath = string(b.Get([]byte(BIP_PATH)))
@@ -137,7 +137,7 @@ func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 
 	var rpcId int = 0
 
-	err := s.db.Update(func(tx *bolt.Tx) error {
+	err := s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("AddRPC - Unable to locate endpoints bucket")
@@ -164,7 +164,7 @@ func (s *Storage) AddRPCEndpoint(endpoint string) (int, error) {
 		id, _ := b.NextSequence()
 		rpcId = int(id)
 
-		return b.Put(itob(int(id)), endpointBytes)
+		return b.Put(Itob(int(id)), endpointBytes)
 	})
 
 	return rpcId, err
@@ -174,14 +174,14 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 
 	endpoints := make(map[int]string)
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("GetRPC - Unable to locate endpoints bucket")
 		}
 
 		if err := b.ForEach(func(k, v []byte) error {
-			id := btoi(k)
+			id := Btoi(k)
 			endpoints[id] = string(v)
 
 			return nil
@@ -197,13 +197,13 @@ func (s *Storage) GetRPCEndpoints() (map[int]string, error) {
 
 func (s *Storage) DeleteRPCEndpoint(endpointId int) error {
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("Unable to locate endpoints bucket")
 		}
 
-		return b.Delete(itob(endpointId))
+		return b.Delete(Itob(endpointId))
 	})
 }
 
@@ -214,7 +214,7 @@ func (s *Storage) AddDefaultEndpoints(network string) error {
 
 	var currentSeq uint64
 
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET)).Bucket([]byte(ENDPOINTS_BUCKET))
 		if b == nil {
 			return errors.New("AddDefaultRPCs - Unable to locate endpoints bucket")

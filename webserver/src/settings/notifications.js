@@ -14,7 +14,7 @@ const Notifications = (props) => {
 
 	const { settings, loadSettings } = props;
 
-	const [telegramConfig, setTelegramConfig] = useState(settings.notifications.telegram)
+	const [telegramConfig, setTelegramConfig] = useState(settings.notifications.telegram);
 	// const [emailConfig, setEmailConfig] = useState(settings.notifications.email);
 	const addToast = useContext(ToasterContext);
 

@@ -14,7 +14,8 @@ import (
 type Category int
 
 const (
-	BALANCE Category = iota + 1
+	STARTUP Category = iota + 1
+	BALANCE
 	SIGNER
 	BAKING_OK
 	BAKING_FAIL
@@ -49,6 +50,8 @@ func NewHandler(db *storage.Storage) (*NotificationHandler, error) {
 	if err := n.LoadNotifiers(); err != nil {
 		return nil, errors.Wrap(err, "Failed to instantiate notification handler")
 	}
+
+	log.Debug("Loaded notifications handler")
 
 	return n, nil
 }

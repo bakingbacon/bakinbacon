@@ -32,10 +32,7 @@ type NotifyTelegram struct {
 // after getting new config from web UI.
 func (n *NotificationHandler) NewTelegram(config []byte, saveConfig bool) (*NotifyTelegram, error) {
 
-	nt := &NotifyTelegram{
-		Enabled: true,
-		storage: n.storage,
-	}
+	nt := &NotifyTelegram{}
 
 	// empty config from db?
 	if config != nil {
@@ -43,6 +40,9 @@ func (n *NotificationHandler) NewTelegram(config []byte, saveConfig bool) (*Noti
 			return nt, errors.Wrap(err, "Unable to unmarshal telegram config")
 		}
 	}
+
+	// save local reference to database
+	nt.storage = n.storage
 
 	if saveConfig {
 		if err := nt.SaveConfig(); err != nil {

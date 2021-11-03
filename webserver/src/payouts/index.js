@@ -44,6 +44,14 @@ const Payouts = () => {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
+	const resetPayoutsTab = () => {
+		setAlert({});
+		clearInterval(updateViewCycleDetailTimer.current);
+		setIsLoading(true);
+		setViewDetail(false);
+		getPayoutsMetadata();
+	}
+
 	const getPayoutsMetadata = () => {
 
 		const payoutsMetadataApiUrl = window.BASE_URL + "/api/payouts/list"
@@ -123,8 +131,10 @@ const Payouts = () => {
 		// Clear previous error message
 		setAlert({});
 
-		const sendPayoutsApiUrl = window.BASE_URL + "/api/payouts/sendpayouts"
+		// Show spinner and disable button
+		setProcessing(true);
 
+		const sendPayoutsApiUrl = window.BASE_URL + "/api/payouts/sendpayouts"
 		const requestOptions = {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -162,10 +172,12 @@ const Payouts = () => {
 		const cycle = payoutsDetail["cycle"]
 		const bBalance = formatter.format(muToTez(payoutsDetail["metadata"]["b"]))
 		const bReward = formatter.format(muToTez(payoutsDetail["metadata"]["br"]))
+		const cycleStatus = payoutsDetail["metadata"]["st"]
 		var totalPayouts = 0;
 
 		return (
 			<>
+			<Row><Col md={{ span: 2, offset: 10 }}><Button variant="outline-secondary" size="sm" onClick={resetPayoutsTab}>Back to Payouts List</Button></Col></Row>
 			<Row>
 				<Col>
 					<Card>
@@ -239,7 +251,14 @@ const Payouts = () => {
 									</tr>
 								</tbody>
 							</Table>
-							<Card.Text><Button variant="primary" onClick={() => sendPayouts(cycle)} type="button" size="sm">Send Payouts</Button></Card.Text>
+							<Card.Text>
+							{ cycleStatus === DONE
+							?
+							"All rewards for this cycle have been processed."
+							:
+							<Button variant="primary" disabled={processing} onClick={() => sendPayouts(cycle)} type="button" size="sm">Send Payouts</Button>
+							}
+							</Card.Text>
 						</Card.Body>
 					</Card>
 				</Col>

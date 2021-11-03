@@ -18,9 +18,9 @@ type DelegatorReward struct {
 	OpHash    string  `json:"o"`
 }
 
-func (p *PayoutsHandler) GetDelegatorRewardForCycle(address string, cycle int) (*DelegatorReward, error) {
+func (p *PayoutsHandler) GetDelegatorRewardForCycle(address string, cycle int) (DelegatorReward, error) {
 
-	var delegatorReward *DelegatorReward
+	var delegatorReward DelegatorReward
 
 	err := p.storage.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(DB_PAYOUTS_BUCKET)).Bucket(storage.Itob(cycle))
@@ -29,7 +29,7 @@ func (p *PayoutsHandler) GetDelegatorRewardForCycle(address string, cycle int) (
 		}
 
 		delegatorRewardBytes := b.Get([]byte(address))
-		if err := json.Unmarshal(delegatorRewardBytes, delegatorReward); err != nil {
+		if err := json.Unmarshal(delegatorRewardBytes, &delegatorReward); err != nil {
 			return errors.Wrap(err, "Unable to decode delegator reward info")
 		}
 
@@ -39,7 +39,7 @@ func (p *PayoutsHandler) GetDelegatorRewardForCycle(address string, cycle int) (
 	return delegatorReward, err
 }
 
-func (p *PayoutsHandler) SaveDelegatorReward(rewardCycle int, rewardRecord *DelegatorReward) error {
+func (p *PayoutsHandler) SaveDelegatorReward(rewardCycle int, rewardRecord DelegatorReward) error {
 
 	return p.storage.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(DB_PAYOUTS_BUCKET)).Bucket(storage.Itob(rewardCycle))
@@ -92,8 +92,8 @@ func (p *PayoutsHandler) GetDelegatorRewardAllForCycle(cycle int) (map[string]De
 	return delegatorRewards, err
 }
 
-// updateDelegatorRewardOpHash will fetch a DelegatorReward struct from DB via cycle and address. It then
-// unmarshals the bytes to a new struct, updates, re-marshals and saves back to DB, effectively updating the record.
+// updateDelegatorRewardOpHash will fetch a DelegatorReward from DB via cycle and address, then
+// updates, and save the new opHash.
 func (p *PayoutsHandler) updateDelegatorRewardOpHash(address string, cycle int, opHash string) error {
 
 	// Fetch from DB
@@ -101,7 +101,6 @@ func (p *PayoutsHandler) updateDelegatorRewardOpHash(address string, cycle int, 
 	if err != nil {
 		return err
 	}
-
 	delegatorReward.OpHash = opHash
 
 	return p.SaveDelegatorReward(cycle, delegatorReward)

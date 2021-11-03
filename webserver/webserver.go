@@ -113,6 +113,7 @@ func Start(args WebServerArgs) error {
 	settingsRouter.HandleFunc("/addendpoint", ws.addEndpoint).Methods("POST")
 	settingsRouter.HandleFunc("/listendpoints", ws.listEndpoints).Methods("GET")
 	settingsRouter.HandleFunc("/deleteendpoint", ws.deleteEndpoint).Methods("POST")
+	settingsRouter.HandleFunc("/bakersettings", ws.saveBakerSettings).Methods("POST")
 
 	// Payouts tab
 	payoutsRouter := apiRouter.PathPrefix("/payouts").Subrouter()

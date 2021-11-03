@@ -5,6 +5,7 @@ import Row from 'react-bootstrap/Row';
 
 import Notifications from './notifications.js'
 import Rpcservers from './rpcservers.js'
+import BakerSettings from './bakersettings.js'
 
 import ToasterContext from '../toaster.js';
 import { apiRequest } from '../util.js';
@@ -51,6 +52,9 @@ const Settings = (props) => {
 		<Row>
 		  <Col md={5}>
 			<Rpcservers settings={settings} loadSettings={loadSettings} />
+		  </Col>
+		  <Col md={5}>
+			<BakerSettings settings={settings} loadSettings={loadSettings} />
 		  </Col>
 		</Row>
 		<Row>

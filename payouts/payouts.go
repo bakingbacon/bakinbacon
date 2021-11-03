@@ -26,9 +26,12 @@ type PayoutsHandler struct {
 }
 
 const (
-	REACTIVATION_FEE = 257000
-	TXN_FEE          = 395
-	GAS_LIMIT        = 1420
+	REACTIVATION_FEE     = 277000
+	REACTIVATION_STORAGE = 300
+
+	TXN_FEE              = 395
+	GAS_LIMIT            = 1520 // tezos-client uses 1420 + 100
+	STORAGE_LIMIT        = 0
 
 	TZ1_BATCH_SIZE = 100
 	KT1_BATCH_SIZE = 10
@@ -37,8 +40,6 @@ const (
 	DB_PAYOUTS_BUCKET = "payouts"
 	DB_METADATA       = "metadata"
 )
-
-var bakerFee = 8.0
 
 func NewPayoutsHandler(bc *baconclient.BaconClient, db *storage.Storage, nc *util.NetworkConstants, nh *notifications.NotificationHandler) (*PayoutsHandler, error) {
 
@@ -65,10 +66,10 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 	}()
 
 	// Only calculate payouts in levels 32-48 of cycle
-// 	cyclePosition := block.Metadata.Level.CyclePosition
-// 	if cyclePosition < 32 || cyclePosition > 48 {
-// 		return
-// 	}
+	cyclePosition := block.Metadata.Level.CyclePosition
+	if cyclePosition < 32 || cyclePosition > 48 {
+		return
+	}
 
 	// The current cycle is X. Rewards for cycle X - $preservedCycles are
 	// released in the last block of cycle X. BakinBacon will take action
@@ -80,16 +81,14 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 	// Check if payouts have already calculated, or processed for this cycle
 	cycleRewardMetadata, err := p.GetRewardMetadataForCycle(payoutCycle)
 	if err != nil {
-		log.WithError(err).Error("Unable to get payouts metadata from DB")
+		log.WithError(err).WithField("PC", payoutCycle).Error("Unable to get payouts metadata from DB")
 		return
 	}
 
 	// If no status for cycle (ie: nothing from DB), process this reward cycle, otherwise, return
 	switch cycleRewardMetadata.Status {
-	case CALCULATED:
-	case DONE:
-	case IN_PROGRESS:
-		log.WithField("RewardCycle", payoutCycle).Info("Reward metadata already processed")
+	case CALCULATED, DONE, IN_PROGRESS:
+		log.WithField("RewardCycle", payoutCycle).Info("Reward metadata for cycle already processed")
 		return
 	default:
 		log.WithField("RewardCycle", payoutCycle).Info("Processing cycle reward metadata")
@@ -143,8 +142,21 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		return
 	}
 
+	// Get baker settings to determine their fee
+	bakerSettings, err := p.storage.GetBakerSettings()
+	if err != nil {
+		log.WithError(err).Error("Unable to get baker settings for payouts")
+		return
+	}
+
+	bakerFee, err := strconv.ParseFloat(bakerSettings["bakerfee"].(string), 64)
+	if err != nil {
+		log.WithError(err).Error("Cannot convert baker fee for payouts")
+		return
+	}
+
 	totalBakerRewards := float64(blockRewards + feeRewards)
-	bakerFeePct := float64(1 - (bakerFee / 100))
+	bakerFeePct := float64(1 - (cycleRewardMetadata.BakerFee / 100))
 
 	cycleRewardMetadata.BakerFee = bakerFee
 	cycleRewardMetadata.BlockRewards = blockRewards
@@ -187,7 +199,8 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 	}
 	cycleRewardMetadata.DelegatedBalance = delegatedBalance
 
-	cycleRewardMetadata.NumDelegators = len(bakerInfo.DelegateContracts)
+	// Subtract ourselves since bakers delegate to themselves
+	cycleRewardMetadata.NumDelegators = len(bakerInfo.DelegateContracts) - 1
 	cycleRewardMetadata.Status = CALCULATED
 
 	// Save to DB
@@ -210,7 +223,7 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		}
 
 		// Reward record
-		rewardRecord := &DelegatorReward{
+		rewardRecord := DelegatorReward{
 			Delegator: delegatorAddress,
 		}
 
@@ -308,18 +321,9 @@ func (p *PayoutsHandler) getUnfrozenRewards(bakerAddress string, rewardCycle int
 // rewards for rewardCycle and send them to the node for injection.
 func (p *PayoutsHandler) SendCyclePayouts(rewardCycle int) error {
 
-	// Get metadata for this payout
-	cycleRewardMetadata, err := p.GetRewardMetadataForCycle(rewardCycle)
-	if err != nil {
-		return errors.Wrap(err, "Unable to get payouts metadata from DB")
-	}
-
-	// Update status of cycle payouts
-	cycleRewardMetadata.Status = IN_PROGRESS
-
-	// Save to DB
-	if err := p.SaveRewardMetadataForCycle(rewardCycle, cycleRewardMetadata); err != nil {
-		return errors.Wrap(err, "Cannot save rewards metadata to DB")
+	// Set payouts processing state
+	if err := p.setCyclePayoutStatus(rewardCycle, IN_PROGRESS); err != nil {
+		return errors.Wrap(err, "Cannot update rewards metadata status")
 	}
 
 	// Need baker's public key hash to create transactions
@@ -365,15 +369,22 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 	numBatches := int(math.Ceil(float64(numRewardsData) / TZ1_BATCH_SIZE))
 	txnBatches := make([][]rpc.Content, numBatches)
 
+	log.WithFields(log.Fields{
+		"RewardCycle": rewardsCycle, "NumRewards": numRewardsData, "NumBatches": numBatches, "BatchSize": TZ1_BATCH_SIZE,
+	}).Info("Creating rewards payouts batches")
+
 	var batchCounter, rewardsCounter int
 
 	// Cant get index, val from this range due to being a map. Have to counter++ it.
 	for _, r := range rewardsData {
 
+		delegatorNetReward := r.Reward
+		txnFee       := TXN_FEE
+		storageLimit := STORAGE_LIMIT
+		gasLimit     := GAS_LIMIT
+
 		// Need the current balance of the delegator. If balance is 0,
 		// we will deduct reactivation cost from their reward before sending
-
-		delegatorNetReward := r.Reward
 
 		cbi := rpc.ContractBalanceInput{
 			BlockID:    &rpc.BlockIDHead{},
@@ -395,15 +406,25 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 			continue
 		}
 
+		// Need reactivation
 		if delegatorBalance == 0 {
+
+			// Charge reactivation to delegator
 			delegatorNetReward -= REACTIVATION_FEE
+
+			// Need storage to reactivate
+			storageLimit += REACTIVATION_STORAGE
+
+			// Increased storage requires additional fee in the txn
+			txnFee += REACTIVATION_FEE
+
 			log.WithFields(log.Fields{
 				"D": r.Delegator, "B": delegatorBalance,
 			}).Trace("Delegator needs reactivation")
 		}
 
 		// Delegator's pay for the transaction fee
-		delegatorNetReward -= TXN_FEE
+		delegatorNetReward -= txnFee
 
 		// Baker fee already deducted during handlePayouts()
 
@@ -413,12 +434,14 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 			bakerCounter++
 
 			txn := rpc.Transaction{
-				Source:      bakerPkh,
-				Destination: r.Delegator,
-				Amount:      strconv.Itoa(delegatorNetReward),
-				Fee:         strconv.Itoa(TXN_FEE),
-				GasLimit:    strconv.Itoa(GAS_LIMIT),
-				Counter:     strconv.Itoa(bakerCounter),
+				Kind:         rpc.TRANSACTION,
+				Source:       bakerPkh,
+				Destination:  r.Delegator,
+				Amount:       strconv.Itoa(delegatorNetReward),
+				Fee:          strconv.Itoa(txnFee),
+				GasLimit:     strconv.Itoa(gasLimit),
+				StorageLimit: strconv.Itoa(storageLimit),
+				Counter:      strconv.Itoa(bakerCounter),
 			}
 
 			// Convert to generic 'content' before appending to batch
@@ -438,6 +461,8 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 		}
 	}
 
+	log.Info("Rewards payouts batches created; Sign/Inject Phase...")
+
 	// Now that we have all the batches, sign and send them
 
 	for i, batch := range txnBatches {
@@ -446,14 +471,20 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 		batchOp, err := forge.Encode(p.client.HeadHash(), batch...)
 		if err != nil {
 			log.WithError(err).Error("Unable to forge-encode payouts batch")
-			continue
+			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+				log.WithError(err).Error("Unable to update cycle status to ERROR")
+			}
+			return
 		}
 
 		// Sign the operation
 		signerResult, err := p.client.Signer.SignTransaction(batchOp)
 		if err != nil {
 			log.WithError(err).Error("Unable to sign payouts batch")
-			continue
+			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+				log.WithError(err).Error("Unable to update cycle status to ERROR")
+			}
+			return
 		}
 
 		// Inject operation
@@ -461,25 +492,36 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 			Operation: signerResult.SignedOperation,
 		})
 		if err != nil {
-			log.WithError(err).Error("Failed to inject registration")
-			continue
+			log.WithError(err).Error("Failed to inject batch transaction")
+			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+				log.WithError(err).Error("Unable to update cycle status to ERROR")
+			}
+			return
 		}
 
 		// Update database with opHash for each delegator reward
 		for _, c := range batch {
 
 			if err := p.updateDelegatorRewardOpHash(c.Destination, rewardsCycle, opHash); err != nil {
-				log.WithError(err).Error("Unable to update reward opHash")
+
+				log.WithError(err).WithFields(log.Fields{
+					"RewardCycle": rewardsCycle, "OpHash": opHash,
+				}).Error("Unable to update reward opHash")
+
+				if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+					log.WithError(err).Error("Unable to update cycle status to ERROR")
+				}
+
 				continue
 			}
 
 			log.WithFields(log.Fields{
 				"D": c.Destination, "A": c.Amount, "F": c.Fee,
-			}).Debugf("Cycle %d Rewards Payout Batch #%d", rewardsCycle, i)
+			}).Debugf("Cycle %d Rewards Payout Batch #%d", rewardsCycle, i+1)
 		}
 
 		// Give some logging
-		log.WithField("OpHash", opHash).Infof("Payouts Batch #%d Injected", i)
+		log.WithField("OpHash", opHash).Infof("Payouts Batch #%d Injected", i+1)
 	}
 
 	// After all batches processed, update cycle payout status

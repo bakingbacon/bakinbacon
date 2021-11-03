@@ -10,6 +10,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func (ws *WebServer) saveBakerSettings(w http.ResponseWriter, r *http.Request) {
+
+	log.Trace("API - saveBakerSettings")
+
+	// From javascript UI, everything is a string
+	k := make(map[string]string)
+
+	if err := json.NewDecoder(r.Body).Decode(&k); err != nil {
+		apiError(errors.Wrap(err, "Cannot decode body for baker settings"), w)
+		return
+	}
+
+	if err := ws.storage.SaveBakerSettings(k); err != nil {
+		apiError(errors.Wrap(err, "Cannot save baker settings"), w)
+		return
+	}
+
+	apiReturnOk(w)
+}
+
 func (ws *WebServer) saveTelegram(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - SaveTelegram")
@@ -65,9 +85,17 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	log.WithField("Notifications", string(notifications)).Debug("API Settings Notifications")
 
+	// Get baker settings
+	bakerSettings, err := ws.storage.GetBakerSettings()
+	if err != nil {
+		apiError(errors.Wrap(err, "Cannot get baker settings"), w)
+		return
+	}
+
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"endpoints":     endpoints,
 		"notifications": notifications,
+		"baker": bakerSettings,
 	}); err != nil {
 		log.WithError(err).Error("UI Return Encode Failure")
 	}

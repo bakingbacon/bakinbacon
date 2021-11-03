@@ -14,7 +14,14 @@ const (
 	CALCULATED  = "calc"
 	DONE        = "done"
 	IN_PROGRESS = "inprog"
+	ERROR       = "err"
 )
+
+// TODO?
+// t := reflect.TypeOf(CycleRewardMetadata{})
+// for _, f := range reflect.VisibleFields(t) {
+// 	fmt.Println(f.Tag.Get("db"))
+// }
 
 type CycleRewardMetadata struct {
 	PayoutCycle        int `json:"c"`   // Rewards cycle
@@ -80,28 +87,37 @@ func (p *PayoutsHandler) setCyclePayoutStatus(cycle int, status string) error {
 	if err != nil {
 		return err
 	}
-
 	metadata.Status = status
+
+	if err := p.SaveRewardMetadataForCycle(cycle, metadata); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // GetRewardMetadataForCycle returns metadata struct for a single cycle
-func (p *PayoutsHandler) GetRewardMetadataForCycle(rewardCycle int) (*CycleRewardMetadata, error) {
+func (p *PayoutsHandler) GetRewardMetadataForCycle(rewardCycle int) (CycleRewardMetadata, error) {
 
-	var cycleMetadata *CycleRewardMetadata
+	var cycleMetadata CycleRewardMetadata
 
 	err := p.storage.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(DB_PAYOUTS_BUCKET)).Bucket(storage.Itob(rewardCycle))
 		if b == nil {
-			return errors.New("Unable to locate cycle payouts bucket")
+			// No bucket for cycle; Return empty metadata for creation
+			return nil
 		}
 
 		// Get metadata key from bucket
 		cycleMetadataBytes := b.Get([]byte(DB_METADATA))
 
+		// No data, can't unmarshal; Return empty metadata for creation
+		if len(cycleMetadataBytes) == 0 {
+			return nil
+		}
+
 		// Unmarshal ...
-		if err := json.Unmarshal(cycleMetadataBytes, cycleMetadata); err != nil {
+		if err := json.Unmarshal(cycleMetadataBytes, &cycleMetadata); err != nil {
 			return errors.Wrap(err, "Unable to unmarshal cycle metadata")
 		}
 
@@ -111,7 +127,7 @@ func (p *PayoutsHandler) GetRewardMetadataForCycle(rewardCycle int) (*CycleRewar
 	return cycleMetadata, err
 }
 
-func (p *PayoutsHandler) SaveRewardMetadataForCycle(rewardCycle int, metadata *CycleRewardMetadata) error {
+func (p *PayoutsHandler) SaveRewardMetadataForCycle(rewardCycle int, metadata CycleRewardMetadata) error {
 
 	// Marshal to bytes
 	metadataBytes, err := json.Marshal(metadata)

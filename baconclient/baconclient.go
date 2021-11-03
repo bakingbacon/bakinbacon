@@ -350,33 +350,28 @@ func (b *BaconClient) CheckDelegateBalance() error {
 // GetSpendableBalance returns the spendable balance of the baker to determine if we can post bond
 func (b *BaconClient) GetSpendableBalance() (int, error) {
 
-	di := rpc.DelegateInput{
-		BlockID:  &rpc.BlockIDHead{},
-		Delegate: b.Signer.BakerPkh,
+	cbi := rpc.ContractBalanceInput{
+		BlockID:    &rpc.BlockIDHead{},
+		ContractID: b.Signer.BakerPkh,
 	}
 
-	resp, delegateInfo, err := b.Current.Delegate(di)
+	resp, contractBalance, err := b.Current.ContractBalance(cbi)
 
 	log.WithFields(log.Fields{
 		"Request": resp.Request.URL, "Response": string(resp.Body()),
-	}).Trace("Fetching delegate balances")
+	}).Trace("Fetching baker spendable balance")
 
 	if err != nil {
-		return 0, errors.Wrap(err, "Unable to fetch balances (delegate info)")
+		return 0, errors.Wrap(err, "Unable to fetch baker balance")
 	}
 
-	// Spendable balance is "total balance" - frozen balance
-	balance, err := strconv.Atoi(delegateInfo.Balance)
+	// Convert string to number
+	balance, err := strconv.Atoi(contractBalance)
 	if err != nil {
-		return 0, errors.Wrap(err, "Unable to parse spendable balance")
+		return 0, errors.Wrap(err, "Unable to parse baker balance")
 	}
 
-	frozen, err := strconv.Atoi(delegateInfo.FrozenBalance)
-	if err != nil {
-		return 0, errors.Wrap(err, "Unable to parse frozen balance")
-	}
-
-	return balance - frozen, nil
+	return balance, nil
 }
 
 // IsRevealed Checks if the baker has revealed their public key. If not, display UI message indicating the need to do this step.

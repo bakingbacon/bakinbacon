@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/pkg/errors"
 
@@ -15,7 +16,41 @@ const (
 	BIP_PATH        = "bippath"
 	SIGNER_TYPE     = "signertype"
 	SIGNER_SK       = "signersk"
+	BAKER_FEE       = "bakerfee"
 )
+
+func (s *Storage) GetBakerSettings() (map[string]interface{}, error) {
+
+	settings := make(map[string]interface{})
+
+	err := s.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(CONFIG_BUCKET))
+
+		settings[BAKER_FEE] = strconv.Itoa(Btoi(b.Get([]byte(BAKER_FEE))))
+
+		return nil
+	})
+
+	return settings, err
+}
+
+func (s *Storage) SaveBakerSettings(settings map[string]string) error {
+
+	bakerFee, err := strconv.Atoi(settings[BAKER_FEE])
+	if err != nil {
+		return err
+	}
+
+	return s.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(CONFIG_BUCKET))
+
+		if err := b.Put([]byte(BAKER_FEE), Itob(bakerFee)); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
 
 func (s *Storage) GetDelegate() (string, string, error) {
 
@@ -36,9 +71,11 @@ func (s *Storage) SetDelegate(sk, pkh string) error {
 
 	return s.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
+
 		if err := b.Put([]byte(SIGNER_SK), []byte(sk)); err != nil {
 			return err
 		}
+
 		if err := b.Put([]byte(PUBLIC_KEY_HASH), []byte(pkh)); err != nil {
 			return err
 		}

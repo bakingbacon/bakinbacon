@@ -96,15 +96,13 @@ const Bakinbacon = () => {
 			<>
 			<Container>
 				<Row>
-				  <Col>
+				  <Col md="12">
 					<Navbar bg="light">
 						<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
 					</Navbar>
 				  </Col>
 				</Row>
-				<Row>
-					<SetupWizard didEnterWizard={didEnterWizard} />
-				</Row>
+				<SetupWizard didEnterWizard={didEnterWizard} />
 			</Container>
 			</>
 		);

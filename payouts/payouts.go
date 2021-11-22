@@ -2,6 +2,7 @@ package payouts
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -91,7 +92,9 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		log.WithField("RewardCycle", payoutCycle).Info("Reward metadata for cycle already processed")
 		return
 	default:
-		log.WithField("RewardCycle", payoutCycle).Info("Processing cycle reward metadata")
+		msg := fmt.Sprintf("Calculating rewards for cycle %d", payoutCycle)
+		p.notifications.SendNotification(msg, notifications.PAYOUTS)
+		log.WithField("RewardCycle", payoutCycle).Info(msg)
 	}
 
 	// Begin calculations
@@ -203,12 +206,6 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 	cycleRewardMetadata.NumDelegators = len(bakerInfo.DelegateContracts) - 1
 	cycleRewardMetadata.Status = CALCULATED
 
-	// Save to DB
-	if err := p.SaveRewardMetadataForCycle(payoutCycle, cycleRewardMetadata); err != nil {
-		log.WithError(err).Error("Cannot save rewards metadata to DB")
-		return
-	}
-
 	log.Infof("Baker Rewards Info: B: %d FB: %s SB: %d DB: %d TR: %.0f",
 		balance, bakerInfo.FrozenBalance, stakingBalance, delegatedBalance, totalBakerRewards)
 
@@ -271,6 +268,19 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 	}
+
+	// Save status to DB and send notification
+	if err := p.SaveRewardMetadataForCycle(payoutCycle, cycleRewardMetadata); err != nil {
+		msg := "Cannot save cycle rewards metadata to DB"
+		log.WithError(err).Error(msg)
+		p.notifications.SendNotification(msg, notifications.PAYOUTS)
+
+		return
+	}
+
+	msg := fmt.Sprintf("Rewards calculations for cycle %d are complete. Use the UI to submit transactions.", payoutCycle)
+	log.Info(msg)
+	p.notifications.SendNotification(msg, notifications.PAYOUTS)
 }
 
 // getUnfrozenRewards Get the metadata of the last block of the cycle where the rewards are unfrozen.
@@ -459,6 +469,14 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 			// Go to next batch
 			batchCounter++
 		}
+	}
+
+	// any rewards?
+	if len(txnBatches) == 0 {
+		msg := fmt.Sprintf("No rewards to send for cycle %d", rewardsCycle)
+		p.notifications.SendNotification(msg, notifications.PAYOUTS)
+		log.Info(msg)
+		return
 	}
 
 	log.Info("Rewards payouts batches created; Sign/Inject Phase...")

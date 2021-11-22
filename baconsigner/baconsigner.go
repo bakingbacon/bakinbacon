@@ -127,7 +127,7 @@ func (s *BaconSigner) GetPublicKey() (string, string, error) {
 // GenerateNewKey Generates new key; Not applicable to Ledger
 func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 
-	sk, pkh, err := GenerateNewKey()
+	sk, pkh, err := GenerateNewKey(s.storage)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Cannot generate new key")
 	}
@@ -141,7 +141,7 @@ func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 // ImportSecretKey Imports a secret key; Not applicable to ledger
 func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
 
-	sk, pkh, err := ImportSecretKey(k)
+	sk, pkh, err := ImportSecretKey(k, s.storage)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Cannot import secret key")
 	}

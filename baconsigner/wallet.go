@@ -50,9 +50,11 @@ func InitWalletSigner(db *storage.Storage) error {
 }
 
 // GenerateNewKey Generates a new ED25519 keypair; Only used on first setup through UI wizard so init the signer here
-func GenerateNewKey() (string, string, error) {
+func GenerateNewKey(db *storage.Storage) (string, string, error) {
 
-	W = &WalletSigner{}
+	W = &WalletSigner{
+		storage: db,
+	}
 
 	newKey, err := gtks.Generate(gtks.Ed25519)
 	if err != nil {
@@ -72,9 +74,11 @@ func GenerateNewKey() (string, string, error) {
 }
 
 // ImportSecretKey Imports a secret key, saves to DB, and sets signer type to wallet
-func ImportSecretKey(iEdsk string) (string, string, error) {
+func ImportSecretKey(iEdsk string, db *storage.Storage) (string, string, error) {
 
-	W = &WalletSigner{}
+	W = &WalletSigner{
+		storage: db,
+	}
 
 	importKey, err := gtks.FromBase58(iEdsk, gtks.Ed25519)
 	if err != nil {

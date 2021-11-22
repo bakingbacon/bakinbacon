@@ -17,12 +17,6 @@ const (
 	ERROR       = "err"
 )
 
-// TODO?
-// t := reflect.TypeOf(CycleRewardMetadata{})
-// for _, f := range reflect.VisibleFields(t) {
-// 	fmt.Println(f.Tag.Get("db"))
-// }
-
 type CycleRewardMetadata struct {
 	PayoutCycle        int `json:"c"`   // Rewards cycle
 	LevelOfPayoutCycle int `json:"lpc"` // First level of rewards cycle

@@ -472,74 +472,76 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 	}
 
 	// any rewards?
-	if len(txnBatches) == 0 {
+	if len(txnBatches) < 1 {
+
 		msg := fmt.Sprintf("No rewards to send for cycle %d", rewardsCycle)
-		p.notifications.SendNotification(msg, notifications.PAYOUTS)
 		log.Info(msg)
-		return
-	}
+		p.notifications.SendNotification(msg, notifications.PAYOUTS)
 
-	log.Info("Rewards payouts batches created; Sign/Inject Phase...")
+	} else {
 
-	// Now that we have all the batches, sign and send them
+		log.Info("Rewards payouts batches created; Sign/Inject Phase...")
 
-	for i, batch := range txnBatches {
+		// Now that we have all the batches, sign and send them
 
-		// Forge the entire batch as 1 operation
-		batchOp, err := forge.Encode(p.client.HeadHash(), batch...)
-		if err != nil {
-			log.WithError(err).Error("Unable to forge-encode payouts batch")
-			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
-				log.WithError(err).Error("Unable to update cycle status to ERROR")
-			}
-			return
-		}
+		for i, batch := range txnBatches {
 
-		// Sign the operation
-		signerResult, err := p.client.Signer.SignTransaction(batchOp)
-		if err != nil {
-			log.WithError(err).Error("Unable to sign payouts batch")
-			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
-				log.WithError(err).Error("Unable to update cycle status to ERROR")
-			}
-			return
-		}
-
-		// Inject operation
-		_, opHash, err := p.client.Current.InjectionOperation(rpc.InjectionOperationInput{
-			Operation: signerResult.SignedOperation,
-		})
-		if err != nil {
-			log.WithError(err).Error("Failed to inject batch transaction")
-			if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
-				log.WithError(err).Error("Unable to update cycle status to ERROR")
-			}
-			return
-		}
-
-		// Update database with opHash for each delegator reward
-		for _, c := range batch {
-
-			if err := p.updateDelegatorRewardOpHash(c.Destination, rewardsCycle, opHash); err != nil {
-
-				log.WithError(err).WithFields(log.Fields{
-					"RewardCycle": rewardsCycle, "OpHash": opHash,
-				}).Error("Unable to update reward opHash")
-
+			// Forge the entire batch as 1 operation
+			batchOp, err := forge.Encode(p.client.HeadHash(), batch...)
+			if err != nil {
+				log.WithError(err).Error("Unable to forge-encode payouts batch")
 				if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
 					log.WithError(err).Error("Unable to update cycle status to ERROR")
 				}
-
-				continue
+				return
 			}
 
-			log.WithFields(log.Fields{
-				"D": c.Destination, "A": c.Amount, "F": c.Fee,
-			}).Debugf("Cycle %d Rewards Payout Batch #%d", rewardsCycle, i+1)
-		}
+			// Sign the operation
+			signerResult, err := p.client.Signer.SignTransaction(batchOp)
+			if err != nil {
+				log.WithError(err).Error("Unable to sign payouts batch")
+				if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+					log.WithError(err).Error("Unable to update cycle status to ERROR")
+				}
+				return
+			}
 
-		// Give some logging
-		log.WithField("OpHash", opHash).Infof("Payouts Batch #%d Injected", i+1)
+			// Inject operation
+			_, opHash, err := p.client.Current.InjectionOperation(rpc.InjectionOperationInput{
+				Operation: signerResult.SignedOperation,
+			})
+			if err != nil {
+				log.WithError(err).Error("Failed to inject batch transaction")
+				if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+					log.WithError(err).Error("Unable to update cycle status to ERROR")
+				}
+				return
+			}
+
+			// Update database with opHash for each delegator reward
+			for _, c := range batch {
+
+				if err := p.updateDelegatorRewardOpHash(c.Destination, rewardsCycle, opHash); err != nil {
+
+					log.WithError(err).WithFields(log.Fields{
+						"RewardCycle": rewardsCycle, "OpHash": opHash,
+					}).Error("Unable to update reward opHash")
+
+					if err := p.setCyclePayoutStatus(rewardsCycle, ERROR); err != nil {
+						log.WithError(err).Error("Unable to update cycle status to ERROR")
+					}
+
+					continue
+				}
+
+				log.WithFields(log.Fields{
+					"D": c.Destination, "A": c.Amount, "F": c.Fee,
+				}).Debugf("Cycle %d Rewards Payout Batch #%d", rewardsCycle, i+1)
+			}
+
+			// Give some logging
+			log.WithField("OpHash", opHash).Infof("Payouts Batch #%d Injected", i+1)
+		}
 	}
 
 	// After all batches processed, update cycle payout status

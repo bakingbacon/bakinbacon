@@ -269,6 +269,11 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		}
 	}
 
+	// No delegators to process? Then done!
+	if cycleRewardMetadata.NumDelegators == 0 {
+		cycleRewardMetadata.Status = DONE
+	}
+
 	// Save status to DB and send notification
 	if err := p.SaveRewardMetadataForCycle(payoutCycle, cycleRewardMetadata); err != nil {
 		msg := "Cannot save cycle rewards metadata to DB"

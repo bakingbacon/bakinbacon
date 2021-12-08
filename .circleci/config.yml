@@ -3,6 +3,7 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 jobs:
   lint:
+    resource_class: medium
     executor:
       name: go/default
       tag: '1.16'

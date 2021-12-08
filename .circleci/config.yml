@@ -1,0 +1,30 @@
+version: 2.1
+
+# Define a job to be invoked later in a workflow.
+jobs:
+  lint:
+    docker:
+      - image: golangci/golangci-lint:v1.37-alpine
+    steps:
+      - checkout
+      - run: go mod download
+      - run: golangci-lint run --timeout 300s
+
+  build:
+    docker:
+      - image: circleci/golang:1.15.8
+    working_directory: /go/src/bakingbacon
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: go mod download
+      - run:
+          name: Build
+          command: go build -v
+
+# Invoke jobs via workflows
+workflows:
+  lint_only:
+    jobs:
+      - lint

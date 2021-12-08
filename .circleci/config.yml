@@ -3,8 +3,9 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 jobs:
   lint:
-    docker:
-      - image: golangci/golangci-lint:v1.37-alpine
+    executor:
+      name: go/default
+      tag: '1.16'
     steps:
       - checkout
       - run: go mod download
@@ -22,6 +23,9 @@ jobs:
       - run:
           name: Build
           command: go build -v
+
+orbs:
+  go: circleci/go@1.7.0
 
 # Invoke jobs via workflows
 workflows:

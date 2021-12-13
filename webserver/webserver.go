@@ -19,6 +19,7 @@ import (
 
 	"bakinbacon/baconclient"
 	"bakinbacon/notifications"
+	"bakinbacon/payouts"
 	"bakinbacon/storage"
 )
 
@@ -44,17 +45,19 @@ type WebServer struct {
 	httpSvr             *http.Server
 	baconClient         *baconclient.BaconClient
 	notificationHandler *notifications.NotificationHandler
+	payoutsHandler      *payouts.PayoutsHandler
 	storage             *storage.Storage
 }
 
 type WebServerArgs struct {
 	Client              *baconclient.BaconClient
 	NotificationHandler *notifications.NotificationHandler
+	PayoutsHandler      *payouts.PayoutsHandler
 	Storage             *storage.Storage
 
-	BindAddr        string
-	BindPort        int
-	TemplateVars    TemplateVars
+	BindAddr     string
+	BindPort     int
+	TemplateVars TemplateVars
 
 	ShutdownChannel <-chan interface{}
 	WG              *sync.WaitGroup
@@ -70,6 +73,7 @@ func Start(args WebServerArgs) error {
 	ws := &WebServer{
 		baconClient:         args.Client,
 		notificationHandler: args.NotificationHandler,
+		payoutsHandler:      args.PayoutsHandler,
 		storage:             args.Storage,
 	}
 
@@ -109,6 +113,13 @@ func Start(args WebServerArgs) error {
 	settingsRouter.HandleFunc("/addendpoint", ws.addEndpoint).Methods("POST")
 	settingsRouter.HandleFunc("/listendpoints", ws.listEndpoints).Methods("GET")
 	settingsRouter.HandleFunc("/deleteendpoint", ws.deleteEndpoint).Methods("POST")
+	settingsRouter.HandleFunc("/bakersettings", ws.saveBakerSettings).Methods("POST")
+
+	// Payouts tab
+	payoutsRouter := apiRouter.PathPrefix("/payouts").Subrouter()
+	payoutsRouter.HandleFunc("/list", ws.getPayouts).Methods("GET")
+	payoutsRouter.HandleFunc("/cycledetail", ws.getCyclePayouts).Methods("GET")
+	payoutsRouter.HandleFunc("/sendpayouts", ws.sendCyclePayouts).Methods("POST")
 
 	// Voting tab
 	votingRouter := apiRouter.PathPrefix("/voting").Subrouter()
@@ -145,12 +156,12 @@ func Start(args WebServerArgs) error {
 	args.WG.Add(1)
 	go func() {
 		// TODO: SSL for localhost?
-		//var err error
-		//if wantSSL {
-		//	err = httpSvr.ListenAndServeTLS("ssl/cert.pem", "ssl/key.pem")
-		//} else {
-		//	err = httpSvr.ListenAndServe()
-		//}
+		// var err error
+		// if wantSSL {
+		//   err = httpSvr.ListenAndServeTLS("ssl/cert.pem", "ssl/key.pem")
+		// } else {
+		//   err = httpSvr.ListenAndServe()
+		// }
 		if err := ws.httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.WithError(err).Errorf("Httpserver: ListenAndServe()")
 		}

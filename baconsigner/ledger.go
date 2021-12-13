@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DEFAULT_BIP_PATH = "/44'/1729'/0'/1'"
+	DEFAULT_BIP_PATH = "/44'/1729'/0'/0'"
 )
 
 type LedgerInfo struct {

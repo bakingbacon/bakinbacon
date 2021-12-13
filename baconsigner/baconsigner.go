@@ -127,7 +127,7 @@ func (s *BaconSigner) GetPublicKey() (string, string, error) {
 // GenerateNewKey Generates new key; Not applicable to Ledger
 func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 
-	sk, pkh, err := GenerateNewKey()
+	sk, pkh, err := GenerateNewKey(s.storage)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Cannot generate new key")
 	}
@@ -141,7 +141,7 @@ func (s *BaconSigner) GenerateNewKey() (string, string, error) {
 // ImportSecretKey Imports a secret key; Not applicable to ledger
 func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
 
-	sk, pkh, err := ImportSecretKey(k)
+	sk, pkh, err := ImportSecretKey(k, s.storage)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Cannot import secret key")
 	}
@@ -173,8 +173,7 @@ func (s *BaconSigner) SaveSigner() error {
 // Close ledger or wallet
 func (s *BaconSigner) Close() {
 
-	switch s.signerType {
-	case SIGNER_LEDGER:
+	if s.signerType == SIGNER_LEDGER {
 		L.Close()
 	}
 }
@@ -232,16 +231,16 @@ func (s *BaconSigner) signGeneric(opPrefix prefix, incOpHex, chainID string) (Si
 	if err != nil {
 		return SignOperationOutput{}, errors.Wrap(err, "Failed to sign operation")
 	}
-	//fmt.Println("IncOpHex:   ", incOpHex)
-	//fmt.Println("IncOpBytes: ", incOpBytes)
+	// fmt.Println("IncOpHex:   ", incOpHex)
+	// fmt.Println("IncOpBytes: ", incOpBytes)
 
 	// Append incoming op bytes to either prefix, or prefix + chainId
 	opBytes = append(opBytes, incOpBytes...)
 
 	// Convert op bytes back to hex; anyone need this?
-	//finalOpHex := hex.EncodeToString(opBytes)
-	//fmt.Println("ToSignBytes: ", opBytes)
-	//fmt.Println("ToSignByHex: ", finalOpHex)
+	// finalOpHex := hex.EncodeToString(opBytes)
+	// fmt.Println("ToSignBytes: ", opBytes)
+	// fmt.Println("ToSignByHex: ", finalOpHex)
 
 	edSig, err := func(b []byte) (string, error) {
 		switch s.signerType {

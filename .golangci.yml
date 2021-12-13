@@ -1,6 +1,23 @@
 linters:
   enable:
-  - ifshort
-  - dogsled
-  - bodyclose
   - asciicheck
+  - bodyclose
+  - dogsled
+  - goconst
+  - gocritic
+  - ifshort
+  - makezero
+  - nilerr
+  - prealloc
+  - tagliatelle
+  - unparam
+  - wastedassign
+  disable:
+  - nlreturn
+
+linters-settings:
+  nlreturn:
+    block-size: 0
+  gocritic:
+    disabled-checks:
+      - ifElseChain

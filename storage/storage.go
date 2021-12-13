@@ -24,7 +24,7 @@ const (
 )
 
 type Storage struct {
-	db *bolt.DB
+	*bolt.DB
 }
 
 func InitStorage(dataDir, network string) (*Storage, error) {
@@ -83,7 +83,7 @@ func InitStorage(dataDir, network string) (*Storage, error) {
 
 	// set variable so main program can access
 	storage := &Storage{
-		db: db,
+		DB: db,
 	}
 
 	// Add the default endpoints only on brand new setup
@@ -95,18 +95,21 @@ func InitStorage(dataDir, network string) (*Storage, error) {
 	return storage, err
 }
 
-func (s *Storage) Close() {
-	s.db.Close()
+func (s *Storage) CloseDb() {
+	s.Close()
 	log.Info("Database closed")
 }
 
-// itob returns an 8-byte big endian representation of v.
-func itob(v int) []byte {
+// Itob returns an 8-byte big endian representation of v.
+func Itob(v int) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(v))
 	return b
 }
 
-func btoi(b []byte) int {
-	return int(binary.BigEndian.Uint64(b))
+func Btoi(b []byte) int {
+	if b != nil {
+		return int(binary.BigEndian.Uint64(b))
+	}
+	return 0
 }

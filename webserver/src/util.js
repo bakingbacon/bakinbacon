@@ -89,3 +89,8 @@ export const BaconAlert = (props) => {
 export const substr = (g) => {
 	return String(g).substring(0, 10)
 }
+
+export const muToTez = (x) => {
+	const y = parseInt(x)
+	return y/1e6
+}

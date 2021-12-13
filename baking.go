@@ -23,14 +23,14 @@ import (
 )
 
 const (
-	PROTOCOL_BB10     string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
+	PROTOCOL_BB10 string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
 
 	MAX_BAKE_PRIORITY int = 4
 	PRIORITY_LENGTH   int = 2
 	POW_HEADER_LENGTH int = 4
 	POW_LENGTH        int = 4
 
-	MUTEZ             float64 = 1000000
+	MUTEZ float64 = 1000000
 )
 
 func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block rpc.Block) {
@@ -159,21 +159,19 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 		// Even if error here, we can still proceed.
 		// Might have enough to post bond, might not.
 
-	} else {
+	} else if requiredBond > spendableBalance {
 
 		// If not enough bond, exit early
-		if requiredBond > spendableBalance {
 
-			msg := "Bond balance too low for baking"
-			log.WithFields(log.Fields{
-				"Spendable": spendableBalance, "ReqBond": requiredBond,
-			}).Error(msg)
+		msg := "Bond balance too low for baking"
+		log.WithFields(log.Fields{
+			"Spendable": spendableBalance, "ReqBond": requiredBond,
+		}).Error(msg)
 
-			bb.Status.SetError(errors.New(msg))
-			bb.SendNotification(msg, notifications.BALANCE)
+		bb.Status.SetError(errors.New(msg))
+		bb.SendNotification(msg, notifications.BALANCE)
 
-			return
-		}
+		return
 	}
 
 	// If the priority is > 0, we need to wait at least priority * minBlockTime.
@@ -259,11 +257,7 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 
 		// Parse/filter mempool operations into correct
 		// operation slots for adding to the block
-		operations, err = bb.parseMempoolOperations(mempoolOps, block.Hash, block.Header.Level, block.Protocol)
-		if err != nil {
-			log.WithError(err).Error("Failed to sort mempool ops")
-			return
-		}
+		operations = bb.parseMempoolOperations(mempoolOps, block.Hash, block.Header.Level, block.Protocol)
 
 		log.Infof("Found %d endorsement operations in mempool", len(operations[0]))
 
@@ -419,7 +413,7 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 
 	// forged block header includes protocol_data and proof-of-work placeholder bytes
 	// protocol_data can sometimes contain seed_nonce_hash, so send the offset to powLoop
-	//forgedBlock := forgedBlockHeader.Block
+	// forgedBlock := forgedBlockHeader.Block
 	protocolDataLength := len(protocolData)
 
 	// Check if a new block has been posted to /head and we should abort
@@ -454,6 +448,7 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 			time.Sleep(1 * time.Second)
 			continue
 		}
+
 		break // Break loop; No error; Success sign
 	}
 
@@ -512,14 +507,10 @@ func (bb *BakinBacon) handleBake(ctx context.Context, wg *sync.WaitGroup, block 
 		withNonce = ", with nonce"
 
 		// Marshal for DB
-		nonceBytes, err := json.Marshal(nonce)
-		if err != nil {
+		if nonceBytes, err := json.Marshal(nonce); err != nil {
 			log.WithError(err).Error("Unable to marshal nonce")
-		} else {
-
-			if err := bb.Storage.SaveNonce(block.Metadata.Level.Cycle, nonce.Level, nonceBytes); err != nil {
-				log.WithError(err).Error("Unable to save nonce for reveal")
-			}
+		} else if err := bb.Storage.SaveNonce(block.Metadata.Level.Cycle, nonce.Level, nonceBytes); err != nil {
+			log.WithError(err).Error("Unable to save nonce for reveal")
 		}
 	}
 
@@ -637,7 +628,7 @@ func createProtocolData(priority int, nonceHex string) string {
 		"00")                     // 1-byte LB escape vote
 }
 
-func (bb *BakinBacon) parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) ([][]rpc.Operations, error) {
+func (bb *BakinBacon) parseMempoolOperations(ops *rpc.Mempool, curBranch string, curLevel int, headProtocol string) [][]rpc.Operations {
 
 	// 4 slots for operations to be sorted into:
 	//  0 endorsements
@@ -748,7 +739,7 @@ func (bb *BakinBacon) parseMempoolOperations(ops *rpc.Mempool, curBranch string,
 		"NumTxn": len(operations[3]), "TotalBlockGas": currentBlockGas,
 	}).Debug("Parsed mempool operations")
 
-	return operations, nil
+	return operations
 }
 
 func (bb *BakinBacon) computeEndorsingPower(blockId rpc.BlockID, bakingLevel int, operations []rpc.Operations) (int, error) {

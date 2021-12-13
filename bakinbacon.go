@@ -13,6 +13,7 @@ import (
 
 	"bakinbacon/baconclient"
 	"bakinbacon/notifications"
+	"bakinbacon/payouts"
 	"bakinbacon/storage"
 	"bakinbacon/util"
 	"bakinbacon/webserver"
@@ -25,6 +26,7 @@ var (
 type BakinBacon struct {
 	*baconclient.BaconClient
 	*notifications.NotificationHandler
+	*payouts.PayoutsHandler
 	*storage.Storage
 	*util.NetworkConstants
 	Flags
@@ -70,14 +72,16 @@ func main() {
 	}
 
 	// Start
-	log.Infof("=== BakinBacon v1.0 (%s) ===", commitHash)
+	startMsg := fmt.Sprintf("=== BakinBacon %s (%s) ===", version, commitHash)
+	log.Infof(startMsg)
 	log.Infof("=== Network: %s ===", bakinbacon.network)
 
-	// Global Notifications handler singleton
+	// Global Notifications handler
 	bakinbacon.NotificationHandler, err = notifications.NewHandler(bakinbacon.Storage)
 	if err != nil {
 		log.WithError(err).Error("Unable to load notifiers")
 	}
+	bakinbacon.SendNotification(startMsg, notifications.STARTUP)
 
 	// Network constants
 	bakinbacon.NetworkConstants, err = util.GetNetworkConstants(bakinbacon.network)
@@ -92,9 +96,17 @@ func main() {
 	}).Debug("Loaded Network Constants")
 
 	// Set up RPC polling-monitoring
-	bakinbacon.BaconClient, err = baconclient.New(bakinbacon.NotificationHandler, bakinbacon.Storage, bakinbacon.NetworkConstants, shutdownChannel, &wg)
+	bakinbacon.BaconClient, err = baconclient.New(
+		bakinbacon.NotificationHandler, bakinbacon.Storage, bakinbacon.NetworkConstants, shutdownChannel, &wg)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create BaconClient")
+	}
+
+	// For managing rewards payouts
+	bakinbacon.PayoutsHandler, err = payouts.NewPayoutsHandler(
+		bakinbacon.BaconClient, bakinbacon.Storage, bakinbacon.NetworkConstants, bakinbacon.NotificationHandler)
+	if err != nil {
+		log.WithError(err).Fatalf("Cannot create payouts handler")
 	}
 
 	// Version checking
@@ -113,6 +125,7 @@ func main() {
 	webServerArgs := webserver.WebServerArgs{
 		Client:              bakinbacon.BaconClient,
 		NotificationHandler: bakinbacon.NotificationHandler,
+		PayoutsHandler:      bakinbacon.PayoutsHandler,
 		Storage:             bakinbacon.Storage,
 		BindAddr:            bakinbacon.webUiAddr,
 		BindPort:            bakinbacon.webUiPort,
@@ -163,6 +176,9 @@ func main() {
 			wg.Add(1)
 			go bakinbacon.handleBake(ctx, &wg, *block)
 
+			wg.Add(1)
+			go bakinbacon.PayoutsHandler.HandlePayouts(ctx, &wg, *block)
+
 			//
 			// Utility
 			//
@@ -185,7 +201,7 @@ func main() {
 	wg.Wait()
 
 	// Clean close DB, logs
-	bakinbacon.Storage.Close()
+	bakinbacon.Storage.CloseDb()
 	closeLogging()
 
 	os.Exit(0)

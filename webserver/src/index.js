@@ -11,8 +11,9 @@ import Tab from 'react-bootstrap/Tab';
 
 import BakinDashboard from './dashboard.js'
 import DelegateRegister from './delegateregister.js'
-import Settings from './settings'
+import Settings, { GetUiExplorer } from './settings'
 import SetupWizard from './wizards'
+import Payouts from './payouts'
 import Voting from './voting.js'
 
 import ToasterContext, { ToasterContextProvider } from './toaster.js';
@@ -29,6 +30,7 @@ const Bakinbacon = () => {
 	const [ delegate, setDelegate ] = useState("");
 	const [ status, setStatus ] = useState({});
 	const [ lastUpdate, setLastUpdate ] = useState(new Date().toLocaleTimeString());
+	const [ uiExplorer, setUiExplorer ] = useState("tzstats");
 	const [ connOk, setConnOk ] = useState(false);
 	const [ isLoading, setIsLoading ] = useState(true);
 	const [ inWizard, setInWizard ] = useState(false);
@@ -40,8 +42,11 @@ const Bakinbacon = () => {
 
 	// On component load
 	useEffect(() => {
+
 		setIsLoading(true);
+
 		fetchStatus();
+		GetUiExplorer(setUiExplorer);
 
 		// Update every 10 seconds
 		const idTimer = setInterval(() => fetchStatus(), 10000);
@@ -95,15 +100,13 @@ const Bakinbacon = () => {
 			<>
 			<Container>
 				<Row>
-				  <Col>
+				  <Col md="12">
 					<Navbar bg="light">
 						<Navbar.Brand><img src={logo} width="55" height="45" alt="BakinBacon Logo" />{' '}Bakin'Bacon</Navbar.Brand>
 					</Navbar>
 				  </Col>
 				</Row>
-				<Row>
-					<SetupWizard didEnterWizard={didEnterWizard} />
-				</Row>
+				<SetupWizard didEnterWizard={didEnterWizard} />
 			</Container>
 			</>
 		);
@@ -131,7 +134,7 @@ const Bakinbacon = () => {
 						{ status.state === NOT_REGISTERED ?
 						<DelegateRegister delegate={delegate} didEnterRegistration={didEnterRegistration} />
 						:
-						<BakinDashboard delegate={delegate} status={status} />
+						<BakinDashboard uiExplorer={uiExplorer} delegate={delegate} status={status} />
 						}
 					</Tab>
 					<Tab eventKey="settings" title="Settings">
@@ -139,6 +142,9 @@ const Bakinbacon = () => {
 					</Tab>
 					<Tab eventKey="voting" title="Voting">
 						<Voting delegate={delegate} />
+					</Tab>
+					<Tab eventKey="payouts" title="Payouts">
+						<Payouts uiExplorer={uiExplorer} />
 					</Tab>
 				</Tabs>
 			  </Col>

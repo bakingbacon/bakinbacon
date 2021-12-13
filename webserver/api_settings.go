@@ -91,6 +91,7 @@ func (ws *WebServer) getSettings(w http.ResponseWriter, r *http.Request) {
 		apiError(errors.Wrap(err, "Cannot get baker settings"), w)
 		return
 	}
+	log.WithField("Settings", bakerSettings).Debug("API Settings BakerSettings")
 
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"endpoints":     endpoints,

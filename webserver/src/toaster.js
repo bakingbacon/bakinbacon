@@ -2,7 +2,6 @@ import React, { useCallback, useState, createContext } from 'react';
 import Toast from 'react-bootstrap/Toast';
 
 const ToasterContext = createContext();
-export default ToasterContext
 
 export const ToasterContextProvider = ({children}) => {
 
@@ -49,3 +48,5 @@ export const ToasterContextProvider = ({children}) => {
 		</ToasterContext.Provider>
 	);
 }
+
+export default ToasterContext;

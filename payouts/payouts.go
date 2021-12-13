@@ -348,12 +348,12 @@ func (p *PayoutsHandler) SendCyclePayouts(rewardCycle int) error {
 	}
 
 	// Need baker's current txn counter
-	bakerCounterInput := rpc.ContractCounterInput{
+	bakerTxnCounterInput := rpc.ContractCounterInput{
 		BlockID:    &rpc.BlockIDHead{},
 		ContractID: pkh,
 	}
 
-	resp, counter, err := p.client.Current.ContractCounter(bakerCounterInput)
+	resp, counter, err := p.client.Current.ContractCounter(bakerTxnCounterInput)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Request": resp.Request.URL, "Response": string(resp.Body()),
@@ -367,7 +367,7 @@ func (p *PayoutsHandler) SendCyclePayouts(rewardCycle int) error {
 	return nil
 }
 
-func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, bakerCounter int) {
+func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, bakerTxnCounter int) {
 
 	// A batch bucket
 	var curBatch []rpc.Content
@@ -388,7 +388,7 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 		"RewardCycle": rewardsCycle, "NumRewards": numRewardsData, "NumBatches": numBatches, "BatchSize": TZ1_BATCH_SIZE,
 	}).Info("Creating rewards payouts batches")
 
-	var batchCounter, rewardsCounter int
+	var batchCounter, rewardsCounter, curBatchSize int
 
 	// Cant get index, val from this range due to being a map. Have to counter++ it.
 	for _, r := range rewardsData {
@@ -446,7 +446,7 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 		// Anything to actually pay? If so, construct the transaction and append to batch
 		if delegatorNetReward > 0 {
 
-			bakerCounter++
+			bakerTxnCounter++
 
 			txn := rpc.Transaction{
 				Kind:         rpc.TRANSACTION,
@@ -456,20 +456,27 @@ func (p *PayoutsHandler) createInjectRewards(rewardsCycle int, bakerPkh string, 
 				Fee:          strconv.Itoa(txnFee),
 				GasLimit:     strconv.Itoa(gasLimit),
 				StorageLimit: strconv.Itoa(storageLimit),
-				Counter:      strconv.Itoa(bakerCounter),
+				Counter:      strconv.Itoa(bakerTxnCounter),
 			}
 
 			// Convert to generic 'content' before appending to batch
 			curBatch = append(curBatch, txn.ToContent())
+			curBatchSize++
+
+		} else {
+			log.WithField("D", r.Delegator).Debug("Delegator reward is 0 XTZ; No payout required.")
 		}
 
 		// Count how many rewards we've processed
 		rewardsCounter++
 
-		// If our current batch equals batch size, add batch to bucket and reset
-		if rewardsCounter == TZ1_BATCH_SIZE || rewardsCounter == numRewardsData {
+		// If our current batch equals batch size, or we've finished processing all rewards,
+		// then add this batch to bucket and keep looping
+		if curBatchSize == TZ1_BATCH_SIZE || rewardsCounter == numRewardsData {
+
 			txnBatches[batchCounter] = curBatch
 			curBatch = nil
+			curBatchSize = 0
 
 			// Go to next batch
 			batchCounter++

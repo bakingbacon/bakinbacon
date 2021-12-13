@@ -12,13 +12,16 @@ import ToasterContext from '../toaster.js';
 import { BaconAlert, apiRequest, muToTez, substr } from '../util.js';
 
 import { FaCheckCircle } from 'react-icons/fa';
+import { FiMinusCircle } from 'react-icons/fi';
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
 // payouts/payouts_types.go
 const DONE        = "done"
 const IN_PROGRESS = "inprog"
 
-const Payouts = () => {
+const Payouts = (props) => {
+
+	const { uiExplorer } = props;
 
 	const [ payoutsMetadata, setPayoutsMetadata ] = useState({});
 	const [ payoutsDetail, setPayoutsDetail ]     = useState({});
@@ -75,25 +78,18 @@ const Payouts = () => {
 
 	const viewCycleDetail = (cycle) => {
 
+		// scroll to top
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+
 		const payoutsDetailApiUrl = window.BASE_URL + "/api/payouts/cycledetail?c=" + cycle
 
 		apiRequest(payoutsDetailApiUrl)
 		.then((data) => {
 
-			// Count rows that have an ophash
-			var counter = 0;
-			const payoutsData = data["payouts"]
+			const payoutStatus = data["metadata"]["st"]
 
-			const rowKeys = Object.keys(payoutsData);
-			rowKeys.forEach((a) => {
-				if (payoutsData[a]["o"] !== "") {
-					counter++;
-				}
-			})
-
-			// if number of rows with opHashes is same as number of rows, payouts
-			// have finished and we can clear the timer and do a toaster
-			if (counter === rowKeys.length) {
+			// clear the timer and do a toaster if status is done
+			if (payoutStatus === DONE) {
 				clearInterval(updateViewCycleDetailTimer.current);
 				setAlert({
 					msg: "Payouts for cycle "+cycle+" have completed.",
@@ -109,7 +105,7 @@ const Payouts = () => {
 			});
 
 			// are we processing payments?
-			setProcessing(data["metadata"]["st"] === IN_PROGRESS)
+			setProcessing(payoutStatus === IN_PROGRESS)
 
 			// display cycle details
 			setViewDetail(true);
@@ -133,6 +129,7 @@ const Payouts = () => {
 
 		// Show spinner and disable button
 		setProcessing(true);
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 
 		const sendPayoutsApiUrl = window.BASE_URL + "/api/payouts/sendpayouts"
 		const requestOptions = {
@@ -157,6 +154,16 @@ const Payouts = () => {
 		})
 	}
 
+	const paidStatusIcon = (amount, opHash) => {
+		if (amount === 0) {
+			return <FiMinusCircle alt="0 XTZ Reward" title="0 XTZ Reward"/>
+		}
+		if (opHash !== "") {
+			return <a href={"https://"+uiExplorer+"/"+opHash} target={"_blank"} rel={"noreferrer"}><FaCheckCircle /></a>
+		}
+		return "No"
+	}
+
 	if (isLoading) {
 		return (
 			<Row>
@@ -172,6 +179,7 @@ const Payouts = () => {
 		const cycle = payoutsDetail["cycle"]
 		const bBalance = formatter.format(muToTez(payoutsDetail["metadata"]["b"]))
 		const bReward = formatter.format(muToTez(payoutsDetail["metadata"]["br"]))
+		const bFee = parseInt(payoutsDetail["metadata"]["f"])
 		const cycleStatus = payoutsDetail["metadata"]["st"]
 		var totalPayouts = 0;
 
@@ -194,6 +202,7 @@ const Payouts = () => {
 								  <li>Faiure to acknowledge a payout will time-out the device and may have unforseen consequences.</li>
 								</ul>
 							</Alert>
+							<Card.Text><FiMinusCircle />: Delegator reward is 0.00 XTZ; No payout.</Card.Text>
 							<BaconAlert alert={alert} />
 							{ processing && <>
 							<Card.Text className="text-center" as="div">
@@ -216,6 +225,8 @@ const Payouts = () => {
 										<th>&nbsp;</th>
 										<th>Baker Reward</th>
 										<th>&nbsp;</th>
+										<th>Baker Fee</th>
+										<th>&nbsp;</th>
 										<th>Delegator Reward</th>
 										<th>Paid</th>
 									</tr>
@@ -225,6 +236,7 @@ const Payouts = () => {
 										const d = payoutsDetail["rewards"][k];
 										var reward = muToTez(d["r"])
 										totalPayouts += reward
+										const icon = paidStatusIcon(d["r"], d["o"])
 										return (
 											<tr key={d["d"]}>
 												<td>{substr(d["d"])}...</td>
@@ -235,19 +247,17 @@ const Payouts = () => {
 												<td>{d["p"]}%</td>
 												<td>*</td>
 												<td>{bReward}&#42793;</td>
+												<td>-</td>
+												<td>{bFee}%</td>
 												<td>=</td>
 												<td>{formatter.format(reward)}&#42793;</td>
-												<td>{ d["o"] 
-												? <a href={"https://tzstats.com/"+d["o"]} target={"_blank"} rel={"noreferrer"}><FaCheckCircle /></a>
-												: "No"
-												}
-												</td>
+												<td>{ icon }</td>
 											</tr>
 										)
 									})}
 									<tr className="row-top-border">
-										<td colSpan={9} style={{textAlign: "right"}}>Total Cycle Payouts</td>
-										<td colSpan={2}>{formatter.format(totalPayouts)}&#42793;</td>
+										<td colSpan={11} style={{textAlign: "right"}}>Total Cycle Payouts</td>
+										<td colSpan={2} >{formatter.format(totalPayouts)}&#42793;</td>
 									</tr>
 								</tbody>
 							</Table>

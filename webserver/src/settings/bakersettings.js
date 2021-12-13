@@ -94,6 +94,15 @@ const BakerSettings = (props) => {
 					</Form.Group>
 				</Form.Row>
 				<Form.Row>
+					<Form.Group as={Col} md="9">
+						<Form.Control as="select" name="uiexplorer" value={bakerSettings["uiexplorer"]} onChange={(e) => handleUpdate(e)} >
+							<option value="tzstats.com">TZStats</option>
+							<option value="tzkt.io">TzKt</option>
+						</Form.Control>
+						<Form.Text className="text-muted">Block Explorer - Which explorer the UI uses when viewing operations.</Form.Text>
+					</Form.Group>
+				</Form.Row>
+				<Form.Row>
 					<Form.Group as={Col} md="4">
 						<Button variant="primary" onClick={updateBakerSettings} type="button" size="sm">Save Settings</Button>
 					</Form.Group>

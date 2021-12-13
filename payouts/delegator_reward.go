@@ -42,8 +42,8 @@ func (p *PayoutsHandler) GetDelegatorRewardForCycle(address string, cycle int) (
 func (p *PayoutsHandler) SaveDelegatorReward(rewardCycle int, rewardRecord DelegatorReward) error {
 
 	return p.storage.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(DB_PAYOUTS_BUCKET)).Bucket(storage.Itob(rewardCycle))
-		if b == nil {
+		b, err := tx.Bucket([]byte(DB_PAYOUTS_BUCKET)).CreateBucketIfNotExists(storage.Itob(rewardCycle))
+		if err != nil {
 			return errors.New("Unable to locate cycle payouts bucket")
 		}
 

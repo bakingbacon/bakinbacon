@@ -11,7 +11,7 @@ import { BaconAlert, CAN_BAKE, NO_SIGNER, substr } from './util.js'
 
 const BaconDashboard = (props) => {
 
-	const { delegate, status } = props;
+	const { uiExplorer, delegate, status } = props;
 	const [ alert, setAlert ] = useState({})
 
 	useEffect(() => {
@@ -61,13 +61,13 @@ const BaconDashboard = (props) => {
 								<Card.Title>Baking</Card.Title>
 								<Card.Subtitle className="mb-2 text-muted">Level: {status.pbl}</Card.Subtitle>
 								<Card.Subtitle className="mb-2 text-muted">Cycle: {status.pbc}</Card.Subtitle>
-								<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://tzstats.com/"+status.pbh} target={"_blank"} rel={"noreferrer"}>{substr(status.pbh)}</Card.Link></Card.Subtitle>
+								<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://"+uiExplorer+"/"+status.pbh} target={"_blank"} rel={"noreferrer"}>{substr(status.pbh)}</Card.Link></Card.Subtitle>
 							</Col>
 							<Col>
 								<Card.Title>Endorsement</Card.Title>
 								<Card.Subtitle className="mb-2 text-muted">Level: {status.pel}</Card.Subtitle>
 								<Card.Subtitle className="mb-2 text-muted">Cycle: {status.pec}</Card.Subtitle>
-								<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://tzstats.com/"+status.peh} target={"_blank"} rel={"noreferrer"}>{substr(status.peh)}</Card.Link></Card.Subtitle>
+								<Card.Subtitle className="mb-2 text-muted">Hash: <Card.Link href={"https://"+uiExplorer+"/"+status.peh} target={"_blank"} rel={"noreferrer"}>{substr(status.peh)}</Card.Link></Card.Subtitle>
 							</Col>
 						</Row>
 					</Card.Body>

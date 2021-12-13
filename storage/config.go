@@ -17,6 +17,7 @@ const (
 	SIGNER_TYPE     = "signertype"
 	SIGNER_SK       = "signersk"
 	BAKER_FEE       = "bakerfee"
+	UI_EXPLORER     = "uiexplorer"
 )
 
 func (s *Storage) GetBakerSettings() (map[string]interface{}, error) {
@@ -26,7 +27,8 @@ func (s *Storage) GetBakerSettings() (map[string]interface{}, error) {
 	err := s.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 
-		settings[BAKER_FEE] = strconv.Itoa(Btoi(b.Get([]byte(BAKER_FEE))))
+		settings[BAKER_FEE]   = strconv.Itoa(Btoi(b.Get([]byte(BAKER_FEE))))
+		settings[UI_EXPLORER] = string(b.Get([]byte(UI_EXPLORER)))
 
 		return nil
 	})
@@ -45,6 +47,10 @@ func (s *Storage) SaveBakerSettings(settings map[string]string) error {
 		b := tx.Bucket([]byte(CONFIG_BUCKET))
 
 		if err := b.Put([]byte(BAKER_FEE), Itob(bakerFee)); err != nil {
+			return err
+		}
+
+		if err := b.Put([]byte(UI_EXPLORER), []byte(settings[UI_EXPLORER])); err != nil {
 			return err
 		}
 

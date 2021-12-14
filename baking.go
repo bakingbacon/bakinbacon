@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	PROTOCOL_BB10 string = "42423037" // BB07 - 42 (B) 42 (B) 30 (0) 37 (7)
+	PROTOCOL_BB string = "42423130" // BB07 - 42 (B) 42 (B) 31 (1) 30 (0)
 
 	MAX_BAKE_PRIORITY int = 4
 	PRIORITY_LENGTH   int = 2
@@ -622,7 +622,7 @@ func createProtocolData(priority int, nonceHex string) string {
 
 	return fmt.Sprintf("%04x%s%s%s%s",
 		priority,                 // 2-byte priority
-		padEnd(PROTOCOL_BB10, 8), // 4-byte commit hash
+		padEnd(PROTOCOL_BB, 8),   // 4-byte version string
 		padEnd("0", 8),           // 4-byte proof of work
 		newNonce,                 // nonce presence flag + nonce
 		"00")                     // 1-byte LB escape vote

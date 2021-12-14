@@ -16,7 +16,7 @@ import { FiMinusCircle } from 'react-icons/fi';
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
 const DONE        = "done"     // payouts/payouts_types.go
-const IN_PROGRESS = "inprog"   // 
+const IN_PROGRESS = "inprog"   //
 const DISABLED    = "disabled" // webserver/api_payouts.go
 
 const Payouts = (props) => {

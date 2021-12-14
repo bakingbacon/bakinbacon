@@ -172,7 +172,8 @@ const Voting = (props) => {
 							<>
 							<Card.Header>Current Proposals</Card.Header>
 							<ListGroup variant="flush">
-							  { explorationProposals.map((o, i) => {
+							  { explorationProposals.length === 0 ? <Card.Body><Card.Text>No proposals have been submitted.</Card.Text></Card.Body> :
+								explorationProposals.map((o, i) => {
 								  return <ListGroup.Item key={i}><Row>
 									<Col md={1}><Button onClick={() => castUpVote(o[0])} variant="info" size="sm" type="button">Vote</Button></Col>
 									<Col md={6}><Card.Link href={"https://agora.tezos.com/proposal/"+o[0]} target="_blank" rel="noreferrer">{o[0]}</Card.Link></Col>

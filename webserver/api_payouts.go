@@ -14,6 +14,14 @@ func (ws *WebServer) getPayouts(w http.ResponseWriter, r *http.Request) {
 
 	log.Trace("API - getPayouts")
 
+	payoutsData := make(map[string]interface{}, 2)
+	payoutsData["status"] = "ok"
+
+	// Check if payouts are disabled
+	if ws.payoutsHandler.Disabled {
+		payoutsData["status"] = "disabled"
+	}
+
 	// Get all rewards metadata from DB
 	payoutsMetadata, err := ws.payoutsHandler.GetPayoutsMetadataAll()
 	if err != nil {
@@ -23,9 +31,11 @@ func (ws *WebServer) getPayouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	payoutsData["metadata"] = payoutsMetadata
+
 	// return raw JSON
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payoutsMetadata); err != nil {
+	if err := json.NewEncoder(w).Encode(payoutsData); err != nil {
 		log.WithError(err).Error("UI Return getPayouts Failure")
 	}
 }

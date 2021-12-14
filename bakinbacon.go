@@ -39,6 +39,7 @@ type Flags struct {
 	logTrace          bool
 	dryRunEndorsement bool
 	dryRunBake        bool
+	noPayouts         bool
 	webUiAddr         string
 	webUiPort         int
 	dataDir           string
@@ -104,7 +105,7 @@ func main() {
 
 	// For managing rewards payouts
 	bakinbacon.PayoutsHandler, err = payouts.NewPayoutsHandler(
-		bakinbacon.BaconClient, bakinbacon.Storage, bakinbacon.NetworkConstants, bakinbacon.NotificationHandler)
+		bakinbacon.BaconClient, bakinbacon.Storage, bakinbacon.NetworkConstants, bakinbacon.NotificationHandler, bakinbacon.noPayouts)
 	if err != nil {
 		log.WithError(err).Fatalf("Cannot create payouts handler")
 	}
@@ -233,6 +234,8 @@ func (bb *BakinBacon) parseArgs() {
 
 	flag.BoolVar(&bb.dryRunEndorsement, "dry-run-endorse", false, "Compute, but don't inject endorsements")
 	flag.BoolVar(&bb.dryRunBake, "dry-run-bake", false, "Compute, but don't inject blocks")
+
+	flag.BoolVar(&bb.noPayouts, "no-payouts", false, "Disable payouts within BakinBacon")
 
 	flag.StringVar(&bb.webUiAddr, "webuiaddr", "127.0.0.1", "Address on which to bind web UI server")
 	flag.IntVar(&bb.webUiPort, "webuiport", 8082, "Port on which to bind web UI server")

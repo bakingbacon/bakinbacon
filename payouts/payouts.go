@@ -24,6 +24,7 @@ type PayoutsHandler struct {
 	constants     *util.NetworkConstants
 	storage       *storage.Storage
 	notifications *notifications.NotificationHandler
+	Disabled      bool
 }
 
 const (
@@ -42,13 +43,14 @@ const (
 	DB_METADATA       = "metadata"
 )
 
-func NewPayoutsHandler(bc *baconclient.BaconClient, db *storage.Storage, nc *util.NetworkConstants, nh *notifications.NotificationHandler) (*PayoutsHandler, error) {
+func NewPayoutsHandler(bc *baconclient.BaconClient, db *storage.Storage, nc *util.NetworkConstants, nh *notifications.NotificationHandler, noPayouts bool) (*PayoutsHandler, error) {
 
 	return &PayoutsHandler{
 		client:        bc,
 		constants:     nc,
 		storage:       db,
 		notifications: nh,
+		Disabled:      noPayouts,
 	}, nil
 }
 
@@ -66,9 +68,15 @@ func (p *PayoutsHandler) HandlePayouts(ctx context.Context, wg *sync.WaitGroup, 
 		}
 	}()
 
-	// Only calculate payouts in levels 32-48 of cycle
+	// Only calculate payouts in levels 32-64 of cycle
 	cyclePosition := block.Metadata.Level.CyclePosition
-	if cyclePosition < 32 || cyclePosition > 48 {
+	if cyclePosition < 32 || cyclePosition > 64 {
+		return
+	}
+
+	// disabled?
+	if p.Disabled {
+		log.Info("Payouts functionality is disabled")
 		return
 	}
 

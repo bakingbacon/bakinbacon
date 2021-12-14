@@ -15,9 +15,9 @@ import { FaCheckCircle } from 'react-icons/fa';
 import { FiMinusCircle } from 'react-icons/fi';
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
-// payouts/payouts_types.go
-const DONE        = "done"
-const IN_PROGRESS = "inprog"
+const DONE        = "done"     // payouts/payouts_types.go
+const IN_PROGRESS = "inprog"   // 
+const DISABLED    = "disabled" // webserver/api_payouts.go
 
 const Payouts = (props) => {
 
@@ -26,9 +26,10 @@ const Payouts = (props) => {
 	const [ payoutsMetadata, setPayoutsMetadata ] = useState({});
 	const [ payoutsDetail, setPayoutsDetail ]     = useState({});
 
-	const [ isLoading, setIsLoading ]     = useState(true);
-	const [ inViewDetail, setViewDetail ] = useState(false);
-	const [ processing, setProcessing ]   = useState(false);
+	const [ isLoading, setIsLoading ]             = useState(true);
+	const [ inViewDetail, setViewDetail ]         = useState(false);
+	const [ processing, setProcessing ]           = useState(false);
+	const [ payoutsDisabled, setPayoutsDisabled ] = useState(false);
 
 	const [ alert, setAlert ] = useState({});
 	const addToast            = useContext(ToasterContext);
@@ -61,7 +62,8 @@ const Payouts = (props) => {
 
 		apiRequest(payoutsMetadataApiUrl)
 		.then((data) => {
-			setPayoutsMetadata(data)
+			setPayoutsDisabled(data["status"] === DISABLED)
+			setPayoutsMetadata(data["metadata"])
 		})
 		.catch((errMsg) => {
 			console.log(errMsg);
@@ -162,6 +164,17 @@ const Payouts = (props) => {
 			return <a href={"https://"+uiExplorer+"/"+opHash} target={"_blank"} rel={"noreferrer"}><FaCheckCircle /></a>
 		}
 		return "No"
+	}
+
+	if (payoutsDisabled) {
+		return (
+			<Row><Col><Card>
+			<Card.Header as="h5">Payouts</Card.Header>
+			<Card.Body>
+				<Card.Text>Payouts processing is disabled. Please use an external utility to process your baker rewards.</Card.Text>
+			</Card.Body>
+			</Card></Col></Row>
+		)
 	}
 
 	if (isLoading) {

@@ -4,5 +4,5 @@
  {"date":"2021-09-21T05:00:00Z", "version":"0.7.0", "notes":"- Hangzhounet compatibility"},
  {"date":"2021-10-24T02:22:00Z", "version":"0.7.1", "notes":"- More Hangzhounet fixes, Major refactor of base code"},
  {"date":"2021-11-04T00:00:00Z", "version":"0.8.0", "notes":"Payouts!"},
- {"date":"2021-12-14T00:00:00Z", "version":"1.0.0", "notes":"Yay! v1.0 GA!"}
+ {"date":"2021-12-14T00:00:00Z", "version":"1.1.0", "notes":"Yay! v1.1 GA!"}
 ]

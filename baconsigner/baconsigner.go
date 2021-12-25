@@ -154,7 +154,7 @@ func (s *BaconSigner) ImportSecretKey(k string) (string, string, error) {
 
 // TestLedger Will check if Ledger is plugged in and app is open; Not applicable to wallet
 func (s *BaconSigner) TestLedger() (*LedgerInfo, error) {
-	return TestLedger()
+	return TestLedger(s.storage)
 }
 
 // SaveSigner Saves signer config to DB

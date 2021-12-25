@@ -167,10 +167,12 @@ func (s *LedgerSigner) SetBipPath(p string) error {
 // TestLedger This function is only called from web UI during initial setup.
 // It will open the ledger, get the version string of the running app, and
 // fetch either the currently auth'd baking key, or fetch the default BIP path key
-func TestLedger() (*LedgerInfo, error) {
+func TestLedger(db *storage.Storage) (*LedgerInfo, error) {
 
-	L = &LedgerSigner{}
-	L.Info = &LedgerInfo{}
+	L = &LedgerSigner{
+		Info: &LedgerInfo{},
+		storage: db,
+	}
 
 	// Get device
 	dev, err := ledger.Get()
